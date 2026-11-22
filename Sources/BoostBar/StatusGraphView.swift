@@ -46,6 +46,7 @@ final class StatusGraphView: NSView {
     // Googly eyes
     var eyeSize = 1            // 0 small, 1 medium, 2 large
     var singleEye = false
+    var bloodshot = false
     var pupilOffsets: [CGPoint] = []
     var eyesClosed = false
 
@@ -308,8 +309,14 @@ final class StatusGraphView: NSView {
                 NSColor.black.setStroke()
                 lid.stroke()
             } else {
-                // white of the eye with a soft shade toward the bottom
-                NSGradient(starting: .white, ending: NSColor(white: 0.82, alpha: 1))?.draw(in: eye, angle: -90)
+                // white of the eye with a soft shade toward the bottom (pinkish when bloodshot)
+                if bloodshot {
+                    NSGradient(starting: NSColor(srgbRed: 1, green: 0.95, blue: 0.94, alpha: 1),
+                               ending: NSColor(srgbRed: 0.98, green: 0.72, blue: 0.72, alpha: 1))?.draw(in: eye, angle: -90)
+                    drawVeins(in: r, clip: eye, seed: i)
+                } else {
+                    NSGradient(starting: .white, ending: NSColor(white: 0.82, alpha: 1))?.draw(in: eye, angle: -90)
+                }
                 let off = i < pupilOffsets.count ? pupilOffsets[i] : .zero
                 let pr = pupilRadius
                 let c = NSPoint(x: r.midX + off.x, y: r.midY + off.y)
@@ -319,10 +326,44 @@ final class StatusGraphView: NSView {
                 let g = max(pr * 0.35, 0.8)
                 NSBezierPath(ovalIn: NSRect(x: c.x - pr * 0.45, y: c.y + pr * 0.15, width: g, height: g)).fill()
             }
-            NSColor.black.withAlphaComponent(0.85).setStroke()
+            (bloodshot && !eyesClosed ? NSColor(srgbRed: 0.6, green: 0.05, blue: 0.08, alpha: 1)
+                                      : NSColor.black.withAlphaComponent(0.85)).setStroke()
             eye.lineWidth = 1
             eye.stroke()
         }
+    }
+
+    /// Thin red veins creeping in from the rim toward the iris.
+    private func drawVeins(in r: NSRect, clip: NSBezierPath, seed: Int) {
+        NSGraphicsContext.saveGraphicsState()
+        clip.addClip()
+        let red = NSColor(srgbRed: 0.85, green: 0.07, blue: 0.10, alpha: 0.85)
+        red.setStroke()
+        // Fixed angles per eye so the veins don't flicker between frames.
+        let angles: [CGFloat] = seed % 2 == 0 ? [0.25, 1.9, 3.3, 4.6, 5.6] : [0.9, 2.6, 3.9, 5.0, 6.0]
+        let c = NSPoint(x: r.midX, y: r.midY)
+        for (k, a) in angles.enumerated() {
+            let edge = NSPoint(x: c.x + cos(a) * r.width / 2, y: c.y + sin(a) * r.height / 2)
+            let inner = NSPoint(x: c.x + cos(a) * r.width * 0.17, y: c.y + sin(a) * r.height * 0.17)
+            let wiggle: CGFloat = (k % 2 == 0 ? 1 : -1) * r.width * 0.12
+            let v = NSBezierPath()
+            v.move(to: edge)
+            v.curve(to: inner,
+                    controlPoint1: NSPoint(x: (edge.x * 2 + inner.x) / 3 - sin(a) * wiggle, y: (edge.y * 2 + inner.y) / 3 + cos(a) * wiggle),
+                    controlPoint2: NSPoint(x: (edge.x + inner.x * 2) / 3 + sin(a) * wiggle, y: (edge.y + inner.y * 2) / 3 - cos(a) * wiggle))
+            v.lineWidth = 0.6
+            v.stroke()
+            // a small fork on alternate veins
+            if k % 2 == 0 {
+                let mid = NSPoint(x: (edge.x + inner.x) / 2, y: (edge.y + inner.y) / 2)
+                let f = NSBezierPath()
+                f.move(to: mid)
+                f.line(to: NSPoint(x: mid.x + cos(a + 0.9) * r.width * 0.14, y: mid.y + sin(a + 0.9) * r.height * 0.14))
+                f.lineWidth = 0.45
+                f.stroke()
+            }
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawIdleIcon(x: CGFloat, h: CGFloat, label: NSColor) {

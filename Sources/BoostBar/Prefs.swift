@@ -23,6 +23,7 @@ enum Prefs {
         static let eyeBlink = "eyeBlink"
         static let segmentOrder = "segmentOrder"
         static let crossEye = "allowCrossEye"
+        static let bloodshot = "bloodshotEyes"
     }
 
     static func registerDefaults() {
@@ -43,6 +44,7 @@ enum Prefs {
             K.googly: true,
             K.eyeBlink: true,
             K.crossEye: true,
+            K.bloodshot: false,
         ])
     }
 
@@ -57,6 +59,12 @@ enum Prefs {
     static var reverseScroll: Bool { get { bool(K.reverseScroll) } set { set(newValue, K.reverseScroll) } }
     static var reverseTrackpad: Bool { get { bool(K.reverseTrackpad) } set { set(newValue, K.reverseTrackpad) } }
     static var reverseHorizontal: Bool { get { bool(K.reverseHorizontal) } set { set(newValue, K.reverseHorizontal) } }
+
+    /// Store a palette name (e.g. "Boost Green") rather than a hex value.
+    static func setTraceColors(up: String, down: String) {
+        d.set(up, forKey: K.upColor)
+        d.set(down, forKey: K.downColor)
+    }
 
     static var upColor: NSColor {
         get { Palette.resolve(d.string(forKey: K.upColor), default: .white) }
@@ -75,6 +83,7 @@ enum Prefs {
     static var googly: Bool { get { bool(K.googly) } set { set(newValue, K.googly) } }
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
     /// Each eye aims at the pointer on its own, so they cross when it's between them.
+    static var bloodshot: Bool { get { bool(K.bloodshot) } set { set(newValue, K.bloodshot) } }
     static var allowCrossEye: Bool { get { bool(K.crossEye) } set { set(newValue, K.crossEye) } }
 
     static let sizeNames = ["Small", "Medium", "Large"]

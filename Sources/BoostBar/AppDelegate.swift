@@ -174,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showEyes = Prefs.showEyes
         graphView.eyeSize = Prefs.eyeSize
         graphView.singleEye = Prefs.singleEye
+        graphView.bloodshot = Prefs.bloodshot
         graphView.ledSize = diskSettings.ledSize
         graphView.upColor = Prefs.upColor
         graphView.downColor = Prefs.downColor

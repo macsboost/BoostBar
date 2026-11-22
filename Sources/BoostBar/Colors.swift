@@ -9,10 +9,19 @@ enum Palette {
         ("Orange", .systemOrange),
         ("Yellow", .systemYellow),
         ("Green", .systemGreen),
+        ("Boost Green", NSColor(hex: "#56BE37")!),
+        ("Lime", NSColor(hex: "#74FB4C")!),
         ("Teal", .systemTeal),
         ("Blue", .systemBlue),
         ("Purple", .systemPurple),
         ("Pink", .systemPink),
+    ]
+
+    /// Upload/download trace presets offered in Settings ▸ Network.
+    static let tracePresets: [(name: String, up: String, down: String)] = [
+        ("White", "White", "White"),
+        ("MacsBoost Green", "Boost Green", "Lime"),
+        ("Classic Red / Blue", "Red", "Blue"),
     ]
 
     static func color(named name: String) -> NSColor? {

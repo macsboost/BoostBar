@@ -284,10 +284,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.header("Trace Colors")
             p.color("Upload", get: { Prefs.upColor }, set: { Prefs.upColor = $0; app.applySettings() })
             p.color("Download", get: { Prefs.downColor }, set: { Prefs.downColor = $0; app.applySettings() })
-            p.button("Reset to White") {
-                Prefs.upColor = .white; Prefs.downColor = .white
-                app.applySettings()
+            let presets = Palette.tracePresets.map { preset in
+                p.makeButton(preset.name) {
+                    Prefs.setTraceColors(up: preset.up, down: preset.down)
+                    app.applySettings()
+                    NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
+                }
             }
+            p.custom(p.row([NSTextField(labelWithString: "Presets:")] + presets), height: 28)
             p.note("Hover over the graph in the menu bar for a 5-minute chart.")
         })
 
@@ -326,6 +330,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Single eye (cyclops)", get: { Prefs.singleEye }, set: { Prefs.singleEye = $0; app.applySettings() })
             p.check("Googly wobble", get: { Prefs.googly }, set: { Prefs.googly = $0; app.applySettings() })
             p.check("Blink now and then", get: { Prefs.eyeBlink }, set: { Prefs.eyeBlink = $0; app.applySettings() })
+            p.check("Bloodshot 🩸", get: { Prefs.bloodshot }, set: { Prefs.bloodshot = $0; app.applySettings() })
             p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
                     set: { Prefs.allowCrossEye = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
