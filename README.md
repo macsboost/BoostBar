@@ -46,6 +46,11 @@ A dot left of the graph shows the sleep state. Yellow means "Keep awake" is on. 
 
 ## Flying Cars screen saver ✈️
 
+<p align="center">
+  <img src="docs/media/flying-cars.gif" width="720" alt="BoostBar Flying Cars screen saver: X1 SkyRacers in MacsBoost, Yonder and XXONE liveries flying across the screen">
+  <br><sub><a href="docs/media/flying-cars.mp4">Watch in full quality (MP4)</a></sub>
+</p>
+
 BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic flying toasters. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
 
 ## Updates
