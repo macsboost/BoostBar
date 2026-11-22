@@ -385,6 +385,8 @@
     }
     c.phase = Math.random() * Math.PI * 2;
     c.man = null;
+    c.kx = c.ky = c.kz = 0; // knock-back velocity from bumping into another car
+    c.wob = 0; // wobble left over from a bump
     c.next = (performance.now() / 1000) + 2 + Math.random() * 9;
   }
 
@@ -396,7 +398,13 @@
   function stunt(c, t) {
     // returns { off: Vector3 offset, roll: extra roll (rad) }
     if (!c.man && t >= c.next) {
-      const roll = Math.random() < 0.35;
+      const r = Math.random();
+      if (r < 0.3) {
+        // gentle climb or dive, then level off
+        c.man = { type: 'alt', t0: t, dur: 3 + Math.random() * 2.5, dirn: Math.random() < 0.5 ? -1 : 1, amp: 1.2 + Math.random() * 2.2 };
+        return null;
+      }
+      const roll = r < 0.55;
       c.man = roll
         ? { type: 'roll', t0: t, dur: 1.5 + Math.random() * 0.8, dirn: Math.random() < 0.5 ? -1 : 1, r: 0.9 + Math.random() * 0.6 }
         : { type: 'veer', t0: t, dur: 2.6 + Math.random() * 1.6, dirn: Math.random() < 0.5 ? -1 : 1, amp: 2.5 + Math.random() * 3 };
@@ -408,6 +416,12 @@
       c.man = null;
       c.next = t + 4 + Math.random() * 12;
       return null;
+    }
+    if (m.type === 'alt') {
+      // up (or down) and back, nose pitching with the climb
+      const s = Math.sin(u * Math.PI);
+      const vy = Math.cos(u * Math.PI) * Math.sin(u * Math.PI) * 2; // shape of the climb rate
+      return { off: new THREE.Vector3(0, s * s * m.amp * m.dirn, 0), roll: 0, pitch: vy * 0.22 * m.dirn * Math.min(1, m.amp / 2) };
     }
     if (m.type === 'roll') {
       const a = ease(u) * Math.PI * 2 * m.dirn;
@@ -465,30 +479,69 @@
     paused = false;
     last = performance.now();
   };
+  // ---------- bumping ----------
+  // Cars that get too close bounce apart (and wobble a bit) instead of flying through each other.
+  const R = 1.7; // rough radius of a SkyRacer in scene units
+  const lastHit = new Map();
+  const n = new THREE.Vector3();
+  function bump(t) {
+    for (let i = 0; i < craft.length; i++) {
+      for (let j = i + 1; j < craft.length; j++) {
+        const a = craft[i], b = craft[j];
+        n.subVectors(a.g.position, b.g.position);
+        const d = n.length();
+        if (d >= 2 * R || d < 1e-4) continue;
+        n.divideScalar(d);
+        // push them apart so they don't overlap
+        const push = (2 * R - d) / 2;
+        a.x += n.x * push; a.y += n.y * push; a.z += n.z * push;
+        b.x -= n.x * push; b.y -= n.y * push; b.z -= n.z * push;
+        a.g.position.addScaledVector(n, push);
+        b.g.position.addScaledVector(n, -push);
+        // and give each a kick away from the other (once per encounter)
+        const key = i * 64 + j;
+        if (t - (lastHit.get(key) || 0) > 0.8) {
+          lastHit.set(key, t);
+          const k = 3.2 + Math.random() * 1.5;
+          a.kx += n.x * k; a.ky += n.y * k; a.kz += n.z * k;
+          b.kx -= n.x * k; b.ky -= n.y * k; b.kz -= n.z * k;
+          a.wob = Math.min(1, a.wob + 0.8);
+          b.wob = Math.min(1, b.wob + 0.8);
+        }
+      }
+    }
+  }
+
   function frame(now) {
     requestAnimationFrame(frame);
     if (paused) return;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const t = now / 1000;
+    const damp = Math.exp(-2.2 * dt);
     for (const c of craft) {
-      c.x += DIR.x * c.speed * dt;
-      c.y += DIR.y * c.speed * dt;
+      c.x += DIR.x * c.speed * dt + c.kx * dt;
+      c.y += DIR.y * c.speed * dt + c.ky * dt;
+      c.z = Math.max(-45, Math.min(8, c.z + c.kz * dt));
+      c.kx *= damp; c.ky *= damp; c.kz *= damp;
+      c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
       if (c.x < -w - 10 || c.y < -h - 8) spawn(c, false);
-      const bob = Math.sin(t * 1.3 + c.phase) * 0.35;
+      // a slow, lazy drift up and down on top of the little bob
+      const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const st = stunt(c, t);
       c.g.position.set(c.x, c.y + bob, c.z);
       if (st) c.g.position.add(st.off);
       // nose along the direction of travel, left flank toward the viewer, rolled a little to show the roof
       tgt.copy(c.g.position).add(DIR);
       c.g.lookAt(tgt);
-      c.g.rotateZ(-0.555 + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0)); // base tilt ≈ 32°
-      c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04);
+      const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
+      c.g.rotateZ(-0.555 + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble); // base tilt ≈ 32°
+      c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
     }
-    // far ones first (transparent canopies/decals sort better)
+    bump(t);
     renderer.render(scene, camera);
   }
   build()
