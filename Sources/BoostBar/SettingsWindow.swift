@@ -343,6 +343,16 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Blink now and then", get: { Prefs.eyeBlink }, set: { Prefs.eyeBlink = $0; app.applySettings() })
             p.check("Bloodshot 🩸", get: { Prefs.bloodshot }, set: { Prefs.bloodshot = $0; app.applySettings() })
             p.check("Bloodshot while keeping the Mac awake ☕", get: { Prefs.bloodshotAwake }, set: { Prefs.bloodshotAwake = $0; app.applySettings() })
+            #if !APPSTORE
+            p.check("Shake the Mac to make them dizzy 😵‍💫", get: { Prefs.shakeEyes }, set: { Prefs.shakeEyes = $0; app.applySettings() })
+            p.label(indent: true) {
+                switch app.shake.available {
+                case .some(false): return "This Mac has no motion sensor BoostBar can read (needs a MacBook with Apple silicon)."
+                case .some(true): return "Motion sensor found. Shake firmly a few times — bumps and car rides are ignored."
+                case .none: return ShakeDetector.hasSensor ? "Shake firmly a few times — bumps and car rides are ignored." : "This Mac has no motion sensor BoostBar can read (needs a MacBook with Apple silicon)."
+                }
+            }
+            #endif
             p.check("Pirate eyepatch 🏴‍☠️", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
             p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },

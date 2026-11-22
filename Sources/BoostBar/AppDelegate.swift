@@ -6,6 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
     private let eyes = EyesAnimator()
+    #if !APPSTORE
+    let shake = ShakeDetector()
+    #endif
     private let corners = HotCorners()
 #if !APPSTORE
     private let scroll = ScrollReverser()
@@ -55,6 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.refreshStatus()
         }
         eyes.view = graphView
+        #if !APPSTORE
+        shake.onShake = { [weak self] on in self?.eyes.shaking = on }
+        #endif
         corners.onCorner = { [weak self] c, screen in self?.hotCorner(c, screen) }
 
         // The menu is attached only while it's open, so a drag on the bar can reorder pieces instead.
@@ -140,6 +146,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         eyes.blink = Prefs.eyeBlink
         eyes.allowCrossEye = Prefs.allowCrossEye
         eyes.setRunning(Prefs.showEyes)
+        #if !APPSTORE
+        if Prefs.showEyes && Prefs.shakeEyes { shake.start() } else { shake.stop() }
+        #endif
 
         var watch: Set<Corner> = [Prefs.cornerAwake]
         #if !APPSTORE

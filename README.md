@@ -29,6 +29,10 @@ BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of th
 
 BoostBar checks GitHub for a newer release when it starts, and you can check any time from the menu. Turn on **Settings ▸ General ▸ Install updates automatically** (or tick "Install future updates automatically" on the update prompt) and new versions are downloaded, verified as Apple-notarized and signed by MacsBoost, swapped in and relaunched with no prompt.
 
+## Dizzy eyes
+
+On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) only while this is turned on — **Settings ▸ Eyes ▸ Shake the Mac to make them dizzy**. Direct download only.
+
 ## Hot corners
 
 In **Settings ▸ Sleep ▸ Hot Corners**, choose a screen corner to toggle **Keep Awake** and one to **Sleep now**. Rest the pointer in the corner for a moment, and a small badge confirms the action.

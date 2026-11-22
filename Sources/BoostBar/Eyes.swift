@@ -20,6 +20,11 @@ final class EyesAnimator {
 
     var isRunning: Bool { timer != nil }
 
+    /// Eyes squeeze shut while the Mac is being shaken…
+    var shaking = false { didSet { if oldValue && !shaking { dizzyUntil = ProcessInfo.processInfo.systemUptime + 1.8 } } }
+    /// …then pop open with the pupils spinning for a moment.
+    private var dizzyUntil: TimeInterval = 0
+
     func setRunning(_ on: Bool) {
         if on, timer == nil {
             let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.step() }
@@ -76,6 +81,18 @@ final class EyesAnimator {
         }
 
         let now = ProcessInfo.processInfo.systemUptime
+        if now < dizzyUntil {
+            // dizzy: pupils whirl around the rim, slowing down as it wears off
+            let left = dizzyUntil - now
+            let angle = left * left * 7 + left * 9
+            for i in pos.indices {
+                let a = angle + Double(i) * .pi            // eyes out of step = extra dizzy
+                let r = 0.85 * min(1, left / 0.4 + 0.3)
+                pos[i] = CGPoint(x: cos(a) * travel.width * r, y: sin(a) * travel.height * r)
+                vel[i] = .zero
+            }
+            changed = true
+        }
         var closed = false
         if blink {
             if nextBlink == 0 { nextBlink = now + Double.random(in: 3...8) }
@@ -85,6 +102,7 @@ final class EyesAnimator {
             }
             closed = now < blinkUntil
         }
+        if shaking { closed = true }
         if closed != v.eyesClosed { changed = true }
 
         lastMouse = mouse
