@@ -1,7 +1,7 @@
 import AppKit
 import ServiceManagement
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSViewToolTipOwner {
     private var statusItem: NSStatusItem!
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let updater = Updater()
     private let defaults = UserDefaults.standard
     private var lidSleepDisabled = false
+    private var battery: BatteryReading?
+    private var lastLayoutKey = ""
 
     private enum Key {
         static let reverseScroll = "reverseScroll"
@@ -19,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         static let useBits = "useBits"
         static let checkOnLaunch = "checkUpdatesOnLaunch"
         static let lidWarningShown = "lidWarningShown"
+        static let showNetwork = "showNetwork"
+        static let showBattery = "showBattery"
     }
 
     // MARK: - Lifecycle
@@ -31,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Key.keepDisplayAwake: false,
             Key.useBits: false,
             Key.checkOnLaunch: true,
+            Key.showNetwork: true,
+            Key.showBattery: BatteryMonitor.hasBattery,
         ])
 
         statusItem = NSStatusBar.system.statusItem(withLength: StatusGraphView.totalWidth)
@@ -73,17 +79,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshStatus() {
         let bits = defaults.bool(forKey: Key.useBits)
+        battery = BatteryMonitor.hasBattery ? BatteryMonitor.read() : nil
+
+        graphView.showNetwork = defaults.bool(forKey: Key.showNetwork)
+        graphView.showBattery = defaults.bool(forKey: Key.showBattery)
+        graphView.battery = battery
         graphView.up = net.upHistory
         graphView.down = net.downHistory
         graphView.upText = NetworkMonitor.format(net.currentUp, bits: bits)
         graphView.downText = NetworkMonitor.format(net.currentDown, bits: bits)
         graphView.awake = lidSleepDisabled ? .lidAwake : (sleep.isPreventing ? .keepAwake : .normal)
-        graphView.needsDisplay = true
 
-        var tip = "Upload \(graphView.upText) · Download \(graphView.downText)"
+        // Resize the status item and re-register hover regions only when the layout changes.
+        let h = statusItem.button?.bounds.height ?? NSStatusBar.system.thickness
+        let width = graphView.layoutSegments(height: h)
+        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)"
+        if layoutKey != lastLayoutKey, let button = statusItem.button {
+            lastLayoutKey = layoutKey
+            statusItem.length = width
+            button.toolTip = nil
+            button.removeAllToolTips()
+            for r in [graphView.networkRect, graphView.batteryRect] where !r.isEmpty {
+                _ = button.addToolTip(r, owner: self, userData: nil)
+            }
+            if graphView.networkRect.isEmpty && graphView.batteryRect.isEmpty {
+                button.toolTip = "BoostBar"
+            }
+        }
+        graphView.needsDisplay = true
+    }
+
+    /// Hover text, computed live for whichever segment the pointer is over.
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        if graphView.batteryRect.contains(point) || (point.x >= graphView.batteryRect.minX && !graphView.batteryRect.isEmpty) {
+            if let b = battery ?? BatteryMonitor.read() { return BatteryMonitor.describe(b) }
+            return "No battery"
+        }
+        let bits = defaults.bool(forKey: Key.useBits)
+        var tip = "Upload \(NetworkMonitor.format(net.currentUp, bits: bits)) · Download \(NetworkMonitor.format(net.currentDown, bits: bits))"
         if lidSleepDisabled { tip += "\nSleep disabled (incl. lid closed)" }
         else if sleep.isPreventing { tip += "\nKeeping awake" }
-        statusItem.button?.toolTip = tip
+        return tip
     }
 
     // MARK: - Menu
@@ -100,6 +136,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let live = NSMenuItem(title: "▲ \(NetworkMonitor.format(net.currentUp, bits: bits))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits))", action: nil, keyEquivalent: "")
         live.isEnabled = false
         menu.addItem(live)
+        if let b = battery {
+            for line in BatteryMonitor.describe(b).split(separator: "\n") {
+                let i = NSMenuItem(title: String(line), action: nil, keyEquivalent: "")
+                i.isEnabled = false
+                menu.addItem(i)
+            }
+        }
+
+        // Menu bar readouts
+        menu.addItem(.separator())
+        menu.addItem(sectionHeader("Menu Bar"))
+        menu.addItem(item("Show Network Speed", #selector(toggleShowNetwork), on: defaults.bool(forKey: Key.showNetwork)))
+        let batItem = item(BatteryMonitor.hasBattery ? "Show Battery Power (W in/out)" : "Show Battery Power (no battery)",
+                           #selector(toggleShowBattery), on: BatteryMonitor.hasBattery && defaults.bool(forKey: Key.showBattery))
+        batItem.isEnabled = BatteryMonitor.hasBattery
+        menu.addItem(batItem)
 
         // Sleep
         menu.addItem(.separator())
@@ -240,6 +292,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: - Actions: misc
+
+    @objc private func toggleShowNetwork() {
+        defaults.set(!defaults.bool(forKey: Key.showNetwork), forKey: Key.showNetwork)
+        refreshStatus()
+    }
+
+    @objc private func toggleShowBattery() {
+        defaults.set(!defaults.bool(forKey: Key.showBattery), forKey: Key.showBattery)
+        refreshStatus()
+    }
 
     @objc private func toggleBits() {
         defaults.set(!defaults.bool(forKey: Key.useBits), forKey: Key.useBits)

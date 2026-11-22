@@ -8,6 +8,8 @@ A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It ha
 ```
 
 - **Live bandwidth graph:** the last 30 seconds of traffic in one box. Upload (red) grows up from the center line and download (blue) grows down. The current rates sit beside the graph. You can switch between KB/s and Kb/s.
+- **Battery power readout:** shows how many watts are going into the battery (green **IN**) or out of it (orange **OUT**). Hover over it to see the estimated time until full or empty, plus what the power adapter is supplying on Apple Silicon Macs.
+- **Choose what's shown:** the network graph and the battery readout can each be turned on or off from the menu.
 - **Reverse mouse scrolling:** flips the wheel direction in every app. You can keep the trackpad's natural scrolling, or reverse it too, plus optional horizontal scrolling.
 - **Keep Mac awake:** one click (⌘K in the menu) keeps the Mac awake indefinitely, or pick 15 min to 8 h. You can keep the display on too. No admin rights needed.
 - **Stay awake with the lid closed:** toggles `pmset -a disablesleep`. It needs admin rights, so macOS asks for your password. Or turn on **Lid Toggle Without Password**. That installs a sudoers rule for your user that allows only `pmset -a disablesleep 0|1`.
