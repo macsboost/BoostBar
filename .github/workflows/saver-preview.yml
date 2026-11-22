@@ -26,7 +26,7 @@ jobs:
       - name: Screenshots
         run: |
           CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-          for t in 4000 9000; do
+          for t in 9000 16000; do
             "$CHROME" --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist \
               --hide-scrollbars --window-size=1440,900 --virtual-time-budget=$t --run-all-compositor-stages-before-draw \
               --enable-logging=stderr --v=0 --allow-file-access-from-files \
