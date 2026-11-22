@@ -22,6 +22,11 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         Link(title: "biz-cord.com", url: "https://biz-cord.com"),
     ]
 
+    static let socials: [Link] = [
+        Link(title: "@realx1racing", url: "https://x.com/realx1racing"),
+        Link(title: "@macsboost", url: "https://x.com/macsboost"),
+    ]
+
     static let tmogURL = "https://tmog.org"
 
     private var window: NSWindow?
@@ -96,6 +101,11 @@ final class SupportWindow: NSObject, NSWindowDelegate {
     @objc private func tipAppStore() { Task { await TipJar.buy() } }
 #endif
 
+    @objc private func openSocial(_ sender: NSButton) {
+        guard sender.tag >= 0, sender.tag < Self.socials.count else { return }
+        Self.open(Self.socials[sender.tag].url)
+    }
+
     @objc private func openSite(_ sender: NSButton) {
         guard sender.tag >= 0, sender.tag < Self.sites.count else { return }
         Self.open(Self.sites[sender.tag].url)
@@ -111,7 +121,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         let width: CGFloat = 640
         let banner = Bundle.main.image(forResource: "SupportBanner")
         let bannerH: CGFloat = banner.map { width * $0.size.height / max($0.size.width, 1) } ?? 0
-        let bodyH: CGFloat = 300
+        let bodyH: CGFloat = 326
         let size = NSSize(width: width, height: bannerH + bodyH)
 
         let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable],
@@ -231,6 +241,36 @@ final class SupportWindow: NSObject, NSWindowDelegate {
             b.frame.origin = NSPoint(x: x, y: y)
             content.addSubview(b)
             x += b.frame.width + 18
+        }
+
+        // Follow on X
+        y -= 26
+        let follow = NSTextField(labelWithString: "Follow on 𝕏:")
+        follow.font = .systemFont(ofSize: 12)
+        follow.textColor = .secondaryLabelColor
+        follow.sizeToFit()
+        var socialButtons: [NSButton] = []
+        for (i, s) in Self.socials.enumerated() {
+            let b = NSButton(title: "", target: self, action: #selector(openSocial(_:)))
+            b.isBordered = false
+            b.tag = i
+            b.attributedTitle = NSAttributedString(string: s.title, attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold), .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+            ])
+            b.toolTip = s.url
+            b.sizeToFit()
+            socialButtons.append(b)
+        }
+        let socialW = follow.frame.width + 10 + socialButtons.reduce(0) { $0 + $1.frame.width } + CGFloat(socialButtons.count - 1) * 16
+        x = (width - socialW) / 2
+        follow.frame.origin = NSPoint(x: x, y: y + 2)
+        content.addSubview(follow)
+        x += follow.frame.width + 10
+        for b in socialButtons {
+            b.frame.origin = NSPoint(x: x, y: y)
+            content.addSubview(b)
+            x += b.frame.width + 16
         }
 
         // Credit: HDD LED inspiration
