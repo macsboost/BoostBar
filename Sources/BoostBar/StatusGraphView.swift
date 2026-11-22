@@ -27,6 +27,16 @@ final class StatusGraphView: NSView {
     var showNetwork = true
     var showBattery = false
     var showDisks = true
+    var showEyes = false
+
+    /// Disk LED size: 0 = small (two rows), 1 = medium, 2 = large
+    var ledSize = 0
+
+    // Googly eyes
+    var eyeSize = 1            // 0 small, 1 medium, 2 large
+    var singleEye = false
+    var pupilOffsets: [CGPoint] = []
+    var eyesClosed = false
 
     // Hover callbacks (point is in this view's coordinates)
     var onHover: ((Target?) -> Void)?
@@ -41,28 +51,60 @@ final class StatusGraphView: NSView {
     private static let netTextWidth: CGFloat = 58
     private static let batteryWidth: CGFloat = 30
     private static let iconWidth: CGFloat = 20
-    private static let ledCell: CGFloat = 9
+    private static let ledDiameters: [CGFloat] = [7, 11, 15]
+    private static let eyeSizes: [NSSize] = [NSSize(width: 9, height: 13), NSSize(width: 12, height: 17), NSSize(width: 15, height: 20)]
 
     private var showsBattery: Bool { showBattery && battery != nil }
     private var showsDisks: Bool { showDisks && !leds.isEmpty }
-    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks }
+    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks || showEyes }
 
     /// Segment rects in this view's coordinates.
     private(set) var networkRect = NSRect.zero
     private(set) var batteryRect = NSRect.zero
     private(set) var diskRect = NSRect.zero
+    private(set) var eyesRect = NSRect.zero
     private var ledRects: [(key: String, rect: NSRect)] = []
+    private var eyeRects: [NSRect] = []
+
+    private var eyeDims: NSSize { Self.eyeSizes[min(max(eyeSize, 0), 2)] }
+    private var pupilRadius: CGFloat { eyeDims.width * 0.27 }
+
+    /// How far a pupil may move from the eye's center (points).
+    var pupilTravel: CGSize {
+        CGSize(width: eyeDims.width / 2 - pupilRadius - 1, height: eyeDims.height / 2 - pupilRadius - 1)
+    }
+
+    /// Screen-space centers of each eye, for aiming the pupils at the mouse.
+    func eyeCentersOnScreen() -> [CGPoint]? {
+        guard let win = window, !eyeRects.isEmpty else { return nil }
+        return eyeRects.map { r in
+            let s = win.convertToScreen(convert(r, to: nil))
+            return CGPoint(x: s.midX, y: s.midY)
+        }
+    }
 
     /// Lays out the segments and returns the total width the status item needs.
     @discardableResult
     func layoutSegments(height h: CGFloat) -> CGFloat {
         var x = Self.pad
         if awake != .normal || !showsAnything { x += Self.dotWidth }
-        networkRect = .zero; batteryRect = .zero; diskRect = .zero; ledRects = []
+        networkRect = .zero; batteryRect = .zero; diskRect = .zero; eyesRect = .zero; ledRects = []; eyeRects = []
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
         var first = true
         func gap() { if !first { x += 4 }; first = false }
+
+        if showEyes {
+            gap()
+            let e = eyeDims
+            let eh = min(e.height, h - 2)
+            let count = singleEye ? 1 : 2
+            for i in 0..<count {
+                eyeRects.append(NSRect(x: x + CGFloat(i) * (e.width + 1), y: (h - eh) / 2, width: e.width, height: eh))
+            }
+            eyesRect = NSRect(x: x, y: 0, width: CGFloat(count) * e.width + CGFloat(count - 1), height: h)
+            x = eyesRect.maxX
+        }
 
         if showNetwork {
             gap()
@@ -76,14 +118,16 @@ final class StatusGraphView: NSView {
         }
         if showsDisks {
             gap()
-            // One LED centered if a single drive; otherwise two rows, filling column by column.
-            let rows = leds.count == 1 ? 1 : 2
+            // Small LEDs stack in two rows when there are several drives; medium/large use one row.
+            let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]
+            let cell = dia + 2
+            let rows = (ledSize == 0 && leds.count > 1) ? 2 : 1
             let cols = Int(ceil(Double(leds.count) / Double(rows)))
-            diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * Self.ledCell + 1, height: h)
+            diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * cell + 1, height: h)
             for (i, led) in leds.enumerated() {
                 let col = i / rows, row = i % rows
                 let cy: CGFloat = rows == 1 ? h / 2 : (row == 0 ? h / 2 + 4.5 : h / 2 - 4.5)
-                let rect = NSRect(x: x + CGFloat(col) * Self.ledCell + 1.5, y: cy - 3.5, width: 7, height: 7)
+                let rect = NSRect(x: x + CGFloat(col) * cell + 1.5, y: cy - dia / 2, width: dia, height: dia)
                 ledRects.append((led.key, rect))
             }
             x = diskRect.maxX
@@ -161,6 +205,39 @@ final class StatusGraphView: NSView {
         if showNetwork { drawNetwork(in: networkRect, label: label, font: font) }
         if showsBattery, let b = battery { drawBattery(b, in: batteryRect, label: label, font: font) }
         if showsDisks { drawDisks(label: label) }
+        if showEyes { drawEyes() }
+    }
+
+    private func drawEyes() {
+        for (i, r) in eyeRects.enumerated() {
+            let eye = NSBezierPath(ovalIn: r.insetBy(dx: 0.5, dy: 0.5))
+            if eyesClosed {
+                NSColor(white: 0.85, alpha: 1).setFill()
+                eye.fill()
+                let lid = NSBezierPath()
+                lid.move(to: NSPoint(x: r.minX + 1.5, y: r.midY))
+                lid.curve(to: NSPoint(x: r.maxX - 1.5, y: r.midY),
+                          controlPoint1: NSPoint(x: r.minX + r.width * 0.3, y: r.midY - r.height * 0.18),
+                          controlPoint2: NSPoint(x: r.maxX - r.width * 0.3, y: r.midY - r.height * 0.18))
+                lid.lineWidth = 1.2
+                NSColor.black.setStroke()
+                lid.stroke()
+            } else {
+                // white of the eye with a soft shade toward the bottom
+                NSGradient(starting: .white, ending: NSColor(white: 0.82, alpha: 1))?.draw(in: eye, angle: -90)
+                let off = i < pupilOffsets.count ? pupilOffsets[i] : .zero
+                let pr = pupilRadius
+                let c = NSPoint(x: r.midX + off.x, y: r.midY + off.y)
+                NSColor.black.setFill()
+                NSBezierPath(ovalIn: NSRect(x: c.x - pr, y: c.y - pr, width: pr * 2, height: pr * 2)).fill()
+                NSColor.white.withAlphaComponent(0.9).setFill()
+                let g = max(pr * 0.35, 0.8)
+                NSBezierPath(ovalIn: NSRect(x: c.x - pr * 0.45, y: c.y + pr * 0.15, width: g, height: g)).fill()
+            }
+            NSColor.black.withAlphaComponent(0.85).setStroke()
+            eye.lineWidth = 1
+            eye.stroke()
+        }
     }
 
     private func drawIdleIcon(x: CGFloat, h: CGFloat, label: NSColor) {

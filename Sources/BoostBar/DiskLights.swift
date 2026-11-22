@@ -9,6 +9,11 @@ final class DiskLightSettings {
         get { d.object(forKey: "showDisks") as? Bool ?? true }
         set { d.set(newValue, forKey: "showDisks") }
     }
+    /// 0 = small, 1 = medium, 2 = large
+    var ledSize: Int {
+        get { min(max(d.integer(forKey: "ledSize"), 0), 2) }
+        set { d.set(newValue, forKey: "ledSize") }
+    }
     var durationMs: Int {
         get { d.object(forKey: "ledDurationMs") as? Int ?? 35 }
         set { d.set(newValue, forKey: "ledDurationMs") }
@@ -33,96 +38,38 @@ final class DiskLightSettings {
     func color(_ drive: DiskMonitor.Drive) -> NSColor { Palette.resolve(colorName(drive), default: .systemGreen) }
 }
 
-final class DiskLightsWindow: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
+/// The per-drive table (enable checkbox, name, LED color) used in Settings ▸ Disks.
+final class DiskDrivesTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     private let monitor: DiskMonitor
     private let settings: DiskLightSettings
     private let onChange: () -> Void
-    private var window: NSWindow?
-    private let table = NSTableView()
-    private let durationPopup = NSPopUpButton()
-    private let showToggle = NSButton(checkboxWithTitle: "Show disk lights in the menu bar", target: nil, action: nil)
+    let table = NSTableView()
 
     init(monitor: DiskMonitor, settings: DiskLightSettings, onChange: @escaping () -> Void) {
         self.monitor = monitor
         self.settings = settings
         self.onChange = onChange
-    }
-
-    func show() {
-        let w = window ?? makeWindow()
-        window = w
-        reload()
-        NSApp.activate(ignoringOtherApps: true)
-        if !w.isVisible { w.center() }
-        w.makeKeyAndOrderFront(nil)
-    }
-
-    func reload() {
-        guard window != nil else { return }
-        table.reloadData()
-        showToggle.state = settings.showDisks ? .on : .off
-        let ms = settings.durationMs
-        if let idx = DiskLightSettings.durations.firstIndex(of: ms) { durationPopup.selectItem(at: idx) }
-    }
-
-    private func makeWindow() -> NSWindow {
-        let size = NSSize(width: 560, height: 400)
-        let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .miniaturizable],
-                         backing: .buffered, defer: false)
-        w.title = "Disk Lights"
-        w.isReleasedWhenClosed = false
-        w.delegate = self
-        let content = NSView(frame: NSRect(origin: .zero, size: size))
-
-        showToggle.target = self
-        showToggle.action = #selector(toggleShow)
-        showToggle.frame = NSRect(x: 20, y: size.height - 40, width: 400, height: 22)
-        content.addSubview(showToggle)
-
-        let scroll = NSScrollView(frame: NSRect(x: 20, y: 64, width: size.width - 40, height: size.height - 64 - 52))
-        scroll.hasVerticalScroller = true
-        scroll.borderType = .bezelBorder
-        scroll.autoresizingMask = [.width, .height]
-
+        super.init()
         let cOn = NSTableColumn(identifier: .init("on")); cOn.title = ""; cOn.width = 36; cOn.minWidth = 36; cOn.maxWidth = 36
-        let cDrive = NSTableColumn(identifier: .init("drive")); cDrive.title = "Drive"; cDrive.width = 340
+        let cDrive = NSTableColumn(identifier: .init("drive")); cDrive.title = "Drive"; cDrive.width = 330
         let cLED = NSTableColumn(identifier: .init("led")); cLED.title = "LED"; cLED.width = 110
         [cOn, cDrive, cLED].forEach(table.addTableColumn)
         table.usesAlternatingRowBackgroundColors = true
-        table.rowHeight = 26
+        table.rowHeight = 30
         table.dataSource = self
         table.delegate = self
         table.selectionHighlightStyle = .none
-        scroll.documentView = table
-        content.addSubview(scroll)
-
-        let durLabel = NSTextField(labelWithString: "LED Duration:")
-        durLabel.frame = NSRect(x: 20, y: 22, width: 100, height: 20)
-        content.addSubview(durLabel)
-        durationPopup.frame = NSRect(x: 118, y: 16, width: 110, height: 28)
-        durationPopup.addItems(withTitles: DiskLightSettings.durations.map { "\($0) ms" })
-        durationPopup.target = self
-        durationPopup.action = #selector(durationChanged)
-        content.addSubview(durationPopup)
-
-        let note = NSTextField(labelWithString: "USB flash drives and SD cards appear here when plugged in.")
-        note.font = .systemFont(ofSize: 11)
-        note.textColor = .secondaryLabelColor
-        note.frame = NSRect(x: 238, y: 22, width: 230, height: 16)
-        note.lineBreakMode = .byTruncatingTail
-        content.addSubview(note)
-
-        let close = NSButton(title: "Close", target: self, action: #selector(closeWindow))
-        close.bezelStyle = .rounded
-        close.keyEquivalent = "\r"
-        close.frame = NSRect(x: size.width - 20 - 90, y: 14, width: 90, height: 32)
-        content.addSubview(close)
-
-        w.contentView = content
-        return w
     }
 
-    // MARK: Table
+    func makeScrollView() -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.documentView = table
+        return scroll
+    }
+
+    func reload() { table.reloadData() }
 
     func numberOfRows(in tableView: NSTableView) -> Int { monitor.drives.count }
 
@@ -138,7 +85,6 @@ final class DiskLightsWindow: NSObject, NSTableViewDataSource, NSTableViewDelega
         case "drive":
             let t = NSTextField(labelWithString: drive.displayName)
             t.lineBreakMode = .byTruncatingMiddle
-            t.toolTip = "\(drive.displayName)\n\(drive.kind) · \(DiskMonitor.formatBytes(drive.size))"
             let sub = NSTextField(labelWithString: "\(drive.kind) · \(DiskMonitor.formatBytes(drive.size))")
             sub.font = .systemFont(ofSize: 10)
             sub.textColor = .secondaryLabelColor
@@ -184,8 +130,6 @@ final class DiskLightsWindow: NSObject, NSTableViewDataSource, NSTableViewDelega
         }
     }
 
-    // MARK: Actions
-
     @objc private func toggleDrive(_ sender: NSButton) {
         guard sender.tag < monitor.drives.count else { return }
         settings.setEnabled(sender.state == .on, for: monitor.drives[sender.tag])
@@ -197,18 +141,4 @@ final class DiskLightsWindow: NSObject, NSTableViewDataSource, NSTableViewDelega
         settings.setColorName(name, for: monitor.drives[sender.tag])
         onChange()
     }
-
-    @objc private func durationChanged() {
-        let i = durationPopup.indexOfSelectedItem
-        guard i >= 0, i < DiskLightSettings.durations.count else { return }
-        settings.durationMs = DiskLightSettings.durations[i]
-        onChange()
-    }
-
-    @objc private func toggleShow() {
-        settings.showDisks = showToggle.state == .on
-        onChange()
-    }
-
-    @objc private func closeWindow() { window?.close() }
 }

@@ -5,57 +5,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
+    private let eyes = EyesAnimator()
 #if !APPSTORE
     private let scroll = ScrollReverser()
-#endif
-    private let sleep = SleepManager()
-#if !APPSTORE
     private let updater = Updater()
 #endif
-    private let defaults = UserDefaults.standard
-    private var lidSleepDisabled = false
+    let sleep = SleepManager()
+    let disk = DiskMonitor()
+    let diskSettings = DiskLightSettings()
+    private(set) var lidSleepDisabled = false
+
     private var battery: BatteryReading?
     private var batteryHistory = History(capacity: 600)   // watts, 10 min at 1 Hz
     private var lastLayoutKey = ""
 
-    private let disk = DiskMonitor()
-    private let diskSettings = DiskLightSettings()
-    private var diskWindow: DiskLightsWindow?
+    private lazy var settingsWindow = SettingsWindow(app: self)
 
     private var hoverTarget: StatusGraphView.Target?
     private var hoverTimer: Timer?
     private var menuIsOpen = false
-    private var colorPanelKey: String?
 
-    private enum Key {
-        static let reverseScroll = "reverseScroll"
-        static let reverseTrackpad = "reverseTrackpad"
-        static let reverseHorizontal = "reverseHorizontal"
-        static let keepDisplayAwake = "keepDisplayAwake"
-        static let useBits = "useBits"
-        static let checkOnLaunch = "checkUpdatesOnLaunch"
-        static let lidWarningShown = "lidWarningShown"
-        static let showNetwork = "showNetwork"
-        static let showBattery = "showBattery"
-        static let upColor = "netUpColor"
-        static let downColor = "netDownColor"
-    }
+    static let awakeDurations: [(label: String, minutes: Int?)] = [
+        ("Indefinitely", nil), ("15 Minutes", 15), ("30 Minutes", 30), ("1 Hour", 60),
+        ("2 Hours", 120), ("4 Hours", 240), ("8 Hours", 480),
+    ]
 
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        defaults.register(defaults: [
-            Key.reverseScroll: false,
-            Key.reverseTrackpad: false,
-            Key.reverseHorizontal: false,
-            Key.keepDisplayAwake: false,
-            Key.useBits: false,
-            Key.checkOnLaunch: true,
-            Key.showNetwork: true,
-            Key.showBattery: BatteryMonitor.hasBattery,
-            Key.upColor: "White",
-            Key.downColor: "White",
-        ])
+        Prefs.registerDefaults()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -66,43 +44,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         graphView.onHover = { [weak self] t in self?.hoverChanged(t) }
         graphView.onExit = { [weak self] in self?.hideHover() }
+        eyes.view = graphView
+
         let menu = NSMenu()
         menu.delegate = self
         menu.autoenablesItems = false
         statusItem.menu = menu
 
 #if !APPSTORE
-        scroll.reverseTrackpad = defaults.bool(forKey: Key.reverseTrackpad)
-        scroll.reverseHorizontal = defaults.bool(forKey: Key.reverseHorizontal)
-        scroll.onNeedsPermission = { [weak self] in
-            guard let self, self.defaults.bool(forKey: Key.reverseScroll) else { return }
+        scroll.reverseTrackpad = Prefs.reverseTrackpad
+        scroll.reverseHorizontal = Prefs.reverseHorizontal
+        scroll.onNeedsPermission = {
+            guard Prefs.reverseScroll else { return }
             PermissionGuide.shared.show()
         }
-        scroll.onStateChange = { if ScrollReverser.hasPermission { PermissionGuide.shared.close() } }
-        if defaults.bool(forKey: Key.reverseScroll) { scroll.start() }
-#endif
-
-        sleep.keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
-        sleep.onChange = { [weak self] in self?.refreshStatus() }
-
-#if !APPSTORE
+        scroll.onStateChange = {
+            if ScrollReverser.hasPermission { PermissionGuide.shared.close() }
+            NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
+        }
+        if Prefs.reverseScroll { scroll.start() }
         lidSleepDisabled = LidSleep.isDisabled
-
 #endif
+
+        sleep.keepDisplayAwake = Prefs.keepDisplayAwake
+        sleep.onChange = { [weak self] in
+            self?.refreshStatus()
+            NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
+        }
+
         disk.onLEDChange = { [weak self] in
             guard let self else { return }
             self.graphView.litKeys = self.disk.lit
             self.graphView.needsDisplay = true
         }
         disk.onDrivesChanged = { [weak self] in
-            self?.applyDiskSettings()
-            self?.diskWindow?.reload()
+            self?.applySettings()
+            NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
         }
         disk.start()
-        applyDiskSettings()
 
         net.onUpdate = { [weak self] in self?.tick() }
         net.start()
+        applySettings()
 
         #if APPSTORE
         TipJar.startObserving()
@@ -111,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         InstallPing.sendIfNeeded()
 
 #if !APPSTORE
-        if defaults.bool(forKey: Key.checkOnLaunch) {
+        if Prefs.checkOnLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.updater.check(userInitiated: false)
             }
@@ -124,6 +107,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         #if !APPSTORE
         scroll.stop()
         #endif
+    }
+
+    // MARK: - Settings
+
+    /// Re-read every preference and apply it to the monitors and the status item.
+    func applySettings() {
+        disk.ledDurationMs = Double(diskSettings.durationMs)
+        disk.enabledKeys = Set(disk.drives.filter { diskSettings.isEnabled($0) }.map(\.key))
+        disk.isActive = diskSettings.showDisks
+
+        eyes.googly = Prefs.googly
+        eyes.blink = Prefs.eyeBlink
+        eyes.setRunning(Prefs.showEyes)
+
+        if statusItem != nil { refreshStatus() }
+    }
+
+    func keepAwake(minutes: Int?) {
+        sleep.prevent(for: minutes.map { TimeInterval($0 * 60) })
+    }
+
+    func setKeepDisplayAwake(_ on: Bool) {
+        sleep.keepDisplayAwake = on
+        Prefs.keepDisplayAwake = on
     }
 
     // MARK: - Status item
@@ -139,25 +146,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func applyDiskSettings() {
-        disk.ledDurationMs = Double(diskSettings.durationMs)
-        disk.enabledKeys = Set(disk.drives.filter { diskSettings.isEnabled($0) }.map(\.key))
-        disk.isActive = diskSettings.showDisks
-        if statusItem != nil { refreshStatus() }
-    }
-
-    private var upColor: NSColor { Palette.resolve(defaults.string(forKey: Key.upColor), default: .white) }
-    private var downColor: NSColor { Palette.resolve(defaults.string(forKey: Key.downColor), default: .white) }
-
     private func refreshStatus() {
-        let bits = defaults.bool(forKey: Key.useBits)
+        let bits = Prefs.useBits
         battery = BatteryMonitor.hasBattery ? BatteryMonitor.read() : nil
 
-        graphView.showNetwork = defaults.bool(forKey: Key.showNetwork)
-        graphView.showBattery = defaults.bool(forKey: Key.showBattery)
+        graphView.showNetwork = Prefs.showNetwork
+        graphView.showBattery = Prefs.showBattery
         graphView.showDisks = diskSettings.showDisks
-        graphView.upColor = upColor
-        graphView.downColor = downColor
+        graphView.showEyes = Prefs.showEyes
+        graphView.eyeSize = Prefs.eyeSize
+        graphView.singleEye = Prefs.singleEye
+        graphView.ledSize = diskSettings.ledSize
+        graphView.upColor = Prefs.upColor
+        graphView.downColor = Prefs.downColor
         graphView.battery = battery
         graphView.up = net.upHistory
         graphView.down = net.downHistory
@@ -170,7 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let h = statusItem.button?.bounds.height ?? NSStatusBar.system.thickness
         let width = graphView.layoutSegments(height: h)
-        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)"
+        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)"
         if layoutKey != lastLayoutKey {
             lastLayoutKey = layoutKey
             statusItem.length = width
@@ -208,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func hoverContent(for t: StatusGraphView.Target) -> HoverContent? {
-        let bits = defaults.bool(forKey: Key.useBits)
+        let bits = Prefs.useBits
         let rate: (Double) -> String = { NetworkMonitor.format($0, bits: bits) }
         switch t {
         case .network:
@@ -222,8 +223,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return HoverContent(
                 title: "Network",
                 lines: lines,
-                top: .init(label: "Upload", values: net.longUp.values, color: upColor, format: rate),
-                bottom: .init(label: "Download", values: net.longDown.values, color: downColor, format: rate),
+                top: .init(label: "Upload", values: net.longUp.values, color: Prefs.upColor, format: rate),
+                bottom: .init(label: "Download", values: net.longDown.values, color: Prefs.downColor, format: rate),
                 timespan: "last 5 min")
 
         case .battery:
@@ -261,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: - Menu
+    // MARK: - Menu (readouts, keep-awake, and the way into Settings)
 
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
@@ -278,7 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         menu.addItem(item("About BoostBar \(Updater.currentVersion)…", #selector(showAbout), on: false))
-        let bits = defaults.bool(forKey: Key.useBits)
+        let bits = Prefs.useBits
         let live = NSMenuItem(title: "▲ \(NetworkMonitor.format(net.currentUp, bits: bits))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits))", action: nil, keyEquivalent: "")
         live.isEnabled = false
         menu.addItem(live)
@@ -290,71 +291,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
 
-        // Menu bar readouts
+        // Keep awake stays one click away
         menu.addItem(.separator())
-        menu.addItem(sectionHeader("Menu Bar"))
-        menu.addItem(item("Show Network Speed", #selector(toggleShowNetwork), on: defaults.bool(forKey: Key.showNetwork)))
-        let batItem = item(BatteryMonitor.hasBattery ? "Show Battery Power (W in/out)" : "Show Battery Power (no battery)",
-                           #selector(toggleShowBattery), on: BatteryMonitor.hasBattery && defaults.bool(forKey: Key.showBattery))
-        batItem.isEnabled = BatteryMonitor.hasBattery
-        menu.addItem(batItem)
-        menu.addItem(item("Show Disk Lights", #selector(toggleShowDisks), on: diskSettings.showDisks))
-        menu.addItem(item("Disk Lights…", #selector(openDiskLights), on: false, key: "d", indent: 1))
-
-        // Sleep
-        menu.addItem(.separator())
-        menu.addItem(sectionHeader("Sleep"))
+        menu.addItem(sectionHeader("Keep Awake"))
         var awakeTitle = "Keep Mac Awake"
         if let until = sleep.until {
             awakeTitle += " (until \(DateFormatter.localizedString(from: until, dateStyle: .none, timeStyle: .short)))"
         }
         menu.addItem(item(awakeTitle, #selector(toggleKeepAwake), on: sleep.isPreventing, key: "k"))
-
         let forItem = NSMenuItem(title: "Keep Awake For", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        for (label, minutes) in [("15 Minutes", 15), ("30 Minutes", 30), ("1 Hour", 60), ("2 Hours", 120), ("4 Hours", 240), ("8 Hours", 480)] {
-            let i = item(label, #selector(keepAwakeFor(_:)), on: false)
-            i.representedObject = minutes
+        for d in Self.awakeDurations.dropFirst() {
+            let i = item(d.label, #selector(keepAwakeFor(_:)), on: false)
+            i.representedObject = d.minutes
             sub.addItem(i)
         }
         forItem.submenu = sub
         menu.addItem(forItem)
-        menu.addItem(item("Keep Display On Too", #selector(toggleDisplayAwake), on: sleep.keepDisplayAwake, indent: 1))
+        menu.addItem(item("Keep Display On Too", #selector(toggleDisplayAwakeMenu), on: sleep.keepDisplayAwake, indent: 1))
 #if !APPSTORE
         menu.addItem(item("Stay Awake With Lid Closed", #selector(toggleLidSleep), on: lidSleepDisabled, key: "l"))
-        menu.addItem(item("Lid Toggle Without Password", #selector(toggleLidHelper), on: LidSleep.helperInstalled, indent: 1))
-
-        // Scrolling
-        menu.addItem(.separator())
-        menu.addItem(sectionHeader("Scrolling"))
-        let reverseOn = defaults.bool(forKey: Key.reverseScroll)
-        menu.addItem(item("Reverse Mouse Scrolling", #selector(toggleReverseScroll), on: reverseOn, key: "r"))
-        if reverseOn && !scroll.isRunning {
-            menu.addItem(item("⚠︎ Grant Accessibility Permission…", #selector(openAccessibility), on: false, indent: 1))
-        }
-        menu.addItem(item("Include Trackpad / Magic Mouse", #selector(toggleReverseTrackpad), on: scroll.reverseTrackpad, indent: 1))
-        menu.addItem(item("Include Horizontal Scrolling", #selector(toggleReverseHorizontal), on: scroll.reverseHorizontal, indent: 1))
 #endif
 
-        // Network
         menu.addItem(.separator())
-        menu.addItem(sectionHeader("Network"))
-        menu.addItem(item("Show Bits per Second (Kb/s)", #selector(toggleBits), on: bits))
-        menu.addItem(colorMenu(title: "Upload Color", key: Key.upColor))
-        menu.addItem(colorMenu(title: "Download Color", key: Key.downColor))
-
-        // App
-        menu.addItem(.separator())
-        var loginTitle = "Launch at Login"
-        if LoginItem.needsApproval { loginTitle += " (approve in System Settings)" }
-        menu.addItem(item(loginTitle, #selector(toggleLaunchAtLogin), on: LoginItem.isEnabled))
+        menu.addItem(item("Settings…", #selector(openSettings), on: false, key: ","))
 #if !APPSTORE
         menu.addItem(item("Check for Updates…", #selector(checkForUpdates), on: false, key: "u"))
-        menu.addItem(item("Check for Updates at Launch", #selector(toggleCheckOnLaunch), on: defaults.bool(forKey: Key.checkOnLaunch), indent: 1))
-        menu.addItem(item("BoostBar on GitHub", #selector(openGitHub), on: false))
 #endif
         menu.addItem(item("Buy Me an Energy Drink ⚡…", #selector(showAbout), on: false))
-        menu.addItem(item("Share Anonymous Install Count", #selector(toggleInstallPing), on: InstallPing.isEnabled))
         menu.addItem(.separator())
         menu.addItem(item("Quit BoostBar", #selector(quit), on: false, key: "q"))
     }
@@ -367,37 +331,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return i
     }
 
-    private func colorMenu(title: String, key: String) -> NSMenuItem {
-        let current = defaults.string(forKey: key) ?? "White"
-        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        parent.image = swatch(Palette.resolve(current, default: .white))
-        let sub = NSMenu()
-        for entry in Palette.named {
-            let i = item(entry.name, #selector(pickPresetColor(_:)), on: current == entry.name)
-            i.representedObject = [key, entry.name]
-            i.image = swatch(entry.color)
-            sub.addItem(i)
-        }
-        sub.addItem(.separator())
-        let custom = item("Custom…", #selector(pickCustomColor(_:)), on: Palette.color(named: current) == nil)
-        custom.representedObject = key
-        sub.addItem(custom)
-        parent.submenu = sub
-        return parent
-    }
-
-    private func swatch(_ c: NSColor) -> NSImage {
-        NSImage(size: NSSize(width: 12, height: 12), flipped: false) { r in
-            c.setFill()
-            let p = NSBezierPath(roundedRect: r.insetBy(dx: 1, dy: 1), xRadius: 3, yRadius: 3)
-            p.fill()
-            NSColor.black.withAlphaComponent(0.25).setStroke()
-            p.lineWidth = 0.5
-            p.stroke()
-            return true
-        }
-    }
-
     private func sectionHeader(_ title: String) -> NSMenuItem {
         let i = NSMenuItem(title: title.uppercased(), action: nil, keyEquivalent: "")
         i.attributedTitle = NSAttributedString(string: title.uppercased(), attributes: [
@@ -408,26 +341,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return i
     }
 
-    // MARK: - Actions: sleep
+    // MARK: - Actions (menu + Settings)
 
-    @objc private func toggleKeepAwake() {
+    @objc func openSettings() { settingsWindow.show() }
+
+    @objc func toggleKeepAwake() {
         sleep.isPreventing ? sleep.allow() : sleep.prevent(for: nil)
     }
 
     @objc private func keepAwakeFor(_ sender: NSMenuItem) {
-        guard let minutes = sender.representedObject as? Int else { return }
-        sleep.prevent(for: TimeInterval(minutes * 60))
+        keepAwake(minutes: sender.representedObject as? Int)
     }
 
-    @objc private func toggleDisplayAwake() {
-        sleep.keepDisplayAwake.toggle()
-        defaults.set(sleep.keepDisplayAwake, forKey: Key.keepDisplayAwake)
+    @objc private func toggleDisplayAwakeMenu() {
+        setKeepDisplayAwake(!sleep.keepDisplayAwake)
+        NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
     }
 
 #if !APPSTORE
-    @objc private func toggleLidSleep() {
+    @objc func toggleLidSleep() {
         let disable = !LidSleep.isDisabled
-        if disable && !defaults.bool(forKey: Key.lidWarningShown) {
+        if disable && !Prefs.bool(Prefs.K.lidWarningShown) {
             NSApp.activate(ignoringOtherApps: true)
             let a = NSAlert()
             a.messageText = "Stay awake with the lid closed?"
@@ -437,105 +371,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             Don’t put a running Mac in a bag with this on; it can overheat and drain the battery.
 
-            macOS will ask for your admin password (turn on “Lid Toggle Without Password” to skip that).
+            macOS will ask for your admin password (turn on “Toggle lid mode without a password” in Settings ▸ Sleep to skip that).
             """
             a.addButton(withTitle: "Disable Sleep")
             a.addButton(withTitle: "Cancel")
-            guard a.runModal() == .alertFirstButtonReturn else { return }
-            defaults.set(true, forKey: Key.lidWarningShown)
+            guard a.runModal() == .alertFirstButtonReturn else {
+                NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
+                return
+            }
+            Prefs.set(true, Prefs.K.lidWarningShown)
         }
         LidSleep.set(disabled: disable)
         lidSleepDisabled = LidSleep.isDisabled
         refreshStatus()
+        NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
     }
 
-    @objc private func toggleLidHelper() {
+    func toggleLidHelper() {
         let ok = LidSleep.helperInstalled ? LidSleep.removeHelper() : LidSleep.installHelper()
         if !ok {
             Updater.alert("Couldn't change the password-free rule", "The admin request was cancelled or failed.")
         }
+        NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
     }
 
-    // MARK: - Actions: scrolling
-
-    @objc private func toggleReverseScroll() {
-        let on = !defaults.bool(forKey: Key.reverseScroll)
-        defaults.set(on, forKey: Key.reverseScroll)
+    func setReverseScroll(_ on: Bool) {
+        Prefs.reverseScroll = on
         on ? scroll.start() : scroll.stop()
     }
 
-    @objc private func toggleReverseTrackpad() {
-        scroll.reverseTrackpad.toggle()
-        defaults.set(scroll.reverseTrackpad, forKey: Key.reverseTrackpad)
+    func setReverseTrackpad(_ on: Bool) {
+        Prefs.reverseTrackpad = on
+        scroll.reverseTrackpad = on
     }
 
-    @objc private func toggleReverseHorizontal() {
-        scroll.reverseHorizontal.toggle()
-        defaults.set(scroll.reverseHorizontal, forKey: Key.reverseHorizontal)
+    func setReverseHorizontal(_ on: Bool) {
+        Prefs.reverseHorizontal = on
+        scroll.reverseHorizontal = on
     }
 
-    @objc private func openAccessibility() {
-        PermissionGuide.shared.show()
-    }
+    @objc func checkForUpdates() { updater.check(userInitiated: true) }
 
+    func openGitHub() { NSWorkspace.shared.open(Updater.repoPage) }
 #endif
 
-    // MARK: - Actions: misc
-
-    @objc private func toggleShowNetwork() {
-        defaults.set(!defaults.bool(forKey: Key.showNetwork), forKey: Key.showNetwork)
-        refreshStatus()
-    }
-
-    @objc private func toggleShowBattery() {
-        defaults.set(!defaults.bool(forKey: Key.showBattery), forKey: Key.showBattery)
-        refreshStatus()
-    }
-
-    @objc private func toggleShowDisks() {
-        diskSettings.showDisks.toggle()
-        applyDiskSettings()
-        diskWindow?.reload()
-    }
-
-    @objc private func openDiskLights() {
-        if diskWindow == nil {
-            diskWindow = DiskLightsWindow(monitor: disk, settings: diskSettings) { [weak self] in self?.applyDiskSettings() }
-        }
-        diskWindow?.show()
-    }
-
-    @objc private func pickPresetColor(_ sender: NSMenuItem) {
-        guard let pair = sender.representedObject as? [String], pair.count == 2 else { return }
-        defaults.set(pair[1], forKey: pair[0])
-        refreshStatus()
-    }
-
-    @objc private func pickCustomColor(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String else { return }
-        colorPanelKey = key
-        let panel = NSColorPanel.shared
-        panel.showsAlpha = false
-        panel.color = Palette.resolve(defaults.string(forKey: key), default: .white)
-        panel.setTarget(self)
-        panel.setAction(#selector(colorPanelChanged(_:)))
-        panel.title = key == Key.upColor ? "Upload Color" : "Download Color"
-        NSApp.activate(ignoringOtherApps: true)
-        panel.orderFront(nil)
-    }
-
-    @objc private func colorPanelChanged(_ sender: NSColorPanel) {
-        guard let key = colorPanelKey else { return }
-        defaults.set(sender.color.hexString, forKey: key)
-        refreshStatus()
-    }
-
-    @objc private func toggleBits() {
-        defaults.set(!defaults.bool(forKey: Key.useBits), forKey: Key.useBits)
-        refreshStatus()
-    }
-
-    @objc private func toggleLaunchAtLogin() {
+    func toggleLaunchAtLogin() {
         do {
             try LoginItem.set(!LoginItem.isEnabled)
             if LoginItem.needsApproval { SMAppService.openSystemSettingsLoginItems() }
@@ -543,21 +423,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Updater.alert("Couldn't change Launch at Login",
                           "\(error.localizedDescription)\n\nTip: move BoostBar.app into /Applications first.")
         }
+        NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
     }
 
-#if !APPSTORE
-    @objc private func checkForUpdates() { updater.check(userInitiated: true) }
+    @objc func showAbout() { SupportWindow.shared.show() }
 
-    @objc private func toggleCheckOnLaunch() {
-        defaults.set(!defaults.bool(forKey: Key.checkOnLaunch), forKey: Key.checkOnLaunch)
-    }
-
-    @objc private func openGitHub() { NSWorkspace.shared.open(Updater.repoPage) }
-#endif
-
-    @objc private func showAbout() { SupportWindow.shared.show() }
-
-    @objc private func toggleInstallPing() {
+    func toggleInstallPing() {
         InstallPing.isEnabled.toggle()
         if InstallPing.isEnabled { InstallPing.sendIfNeeded() }
     }
