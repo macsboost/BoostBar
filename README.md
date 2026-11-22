@@ -45,12 +45,12 @@ A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It ha
 - **Rearrange the pieces:** Settings ▸ General ▸ Menu Bar Layout lists the eyes, network graph, battery watts and disk lights — drag the rows or use Left / Right. You can also drag a piece left or right right in the menu bar. Reset Order puts it back.
 - **Choose what's shown:** the network graph and the battery readout can each be turned on or off from the menu.
 - **Reverse mouse scrolling:** flips the wheel direction in every app. You can keep the trackpad's natural scrolling, or reverse it too, plus optional horizontal scrolling.
-- **Keep Mac awake:** one click (⌘K in the menu) keeps the Mac awake indefinitely, or pick 15 min to 8 h. You can keep the display on too. No admin rights needed.
+- **Keep Mac awake:** one click (⌘K in the menu) keeps the Mac awake indefinitely, or pick 15 min to 8 h. You can keep the display on too. No admin rights needed. The googly eyes turn bloodshot while it's on.
 - **Stay awake with the lid closed:** toggles `pmset -a disablesleep`. It needs admin rights, so macOS asks for your password. Or turn on **Lid Toggle Without Password**. That installs a sudoers rule for your user that allows only `pmset -a disablesleep 0|1`.
 - **Launch at login:** a checkbox in the menu that uses the native macOS login-item API.
 - **Self-updating:** checks GitHub Releases at launch, or when you pick **Check for Updates…**. It can download, swap, and relaunch in one click.
 
-A dot left of the graph shows the sleep state. Yellow means "Keep awake" is on. Orange means sleep is disabled even with the lid closed.
+The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so you can tell at a glance — they clear up again when Keep Awake turns off (Settings ▸ Eyes ▸ Bloodshot while keeping the Mac awake).
 
 ## Flying Cars screen saver ✈️
 

@@ -41,6 +41,7 @@ DISK ACTIVITY LIGHTS
 KEEP AWAKE
 • One click keeps your Mac from sleeping, indefinitely or for 15 minutes to 8 hours
 • Optionally keep the display on too
+• The googly eyes go bloodshot while your Mac is being kept awake
 
 ALSO
 • Launch at login
