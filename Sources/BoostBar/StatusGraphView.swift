@@ -7,6 +7,17 @@ final class StatusGraphView: NSView {
     enum AwakeState { case normal, keepAwake, lidAwake }
     enum Target: Equatable { case network, battery, disk(String) }
 
+    /// The reorderable pieces of the status item.
+    enum Segment: String, CaseIterable { case eyes, network, battery, disks }
+    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .disks]
+
+    /// Left-to-right order of the segments (drag one to change it).
+    var order: [Segment] = StatusGraphView.defaultOrder
+    var onClick: (() -> Void)?
+    var onDragBegan: (() -> Void)?
+    var onReorder: (([Segment]) -> Void)?
+    private var dragging: Segment?
+
     struct LED { let key: String; let color: NSColor }
 
     // Content
@@ -94,43 +105,50 @@ final class StatusGraphView: NSView {
         var first = true
         func gap() { if !first { x += 4 }; first = false }
 
-        if showEyes {
-            gap()
-            let e = eyeDims
-            let eh = min(e.height, h - 2)
-            let count = singleEye ? 1 : 2
-            for i in 0..<count {
-                eyeRects.append(NSRect(x: x + CGFloat(i) * (e.width + 1), y: (h - eh) / 2, width: e.width, height: eh))
+        for seg in order {
+            switch seg {
+            case .eyes:
+                if showEyes {
+                    gap()
+                    let e = eyeDims
+                    let eh = min(e.height, h - 2)
+                    let count = singleEye ? 1 : 2
+                    for i in 0..<count {
+                        eyeRects.append(NSRect(x: x + CGFloat(i) * (e.width + 1), y: (h - eh) / 2, width: e.width, height: eh))
+                    }
+                    eyesRect = NSRect(x: x, y: 0, width: CGFloat(count) * e.width + CGFloat(count - 1), height: h)
+                    x = eyesRect.maxX
+                }
+            case .network:
+                if showNetwork {
+                    gap()
+                    networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + Self.netTextWidth, height: h)
+                    x = networkRect.maxX
+                }
+            case .battery:
+                if showsBattery {
+                    gap()
+                    batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
+                    x = batteryRect.maxX
+                }
+            case .disks:
+                if showsDisks {
+                    gap()
+                    // Small LEDs stack in two rows when there are several drives; medium/large use one row.
+                    let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]
+                    let cell = dia + 2
+                    let rows = (ledSize == 0 && leds.count > 1) ? 2 : 1
+                    let cols = Int(ceil(Double(leds.count) / Double(rows)))
+                    diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * cell + 1, height: h)
+                    for (i, led) in leds.enumerated() {
+                        let col = i / rows, row = i % rows
+                        let cy: CGFloat = rows == 1 ? h / 2 : (row == 0 ? h / 2 + 4.5 : h / 2 - 4.5)
+                        let rect = NSRect(x: x + CGFloat(col) * cell + 1.5, y: cy - dia / 2, width: dia, height: dia)
+                        ledRects.append((led.key, rect))
+                    }
+                    x = diskRect.maxX
+                }
             }
-            eyesRect = NSRect(x: x, y: 0, width: CGFloat(count) * e.width + CGFloat(count - 1), height: h)
-            x = eyesRect.maxX
-        }
-
-        if showNetwork {
-            gap()
-            networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + Self.netTextWidth, height: h)
-            x = networkRect.maxX
-        }
-        if showsBattery {
-            gap()
-            batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
-            x = batteryRect.maxX
-        }
-        if showsDisks {
-            gap()
-            // Small LEDs stack in two rows when there are several drives; medium/large use one row.
-            let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]
-            let cell = dia + 2
-            let rows = (ledSize == 0 && leds.count > 1) ? 2 : 1
-            let cols = Int(ceil(Double(leds.count) / Double(rows)))
-            diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * cell + 1, height: h)
-            for (i, led) in leds.enumerated() {
-                let col = i / rows, row = i % rows
-                let cy: CGFloat = rows == 1 ? h / 2 : (row == 0 ? h / 2 + 4.5 : h / 2 - 4.5)
-                let rect = NSRect(x: x + CGFloat(col) * cell + 1.5, y: cy - dia / 2, width: dia, height: dia)
-                ledRects.append((led.key, rect))
-            }
-            x = diskRect.maxX
         }
         return x + Self.pad
     }
@@ -158,8 +176,67 @@ final class StatusGraphView: NSView {
         return win.convertToScreen(convert(r, to: nil))
     }
 
-    // Let clicks fall through to the status button so the menu opens.
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    func rect(of seg: Segment) -> NSRect {
+        switch seg {
+        case .eyes: return eyesRect
+        case .network: return networkRect
+        case .battery: return batteryRect
+        case .disks: return diskRect
+        }
+    }
+
+    func segment(at p: NSPoint) -> Segment? {
+        order.first { !rect(of: $0).isEmpty && rect(of: $0).insetBy(dx: -2, dy: 0).contains(p) }
+    }
+
+    // MARK: Click to open the menu, drag a segment to reorder
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        frame.contains(point) ? self : nil
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        let start = convert(event.locationInWindow, from: nil)
+        guard let seg = segment(at: start), visibleSegmentCount > 1 else { onClick?(); return }
+
+        var didDrag = false
+        while let e = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+            let p = convert(e.locationInWindow, from: nil)
+            if e.type == .leftMouseUp { break }
+            if !didDrag, abs(p.x - start.x) > 4 {
+                didDrag = true
+                dragging = seg
+                onDragBegan?()
+                NSCursor.closedHand.push()
+            }
+            guard didDrag else { continue }
+            // Swap with the neighbour the pointer has moved past.
+            let mine = rect(of: seg)
+            if let other = order.first(where: { $0 != seg && !rect(of: $0).isEmpty && rect(of: $0).contains(NSPoint(x: p.x, y: rect(of: $0).midY)) }) {
+                let r = rect(of: other)
+                let movingRight = r.midX > mine.midX
+                if (movingRight && p.x > r.midX) || (!movingRight && p.x < r.midX),
+                   let i = order.firstIndex(of: seg), let j = order.firstIndex(of: other) {
+                    order.swapAt(i, j)
+                    layoutSegments(height: bounds.height)
+                }
+            }
+            display()   // the event loop blocks normal redraws, so draw now
+        }
+
+        if didDrag {
+            NSCursor.pop()
+            dragging = nil
+            display()
+            onReorder?(order)
+        } else {
+            onClick?()
+        }
+    }
+
+    private var visibleSegmentCount: Int { order.filter { !rect(of: $0).isEmpty }.count }
 
     // MARK: Hover tracking
 
@@ -199,6 +276,12 @@ final class StatusGraphView: NSView {
         if !showsAnything {
             drawIdleIcon(x: Self.pad + Self.dotWidth, h: h, label: label)
             return
+        }
+
+        if let d = dragging {
+            let r = rect(of: d).insetBy(dx: -2, dy: 1)
+            NSColor.controlAccentColor.withAlphaComponent(0.35).setFill()
+            NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4).fill()
         }
 
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)

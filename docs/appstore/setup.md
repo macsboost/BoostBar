@@ -23,9 +23,8 @@ Download both `.cer` files, double-click to install, then in Keychain Access ▸
 ## 4. GitHub secrets (github.com/macsboost/BoostBar ▸ Settings ▸ Secrets ▸ Actions)
 | Secret | How to get it |
 |---|---|
-| `MAS_APP_CERT_P12` | `base64 -i ~/Documents/AppleDistribution.p12 \| pbcopy` |
-| `MAS_INSTALLER_CERT_P12` | `base64 -i ~/Documents/MacInstaller.p12 \| pbcopy` |
-| `MAS_CERT_PASSWORD` | the export password (same for both) |
+| `MAS_APP_CERT_P12` | `base64 -i ~/Downloads/BoostBar-AppStore.p12 \| pbcopy` (one .p12 holding both certificates) |
+| `MAS_CERT_PASSWORD` | the export password |
 | `MAS_PROVISION_PROFILE` | `base64 -i ~/Downloads/BoostBar_App_Store.provisionprofile \| pbcopy` |
 
 The existing `APPLE_API_KEY_*` secrets are reused for the upload.

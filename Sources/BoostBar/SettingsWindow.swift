@@ -242,6 +242,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             let row = p.row([p.makeButton("Check Now") { app.checkForUpdates() }, gh])
             p.custom(row, height: 28)
             #endif
+            p.header("Menu Bar Layout")
+            p.note("Drag any piece of BoostBar in the menu bar (eyes, network graph, battery watts, disk lights) left or right to change the order. A plain click opens the menu.")
+            p.button("Reset Order") { app.resetOrder() }
             p.header("Privacy")
             p.check("Share anonymous install count", get: { InstallPing.isEnabled }, set: { _ in app.toggleInstallPing() })
             p.note("Sends biz-cord.com a random ID, the BoostBar version, macOS version and CPU type, once per version. No personal info.", indent: true)

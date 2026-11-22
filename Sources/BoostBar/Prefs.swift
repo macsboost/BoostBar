@@ -21,6 +21,7 @@ enum Prefs {
         static let singleEye = "singleEye"
         static let googly = "googlyEyes"
         static let eyeBlink = "eyeBlink"
+        static let segmentOrder = "segmentOrder"
     }
 
     static func registerDefaults() {
@@ -73,6 +74,18 @@ enum Prefs {
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
 
     static let sizeNames = ["Small", "Medium", "Large"]
+
+    /// Left-to-right order of the menu bar pieces (eyes, network, battery, disks).
+    static var segmentOrder: [StatusGraphView.Segment] {
+        get {
+            let saved = (d.stringArray(forKey: K.segmentOrder) ?? []).compactMap(StatusGraphView.Segment.init(rawValue:))
+            var out: [StatusGraphView.Segment] = []
+            for s in saved where !out.contains(s) { out.append(s) }
+            for s in StatusGraphView.defaultOrder where !out.contains(s) { out.append(s) }   // add any new pieces
+            return out
+        }
+        set { d.set(newValue.map(\.rawValue), forKey: K.segmentOrder) }
+    }
 }
 
 extension Notification.Name {

@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hoverTarget: StatusGraphView.Target?
     private var hoverTimer: Timer?
     private var menuIsOpen = false
+    private let statusMenu = NSMenu()
 
     static let awakeDurations: [(label: String, minutes: Int?)] = [
         ("Indefinitely", nil), ("15 Minutes", 15), ("30 Minutes", 30), ("1 Hour", 60),
@@ -44,12 +45,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         graphView.onHover = { [weak self] t in self?.hoverChanged(t) }
         graphView.onExit = { [weak self] in self?.hideHover() }
+        graphView.onClick = { [weak self] in self?.openMenu() }
+        graphView.onDragBegan = { [weak self] in self?.hideHover() }
+        graphView.onReorder = { [weak self] order in
+            Prefs.segmentOrder = order
+            self?.refreshStatus()
+        }
         eyes.view = graphView
 
-        let menu = NSMenu()
-        menu.delegate = self
-        menu.autoenablesItems = false
-        statusItem.menu = menu
+        // The menu is attached only while it's open, so a drag on the bar can reorder pieces instead.
+        statusMenu.delegate = self
+        statusMenu.autoenablesItems = false
 
 #if !APPSTORE
         scroll.reverseTrackpad = Prefs.reverseTrackpad
@@ -150,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let bits = Prefs.useBits
         battery = BatteryMonitor.hasBattery ? BatteryMonitor.read() : nil
 
+        graphView.order = Prefs.segmentOrder
         graphView.showNetwork = Prefs.showNetwork
         graphView.showBattery = Prefs.showBattery
         graphView.showDisks = diskSettings.showDisks
@@ -269,7 +276,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hideHover()
     }
 
-    func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
+    func menuDidClose(_ menu: NSMenu) {
+        menuIsOpen = false
+        DispatchQueue.main.async { [weak self] in self?.statusItem.menu = nil }
+    }
+
+    private func openMenu() {
+        hideHover()
+        statusItem.menu = statusMenu
+        statusItem.button?.performClick(nil)
+    }
+
+    func resetOrder() {
+        Prefs.segmentOrder = StatusGraphView.defaultOrder
+        refreshStatus()
+    }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         #if !APPSTORE
