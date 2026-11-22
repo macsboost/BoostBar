@@ -54,13 +54,7 @@ UNIVERSAL=1 ./scripts/build-app.sh   # arm64 + x86_64, needs full Xcode
 
 ## Releasing
 
-Bump `VERSION`, commit, then tag:
-
-```sh
-git tag v1.0.1 && git push origin v1.0.1
-```
-
-GitHub Actions builds a universal `BoostBar.zip` and publishes the release. Running copies of the app pick it up the next time they check.
+Bump `VERSION` (e.g. `1.0.1`) and push to `main`. GitHub Actions builds a universal `BoostBar.zip` and publishes release `v1.0.1`. Running copies of the app pick it up the next time they check. Pushing a `v*` tag works too.
 
 ## License
 
