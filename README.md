@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/menubar.png" width="790" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts and a disk LED, next to TMOG's CPU meter">
+  <img src="docs/media/menubar.png" width="660" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts and a disk LED, next to TMOG's CPU meter">
 </p>
 <p align="center">
   <img src="docs/media/menubar-hover.png" width="600" alt="Hovering the network graph opens a 5-minute upload/download chart">
