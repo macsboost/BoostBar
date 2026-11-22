@@ -18,6 +18,12 @@
     <string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSUIElement</key>
     <true/>
     <key>NSHighResolutionCapable</key>

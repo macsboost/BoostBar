@@ -1,3 +1,4 @@
+#if !APPSTORE
 import AppKit
 import ApplicationServices
 
@@ -137,3 +138,5 @@ private func scrollTapCallback(
     if r.reverseHorizontal { ScrollReverser.invert(event, vertical: false) }
     return Unmanaged.passUnretained(event)
 }
+
+#endif

@@ -65,6 +65,7 @@ final class SleepManager {
     }
 }
 
+#if !APPSTORE
 /// "Stay awake with lid closed": wraps `pmset -a disablesleep 0|1`, which needs root.
 /// Optionally installs a narrowly-scoped sudoers rule so toggling doesn't ask for a password.
 enum LidSleep {
@@ -110,3 +111,4 @@ enum LidSleep {
         Shell.runAsAdmin("/bin/rm -f \(sudoersPath)", prompt: "BoostBar wants to remove its password-free lid-sleep rule.")
     }
 }
+#endif

@@ -5,9 +5,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
+#if !APPSTORE
     private let scroll = ScrollReverser()
+#endif
     private let sleep = SleepManager()
+#if !APPSTORE
     private let updater = Updater()
+#endif
     private let defaults = UserDefaults.standard
     private var lidSleepDisabled = false
     private var battery: BatteryReading?
@@ -67,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false
         statusItem.menu = menu
 
+#if !APPSTORE
         scroll.reverseTrackpad = defaults.bool(forKey: Key.reverseTrackpad)
         scroll.reverseHorizontal = defaults.bool(forKey: Key.reverseHorizontal)
         scroll.onNeedsPermission = { [weak self] in
@@ -75,12 +80,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         scroll.onStateChange = { if ScrollReverser.hasPermission { PermissionGuide.shared.close() } }
         if defaults.bool(forKey: Key.reverseScroll) { scroll.start() }
+#endif
 
         sleep.keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
         sleep.onChange = { [weak self] in self?.refreshStatus() }
 
+#if !APPSTORE
         lidSleepDisabled = LidSleep.isDisabled
 
+#endif
         disk.onLEDChange = { [weak self] in
             guard let self else { return }
             self.graphView.litKeys = self.disk.lit
@@ -96,19 +104,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         net.onUpdate = { [weak self] in self?.tick() }
         net.start()
 
+        #if APPSTORE
+        TipJar.startObserving()
+        #endif
         SupportWindow.shared.showIfFirstLaunch()
         InstallPing.sendIfNeeded()
 
+#if !APPSTORE
         if defaults.bool(forKey: Key.checkOnLaunch) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.updater.check(userInitiated: false)
             }
         }
+#endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         sleep.allow()
+        #if !APPSTORE
         scroll.stop()
+        #endif
     }
 
     // MARK: - Status item
@@ -256,7 +271,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        #if !APPSTORE
         lidSleepDisabled = LidSleep.isDisabled
+        #endif
         refreshStatus()
         menu.removeAllItems()
 
@@ -303,6 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         forItem.submenu = sub
         menu.addItem(forItem)
         menu.addItem(item("Keep Display On Too", #selector(toggleDisplayAwake), on: sleep.keepDisplayAwake, indent: 1))
+#if !APPSTORE
         menu.addItem(item("Stay Awake With Lid Closed", #selector(toggleLidSleep), on: lidSleepDisabled, key: "l"))
         menu.addItem(item("Lid Toggle Without Password", #selector(toggleLidHelper), on: LidSleep.helperInstalled, indent: 1))
 
@@ -316,6 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(item("Include Trackpad / Magic Mouse", #selector(toggleReverseTrackpad), on: scroll.reverseTrackpad, indent: 1))
         menu.addItem(item("Include Horizontal Scrolling", #selector(toggleReverseHorizontal), on: scroll.reverseHorizontal, indent: 1))
+#endif
 
         // Network
         menu.addItem(.separator())
@@ -329,9 +348,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var loginTitle = "Launch at Login"
         if LoginItem.needsApproval { loginTitle += " (approve in System Settings)" }
         menu.addItem(item(loginTitle, #selector(toggleLaunchAtLogin), on: LoginItem.isEnabled))
+#if !APPSTORE
         menu.addItem(item("Check for Updates…", #selector(checkForUpdates), on: false, key: "u"))
         menu.addItem(item("Check for Updates at Launch", #selector(toggleCheckOnLaunch), on: defaults.bool(forKey: Key.checkOnLaunch), indent: 1))
         menu.addItem(item("BoostBar on GitHub", #selector(openGitHub), on: false))
+#endif
         menu.addItem(item("Buy Me an Energy Drink ⚡…", #selector(showAbout), on: false))
         menu.addItem(item("Share Anonymous Install Count", #selector(toggleInstallPing), on: InstallPing.isEnabled))
         menu.addItem(.separator())
@@ -403,6 +424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         defaults.set(sleep.keepDisplayAwake, forKey: Key.keepDisplayAwake)
     }
 
+#if !APPSTORE
     @objc private func toggleLidSleep() {
         let disable = !LidSleep.isDisabled
         if disable && !defaults.bool(forKey: Key.lidWarningShown) {
@@ -455,6 +477,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openAccessibility() {
         PermissionGuide.shared.show()
     }
+
+#endif
 
     // MARK: - Actions: misc
 
@@ -521,6 +545,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+#if !APPSTORE
     @objc private func checkForUpdates() { updater.check(userInitiated: true) }
 
     @objc private func toggleCheckOnLaunch() {
@@ -528,6 +553,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openGitHub() { NSWorkspace.shared.open(Updater.repoPage) }
+#endif
 
     @objc private func showAbout() { SupportWindow.shared.show() }
 

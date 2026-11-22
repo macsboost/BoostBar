@@ -46,6 +46,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         if let u = URL(string: s) { NSWorkspace.shared.open(u) }
     }
 
+#if !APPSTORE
     @objc private func payPayPal() {
         var c = URLComponents(string: "https://www.paypal.com/cgi-bin/webscr")!
         c.queryItems = [
@@ -87,6 +88,12 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         Self.open("imessage:\(Self.payEmail)")
     }
 
+#endif
+
+#if APPSTORE
+    @objc private func tipAppStore() { Task { await TipJar.buy() } }
+#endif
+
     @objc private func openSite(_ sender: NSButton) {
         guard sender.tag >= 0, sender.tag < Self.sites.count else { return }
         Self.open(Self.sites[sender.tag].url)
@@ -127,8 +134,12 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         content.addSubview(title)
 
         y -= 44
-        let blurb = NSTextField(wrappingLabelWithString:
-            "It's free. If you like it, buy me an energy drink — $\(Self.amount) keeps the boost coming.\nBy John McAlpine · MacsBoost")
+        #if APPSTORE
+        let blurbText = "It's free. If you like it, buy me an energy drink — it keeps the boost coming.\nBy John McAlpine · MacsBoost"
+        #else
+        let blurbText = "It's free. If you like it, buy me an energy drink — $\(Self.amount) keeps the boost coming.\nBy John McAlpine · MacsBoost"
+        #endif
+        let blurb = NSTextField(wrappingLabelWithString: blurbText)
         blurb.alignment = .center
         blurb.font = .systemFont(ofSize: 13)
         blurb.textColor = .secondaryLabelColor
@@ -137,6 +148,29 @@ final class SupportWindow: NSObject, NSWindowDelegate {
 
         // Pay buttons
         y -= 56
+#if APPSTORE
+        let tip = NSButton(title: "Buy Me an Energy Drink ⚡", target: self, action: #selector(tipAppStore))
+        tip.bezelStyle = .rounded
+        tip.controlSize = .large
+        tip.bezelColor = .systemGreen
+        tip.contentTintColor = .white
+        tip.font = .systemFont(ofSize: 15, weight: .semibold)
+        tip.frame = NSRect(x: (width - 320) / 2, y: y, width: 320, height: 40)
+        content.addSubview(tip)
+        Task { @MainActor in
+            if let price = await TipJar.displayPrice() { tip.title = "Buy Me an Energy Drink ⚡  \(price)" }
+        }
+        var x: CGFloat = 0
+
+        y -= 26
+        let hint = NSTextField(labelWithString: "Tips are handled securely by the App Store and don’t unlock anything — just thanks.")
+        hint.font = .systemFont(ofSize: 11)
+        hint.textColor = .tertiaryLabelColor
+        hint.alignment = .center
+        hint.frame = NSRect(x: 20, y: y, width: width - 40, height: 16)
+        content.addSubview(hint)
+
+#else
         let pays: [(String, Selector, NSColor, String)] = [
             ("Apple Cash  $\(Self.amount)", #selector(payAppleCash), .systemGreen,
              "Opens Messages to \(Self.payEmail). Tap the Apple Cash (＄) button and send $\(Self.amount) — the amount is on your clipboard."),
@@ -148,7 +182,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
              "Pay $\(Self.amount) by card (Stripe) on biz-cord.com"),
         ]
         let bw: CGFloat = 140, gap: CGFloat = 12
-        var x = (width - (bw * 3 + gap * 2)) / 2
+        var x = (width - (bw * CGFloat(pays.count) + gap * CGFloat(pays.count - 1))) / 2
         for (label, sel, color, tip) in pays {
             let b = NSButton(title: label, target: self, action: sel)
             b.bezelStyle = .rounded
@@ -170,6 +204,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         hint.frame = NSRect(x: 20, y: y, width: width - 40, height: 16)
         content.addSubview(hint)
 
+#endif
         // Site links
         y -= 40
         let linkFont = NSFont.systemFont(ofSize: 13, weight: .medium)

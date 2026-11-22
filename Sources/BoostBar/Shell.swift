@@ -17,6 +17,7 @@ enum Shell {
         return (p.terminationStatus, String(decoding: data, as: UTF8.self))
     }
 
+    #if !APPSTORE
     /// Runs a shell command as root via the standard macOS admin password prompt.
     /// Must be called on the main thread (NSAppleScript is not thread-safe).
     @discardableResult
@@ -30,6 +31,8 @@ enum Shell {
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         return error == nil
     }
+
+    #endif
 
     /// Single-quotes a string for /bin/sh.
     static func quote(_ s: String) -> String {

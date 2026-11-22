@@ -34,6 +34,11 @@ enum InstallPing {
         #else
         let arch = "x86_64"
         #endif
+        #if APPSTORE
+        let channel = "appstore"
+        #else
+        let channel = "direct"
+        #endif
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let body: [String: Any] = [
             "app": "BoostBar",
@@ -43,6 +48,7 @@ enum InstallPing {
             "previous_version": previous ?? NSNull(),
             "macos": "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
             "arch": arch,
+            "channel": channel,
         ]
 
         var req = URLRequest(url: endpoint)

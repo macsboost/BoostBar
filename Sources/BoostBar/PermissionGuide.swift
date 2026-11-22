@@ -1,3 +1,4 @@
+#if !APPSTORE
 import AppKit
 
 /// A small window that shows *where* to flip the switch for BoostBar in
@@ -246,3 +247,5 @@ final class AccessibilitySettingsIllustration: NSView {
         ]).draw(at: NSPoint(x: px, y: list.maxY + 16))
     }
 }
+
+#endif

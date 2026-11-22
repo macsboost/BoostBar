@@ -20,6 +20,7 @@ final class Updater {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 
+    #if !APPSTORE
     private struct Release: Decodable {
         struct Asset: Decodable { let name: String; let browser_download_url: String }
         let tag_name: String
@@ -149,6 +150,8 @@ final class Updater {
         }
         NSApp.terminate(nil)
     }
+
+    #endif
 
     static func isVersion(_ a: String, newerThan b: String) -> Bool {
         func parts(_ s: String) -> [Int] {
