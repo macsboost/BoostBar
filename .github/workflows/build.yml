@@ -13,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,7 +75,7 @@ jobs:
           if [[ "$APPLE_API_KEY_P8" == *"BEGIN PRIVATE KEY"* ]]; then printf '%s\n' "$APPLE_API_KEY_P8" > "$KEY"
           else echo "$APPLE_API_KEY_P8" | base64 --decode > "$KEY"; fi
           xcrun notarytool submit dist/BoostBar.zip --key "$KEY" --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER_ID" --wait --timeout 20m --output-format json | tee "$RUNNER_TEMP/notary.json"
+            --issuer "$APPLE_API_ISSUER_ID" --wait --timeout 90m --output-format json | tee "$RUNNER_TEMP/notary.json"
           rm -f "$KEY"
           grep -q '"status" *: *"Accepted"' "$RUNNER_TEMP/notary.json" || { echo "::error::Notarization not accepted"; exit 1; }
           xcrun stapler staple dist/BoostBar.app
