@@ -1,0 +1,42 @@
+name: Screen Saver Preview
+
+# Renders the Flying Cars scene in headless Chrome (software WebGL) and saves screenshots,
+# so changes to the scene or liveries can be checked without installing the saver.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["Saver/**", "tools/build_saver_html.py", "tools/macsboost_livery.py", ".github/workflows/saver-preview.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build scene page
+        run: |
+          mkdir -p build/saver out
+          curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js -o build/saver/three.min.js
+          curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js -o build/saver/GLTFLoader.js
+          python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/saver.html
+      - name: Screenshots
+        run: |
+          CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+          for t in 4000 9000; do
+            "$CHROME" --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist \
+              --hide-scrollbars --window-size=1440,900 --virtual-time-budget=$t --run-all-compositor-stages-before-draw \
+              --enable-logging=stderr --v=0 --allow-file-access-from-files \
+              --screenshot="$PWD/out/frame_$t.png" "file://$PWD/out/saver.html" 2> "out/console_$t.txt" || true
+            grep -iE "console|error|uncaught" "out/console_$t.txt" | grep -v -iE "gpu|dbus|fontconfig|crashpad" | head -20 || true
+          done
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saver-preview
+          path: |
+            out/*.png
+            out/console_*.txt
