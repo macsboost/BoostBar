@@ -644,7 +644,8 @@
         // flap like the toasters' wings: each flap swings about its hinge, the forward pair a beat behind the aft
         for (const f of c.flaps) {
           const ph = c.spin * c.flapRate + c.phase - (f.fwd ? 0.6 : 0);
-          const deg = f.fwd ? 18 + 30 * Math.sin(ph) : 24 + 36 * Math.sin(ph);
+          // degrees leeward of straight out: ~5° (spread, pointing at you) up to ~95° (raised over the hull) and back
+          const deg = f.fwd ? 42 + 40 * Math.sin(ph) : 50 + 45 * Math.sin(ph);
           f.o.quaternion.copy(f.q0).multiply(flapQ.setFromAxisAngle(yAxis, f.s * deg * D2R));
         }
         const fl = 0.85 + 0.15 * Math.sin(t * 37 + c.phase) + 0.08 * Math.sin(t * 61);
