@@ -26,7 +26,7 @@ ditto -x -k /tmp/BoostBar.zip /Applications
 open /Applications/BoostBar.app
 ```
 
-You can also download `BoostBar.zip` from [Releases](https://github.com/macsboost/BoostBar/releases) and drag the app into **/Applications**. The app is ad-hoc signed, not notarized, so the first time you open a browser-downloaded copy, right-click it and choose **Open**. You can also run `xattr -dr com.apple.quarantine /Applications/BoostBar.app`.
+You can also download `BoostBar.zip` from [Releases](https://github.com/macsboost/BoostBar/releases) and drag the app into **/Applications**. Release builds are signed with a Developer ID and notarized by Apple when the signing secrets below are set. Until then they are ad-hoc signed: right-click the app and choose **Open** the first time, or run `xattr -dr com.apple.quarantine /Applications/BoostBar.app`.
 
 Keep the app in /Applications. Launch at login and in-place updates need it there.
 
@@ -55,6 +55,20 @@ UNIVERSAL=1 ./scripts/build-app.sh   # arm64 + x86_64, needs full Xcode
 ## Releasing
 
 Bump `VERSION` (e.g. `1.0.1`) and push to `main`. GitHub Actions builds a universal `BoostBar.zip` and publishes release `v1.0.1`. Running copies of the app pick it up the next time they check. Pushing a `v*` tag works too.
+
+## Code signing & notarization (CI)
+
+The workflow signs with a **Developer ID Application** certificate and notarizes with an App Store Connect API key when these repository secrets exist (Settings ▸ Secrets and variables ▸ Actions):
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERT_P12` | base64 of the exported Developer ID Application `.p12` (cert + private key) |
+| `MACOS_CERT_PASSWORD` | the password you set when exporting the `.p12` |
+| `APPLE_API_KEY_P8` | contents of `AuthKey_XXXXXXXXXX.p8` (raw text or base64) |
+| `APPLE_API_KEY_ID` | the key's 10-character Key ID |
+| `APPLE_API_ISSUER_ID` | the Issuer ID (UUID) shown above the keys list |
+
+Without them, builds fall back to ad-hoc signing.
 
 ## License
 

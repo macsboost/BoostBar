@@ -21,8 +21,12 @@ cp "$BIN_DIR/BoostBar" "$APP/Contents/MacOS/BoostBar"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Resources/Info.plist > "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
-# Ad-hoc signature (no Apple Developer ID). Set SIGN_IDENTITY to sign with a real certificate.
-codesign --force --options runtime --sign "${SIGN_IDENTITY:--}" "$APP"
+# Signing: ad-hoc by default. Set SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" to sign for distribution.
+IDENTITY="${SIGN_IDENTITY:--}"
+SIGN_ARGS=(--force --options runtime --entitlements Resources/BoostBar.entitlements --sign "$IDENTITY")
+[[ "$IDENTITY" != "-" ]] && SIGN_ARGS+=(--timestamp)
+codesign "${SIGN_ARGS[@]}" "$APP"
+codesign --verify --strict --verbose=2 "$APP"
 
 (cd dist && ditto -c -k --keepParent BoostBar.app BoostBar.zip)
 echo "Built $APP  (version $VERSION, build $BUILD)"

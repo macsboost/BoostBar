@@ -21,7 +21,33 @@ jobs:
       - name: Show toolchain
         run: swift --version
 
+      - name: Import Developer ID certificate
+        id: cert
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [[ -z "$MACOS_CERT_P12" ]]; then
+            echo "No MACOS_CERT_P12 secret - building ad-hoc signed."
+            echo "identity=-" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          KC="$RUNNER_TEMP/build.keychain-db"; KCPW="$(uuidgen)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          ID="$(security find-identity -v -p codesigning "$KC" | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)"/\1/')"
+          if [[ -z "$ID" ]]; then echo "::error::No 'Developer ID Application' identity in MACOS_CERT_P12"; exit 1; fi
+          echo "Signing as: $ID"
+          echo "identity=$ID" >> "$GITHUB_OUTPUT"
+
       - name: Build universal app
+        env:
+          SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
@@ -31,6 +57,31 @@ jobs:
           chmod +x scripts/build-app.sh
           UNIVERSAL=1 ./scripts/build-app.sh "$VERSION"
           lipo -info dist/BoostBar.app/Contents/MacOS/BoostBar
+          codesign -dvv dist/BoostBar.app 2>&1 | grep -E "Authority|TeamIdentifier|Signature" || true
+
+      - name: Notarize & staple
+        if: steps.cert.outputs.identity != '-'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          if [[ -z "$APPLE_API_KEY_P8" || -z "$APPLE_API_KEY_ID" || -z "$APPLE_API_ISSUER_ID" ]]; then
+            echo "::warning::Signed but NOT notarized - add APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID secrets."
+            exit 0
+          fi
+          KEY="$RUNNER_TEMP/AuthKey.p8"
+          if [[ "$APPLE_API_KEY_P8" == *"BEGIN PRIVATE KEY"* ]]; then printf '%s\n' "$APPLE_API_KEY_P8" > "$KEY"
+          else echo "$APPLE_API_KEY_P8" | base64 --decode > "$KEY"; fi
+          xcrun notarytool submit dist/BoostBar.zip --key "$KEY" --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" --wait --timeout 20m --output-format json | tee "$RUNNER_TEMP/notary.json"
+          rm -f "$KEY"
+          grep -q '"status" *: *"Accepted"' "$RUNNER_TEMP/notary.json" || { echo "::error::Notarization not accepted"; exit 1; }
+          xcrun stapler staple dist/BoostBar.app
+          xcrun stapler validate dist/BoostBar.app
+          spctl --assess --type execute --verbose=4 dist/BoostBar.app
+          rm dist/BoostBar.zip
+          (cd dist && ditto -c -k --keepParent BoostBar.app BoostBar.zip)
 
       - uses: actions/upload-artifact@v4
         with:
