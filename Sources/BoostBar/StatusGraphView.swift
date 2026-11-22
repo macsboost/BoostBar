@@ -27,6 +27,15 @@ final class StatusGraphView: NSView {
     var upText = "0.0 KB/s"
     var downText = "0.0 KB/s"
     var awake: AwakeState = .normal
+    /// Bloodshot eyes already say "keeping awake", so the yellow dot can go.
+    var eyesShowAwake = false
+    private var showsAwakeDot: Bool {
+        switch awake {
+        case .normal: return false
+        case .keepAwake: return !(eyesShowAwake && showEyes)
+        case .lidAwake: return true   // orange dot = lid-closed mode, which the eyes can't show
+        }
+    }
     var battery: BatteryReading?
     var leds: [LED] = []
     var litKeys: Set<String> = []
@@ -101,7 +110,7 @@ final class StatusGraphView: NSView {
     @discardableResult
     func layoutSegments(height h: CGFloat) -> CGFloat {
         var x = Self.pad
-        if awake != .normal || !showsAnything { x += Self.dotWidth }
+        if showsAwakeDot || !showsAnything { x += Self.dotWidth }
         networkRect = .zero; batteryRect = .zero; diskRect = .zero; eyesRect = .zero; ledRects = []; eyeRects = []
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
@@ -276,7 +285,7 @@ final class StatusGraphView: NSView {
         let label = NSColor.labelColor
         let mid = h / 2
 
-        if awake != .normal {
+        if showsAwakeDot {
             let color: NSColor = (awake == .lidAwake) ? .systemOrange : .systemYellow
             color.setFill()
             NSBezierPath(ovalIn: NSRect(x: Self.pad, y: mid - 2, width: 4, height: 4)).fill()
