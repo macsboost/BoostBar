@@ -11,6 +11,7 @@
   );
   const D2R = Math.PI / 180;
   const SHIPS = (window.SAVER_SCENE || CFG.scene) === 'starships';
+  if (SHIPS) renderer.toneMappingExposure = 0.85;
   const $ = (id) => document.getElementById(id);
 
   // ---------- renderer / scene ----------
@@ -19,7 +20,7 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 1.35; // Starships: set below, once SHIPS is known
   renderer.setClearColor(0x000000, 1);
   document.body.appendChild(renderer.domElement);
 
@@ -391,7 +392,7 @@
             o.frustumCulled = false;
             const m = (o.material = o.material.clone());
             m.side = THREE.DoubleSide;
-            if (m.name === 'steel') { m.metalness = 0.55; m.roughness = 0.32; } // no environment map: keep it bright
+            if (m.name === 'steel') { m.metalness = 0.5; m.roughness = 0.38; m.color.setHex(0xb9bec4); } // brushed stainless, not chrome-white
           });
           const pivot = new THREE.Group();
           pivot.rotation.x = Math.PI / 2; // nose (+y) -> +z, heat shield (+z) -> down
@@ -635,7 +636,8 @@
       tgt.copy(c.g.position).add(DIR);
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
-      c.g.rotateZ(-0.555 + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble); // base tilt ≈ 32°
+      // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
+      c.g.rotateZ((SHIPS ? -0.2 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
