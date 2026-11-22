@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
             Key.showBattery: BatteryMonitor.hasBattery,
         ])
 
-        statusItem = NSStatusBar.system.statusItem(withLength: StatusGraphView.totalWidth)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             graphView.frame = button.bounds
             graphView.autoresizingMask = [.width, .height]
