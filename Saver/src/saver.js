@@ -363,7 +363,7 @@
   // ---------- Starship ----------
   // The ship model stands nose up (+y), heat shield on +z, flaps on +-x. A pivot lays it down nose-first (+z, which
   // lookAt points along the flight path) with the heat shield underneath, like a belly-flopping ship gliding along.
-  const SHIP_SCALE = 0.15; // 60 m ship -> 9 scene units (a SkyRacer is about 4)
+  const SHIP_SCALE = 0.19; // 60 m ship -> 11 scene units (a SkyRacer is about 4)
   function glowTexture(inner, outer) {
     const cv = document.createElement('canvas');
     cv.width = cv.height = 64;
@@ -579,7 +579,7 @@
   };
   // ---------- bumping ----------
   // Cars that get too close bounce apart (and wobble a bit) instead of flying through each other.
-  const R = SHIPS ? 2.3 : 1.7; // rough radius of a SkyRacer / a Starship in scene units
+  const R = SHIPS ? 2.8 : 1.7; // rough radius of a SkyRacer / a Starship in scene units
   const lastHit = new Map();
   const n = new THREE.Vector3();
   function bump(t) {
