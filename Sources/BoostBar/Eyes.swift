@@ -11,7 +11,7 @@ final class EyesAnimator {
     private var timer: Timer?
     private var pos: [CGPoint] = []
     private var vel: [CGPoint] = []
-    private var lastMouse = NSPoint(x: .nan, y: .nan)
+    private var lastMouse = NSPoint(x: CGFloat.nan, y: CGFloat.nan)
     private var nextBlink: TimeInterval = 0
     private var blinkUntil: TimeInterval = 0
 

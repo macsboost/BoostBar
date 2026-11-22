@@ -110,7 +110,7 @@ private final class Pane: NSViewController {
         let bx = box { [weak w] _ in if let w { set(w.color) } }
         w.target = bx; w.action = #selector(ActionBox.run(_:))
         refreshers.append { [weak w] in w?.color = get() }
-        add(row([l, w]))
+        add(row([l, w]), indent: false)
     }
 
     @discardableResult
