@@ -34,6 +34,13 @@ enum Prefs {
     }
 
     static func registerDefaults() {
+        // Fresh install (BoostBar has never run here): start with the googly eyes on and large,
+        // and medium disk LEDs. Existing users keep whatever they had.
+        if d.object(forKey: "supportShownOnce") == nil && d.object(forKey: K.showEyes) == nil {
+            d.set(true, forKey: K.showEyes)
+            d.set(2, forKey: K.eyeSize)
+            if d.object(forKey: "ledSize") == nil { d.set(1, forKey: "ledSize") }
+        }
         d.register(defaults: [
             K.reverseScroll: false,
             K.reverseTrackpad: false,
