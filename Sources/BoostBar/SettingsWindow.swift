@@ -238,6 +238,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             #if !APPSTORE
             p.header("Updates")
             p.check("Check for updates when BoostBar starts", get: { Prefs.checkOnLaunch }, set: { Prefs.checkOnLaunch = $0 })
+            p.check("Install updates automatically", indent: true, get: { Prefs.autoUpdate }, set: { Prefs.autoUpdate = $0 })
+            p.note("When a newer version is found at startup, BoostBar downloads it, checks Apple's notarization and the MacsBoost signature, swaps it in and relaunches — no prompt.", indent: true)
             let gh = p.makeButton("BoostBar on GitHub") { app.openGitHub() }
             let row = p.row([p.makeButton("Check Now") { app.checkForUpdates() }, gh])
             p.custom(row, height: 28)

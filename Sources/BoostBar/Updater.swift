@@ -1,5 +1,6 @@
 import AppKit
 import ServiceManagement
+import Security
 
 enum LoginItem {
     static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
@@ -65,6 +66,14 @@ final class Updater {
             return
         }
 
+        let asset = release.assets.first(where: { $0.name.hasSuffix(".zip") })
+        let canInstall = asset != nil && Self.canReplaceSelf
+
+        if !userInitiated, Prefs.autoUpdate, canInstall, let asset, let url = URL(string: asset.browser_download_url) {
+            install(from: url, quiet: true, version: latest)
+            return
+        }
+
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
         a.messageText = "BoostBar \(latest) is available"
@@ -73,15 +82,19 @@ final class Updater {
             info += "\n\n" + String(body.prefix(600))
         }
         a.informativeText = info
-        let asset = release.assets.first(where: { $0.name.hasSuffix(".zip") })
-        let canInstall = asset != nil && Self.canReplaceSelf
         if canInstall { a.addButton(withTitle: "Install & Relaunch") }
         a.addButton(withTitle: "View Release")
         a.addButton(withTitle: "Later")
+        if canInstall {
+            a.showsSuppressionButton = true
+            a.suppressionButton?.title = "Install future updates automatically"
+            a.suppressionButton?.state = Prefs.autoUpdate ? .on : .off
+        }
 
         let r = a.runModal()
+        if canInstall { Prefs.autoUpdate = a.suppressionButton?.state == .on }
         if canInstall, r == .alertFirstButtonReturn, let asset, let url = URL(string: asset.browser_download_url) {
-            install(from: url)
+            install(from: url, quiet: false, version: latest)
         } else if (canInstall && r == .alertSecondButtonReturn) || (!canInstall && r == .alertFirstButtonReturn) {
             NSWorkspace.shared.open(URL(string: release.html_url) ?? Self.releasesPage)
         }
@@ -95,7 +108,32 @@ final class Updater {
             && FileManager.default.isWritableFile(atPath: dir)
     }
 
-    private func install(from url: URL) {
+    /// The download must be Apple-notarized and signed by the same team as the running copy.
+    private static func isTrusted(_ app: URL) -> Bool {
+        guard Shell.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]).status == 0,
+              Shell.run("/usr/sbin/spctl", ["--assess", "--type", "execute", app.path]).status == 0 else { return false }
+        func team(_ u: URL) -> String? {
+            var code: SecStaticCode?
+            guard SecStaticCodeCreateWithPath(u as CFURL, [], &code) == errSecSuccess, let code else { return nil }
+            var info: CFDictionary?
+            guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+                  let d = info as? [String: Any] else { return nil }
+            return d[kSecCodeInfoTeamIdentifier as String] as? String
+        }
+        guard let newTeam = team(app) else { return false }
+        // An unsigned/ad-hoc dev build has no team; then just require notarization.
+        if let mine = team(Bundle.main.bundleURL) { return mine == newTeam }
+        return true
+    }
+
+    private func install(from url: URL, quiet: Bool, version: String) {
+        if quiet {
+            DispatchQueue.main.async {
+                if let screen = NSScreen.main {
+                    Toast.shared.show("Updating to \(version)…", symbol: "arrow.down.circle.fill", near: .topRight, on: screen)
+                }
+            }
+        }
         URLSession.shared.downloadTask(with: url) { tmp, _, err in
             let fm = FileManager.default
             let work = fm.temporaryDirectory.appendingPathComponent("BoostBarUpdate-\(UUID().uuidString)")
@@ -108,11 +146,14 @@ final class Updater {
                     try fm.moveItem(at: tmp, to: zip)
                     ok = Shell.run("/usr/bin/ditto", ["-x", "-k", zip.path, work.path]).status == 0
                         && fm.fileExists(atPath: newApp.appendingPathComponent("Contents/MacOS/BoostBar").path)
+                        && Self.isTrusted(newApp)
                 } catch { ok = false }
             }
             DispatchQueue.main.async {
                 guard ok else {
-                    Self.alert("Update failed", err?.localizedDescription ?? "The downloaded update was invalid.")
+                    try? fm.removeItem(at: work)
+                    if quiet { return }   // try again next launch; don't nag
+                    Self.alert("Update failed", err?.localizedDescription ?? "The download couldn't be verified as a notarized MacsBoost build.")
                     return
                 }
                 Self.swapAndRelaunch(newApp: newApp, scratch: work)

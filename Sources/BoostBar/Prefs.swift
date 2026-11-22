@@ -11,6 +11,7 @@ enum Prefs {
         static let keepDisplayAwake = "keepDisplayAwake"
         static let useBits = "useBits"
         static let checkOnLaunch = "checkUpdatesOnLaunch"
+        static let autoUpdate = "installUpdatesAutomatically"
         static let lidWarningShown = "lidWarningShown"
         static let showNetwork = "showNetwork"
         static let showBattery = "showBattery"
@@ -59,6 +60,7 @@ enum Prefs {
     static var showNetwork: Bool { get { bool(K.showNetwork) } set { set(newValue, K.showNetwork) } }
     static var showBattery: Bool { get { bool(K.showBattery) } set { set(newValue, K.showBattery) } }
     static var checkOnLaunch: Bool { get { bool(K.checkOnLaunch) } set { set(newValue, K.checkOnLaunch) } }
+    static var autoUpdate: Bool { get { bool(K.autoUpdate) } set { set(newValue, K.autoUpdate) } }
     static var keepDisplayAwake: Bool { get { bool(K.keepDisplayAwake) } set { set(newValue, K.keepDisplayAwake) } }
     static var reverseScroll: Bool { get { bool(K.reverseScroll) } set { set(newValue, K.reverseScroll) } }
     static var reverseTrackpad: Bool { get { bool(K.reverseTrackpad) } set { set(newValue, K.reverseTrackpad) } }
