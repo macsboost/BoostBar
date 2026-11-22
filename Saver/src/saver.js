@@ -361,6 +361,11 @@
   const ids = wanted.length ? wanted : ['macsboost'];
 
   // ---------- the flock ----------
+  // CFG.manual (used to record the README video): the page doesn't animate on its own; the
+  // recorder calls window.__frame(ms) for each video frame, so the clock is virtual.
+  let vt = 0;
+  const clock = () => (CFG.manual ? vt : performance.now() / 1000);
+  window.__frame = (ms) => frame(ms);
   const craft = [];
   const DIR = new THREE.Vector3(-1, -0.52, 0).normalize(); // toward lower-left, like the toasters
   function viewHalf(z) {
@@ -387,7 +392,7 @@
     c.man = null;
     c.kx = c.ky = c.kz = 0; // knock-back velocity from bumping into another car
     c.wob = 0; // wobble left over from a bump
-    c.next = (performance.now() / 1000) + 2 + Math.random() * 9;
+    c.next = clock() + 2 + Math.random() * 9;
   }
 
   // ---------- stunts ----------
@@ -472,7 +477,7 @@
   // ---------- animate ----------
   const tmpQ = new THREE.Quaternion(),
     tgt = new THREE.Vector3();
-  let last = performance.now(),
+  let last = CFG.manual ? 0 : performance.now(),
     paused = false;
   window.__pause = () => (paused = true);
   window.__resume = () => {
@@ -513,9 +518,10 @@
   }
 
   function frame(now) {
-    requestAnimationFrame(frame);
+    if (!CFG.manual) requestAnimationFrame(frame);
+    vt = now / 1000;
     if (paused) return;
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
     last = now;
     const t = now / 1000;
     const damp = Math.exp(-2.2 * dt);
@@ -545,7 +551,7 @@
     renderer.render(scene, camera);
   }
   build()
-    .then(() => requestAnimationFrame(frame))
+    .then(() => (CFG.manual ? (window.__ready = true) : requestAnimationFrame(frame)))
     .catch((e) => {
       const el = $('loading');
       if (el) el.textContent = 'Could not load the SkyRacer: ' + e;

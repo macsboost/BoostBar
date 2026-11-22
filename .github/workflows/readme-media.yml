@@ -1,0 +1,45 @@
+name: README Media
+
+# Renders the Flying Cars screen saver to a GIF + MP4 + still for the README and commits them
+# to docs/media. Run it from the Actions tab, or it runs when the scene or recorder changes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["Saver/src/**", "tools/record_saver.mjs", ".github/workflows/readme-media.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build scene page
+        run: |
+          mkdir -p build/saver out
+          curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js -o build/saver/three.min.js
+          curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js -o build/saver/GLTFLoader.js
+          python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/saver.html
+      - name: Record frames
+        run: |
+          npm install --no-save --silent puppeteer-core@23
+          CHROME=$(command -v google-chrome || command -v chromium) node tools/record_saver.mjs "$PWD/out/saver.html" out/frames 30 12
+      - name: Encode
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null || true
+          mkdir -p docs/media
+          ffmpeg -y -loglevel error -framerate 30 -i out/frames/f%04d.png -c:v libx264 -pix_fmt yuv420p -crf 20 -preset slow -movflags +faststart docs/media/flying-cars.mp4
+          ffmpeg -y -loglevel error -framerate 30 -i out/frames/f%04d.png -vf "fps=15,scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" docs/media/flying-cars.gif
+          ffmpeg -y -loglevel error -i out/frames/f0200.png -q:v 3 docs/media/flying-cars.jpg
+          ls -la docs/media
+      - name: Commit media
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/media
+          git diff --cached --quiet && { echo "No change"; exit 0; }
+          git commit -m "README media: Flying Cars recording"
+          git pull --rebase origin main && git push origin HEAD:main
