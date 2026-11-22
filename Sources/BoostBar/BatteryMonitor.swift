@@ -14,6 +14,9 @@ struct BatteryReading {
     /// Apple Silicon only: what the power adapter is delivering, and what the whole system is drawing.
     var adapterWatts: Double?
     var systemWatts: Double?
+    /// Charge cycles so far, and full-charge capacity as a percent of the original design capacity.
+    var cycleCount: Int?
+    var healthPercent: Int?
 
     enum Direction { case charging, discharging, idle }
     var direction: Direction {
@@ -71,6 +74,10 @@ enum BatteryMonitor {
             }
         }
 
+        var health: Int?
+        if let full = num("AppleRawMaxCapacity") ?? num("NominalChargeCapacity"), let design = num("DesignCapacity"), design > 0 {
+            health = Int((Double(full) / Double(design) * 100).rounded())
+        }
         var adapter: Double?
         var system: Double?
         if let t = dict["PowerTelemetryData"] as? [String: Any] {
@@ -86,7 +93,9 @@ enum BatteryMonitor {
             fullyCharged: flag("FullyCharged"),
             minutesRemaining: minutes,
             adapterWatts: adapter,
-            systemWatts: system
+            systemWatts: system,
+            cycleCount: num("CycleCount").map { Int($0) },
+            healthPercent: health
         )
     }
 

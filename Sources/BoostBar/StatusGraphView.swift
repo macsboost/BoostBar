@@ -14,6 +14,7 @@ final class StatusGraphView: NSView {
     /// Left-to-right order of the segments (drag one to change it).
     var order: [Segment] = StatusGraphView.defaultOrder
     var onClick: (() -> Void)?
+    var onEyesClick: (() -> Void)?
     var onDragBegan: (() -> Void)?
     var onReorder: (([Segment]) -> Void)?
     private var dragging: Segment?
@@ -199,7 +200,11 @@ final class StatusGraphView: NSView {
     /// Runs a click-or-drag tracking loop starting from a mouse-down in this view's window.
     func trackMouse(from event: NSEvent) {
         let start = convert(event.locationInWindow, from: nil)
-        guard let seg = segment(at: start), visibleSegmentCount > 1 else { onClick?(); return }
+        let clicked = segment(at: start)
+        let click = { [weak self] in
+            if clicked == .eyes, let open = self?.onEyesClick { open() } else { self?.onClick?() }
+        }
+        guard let seg = clicked, visibleSegmentCount > 1 else { click(); return }
 
         var didDrag = false
         while let e = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
@@ -235,7 +240,7 @@ final class StatusGraphView: NSView {
             display()
             onReorder?(order)
         } else {
-            onClick?()
+            click()
         }
     }
 
@@ -424,13 +429,13 @@ final class StatusGraphView: NSView {
         case .idle:
             top = b.externalConnected ? (b.systemWatts.map(BatteryMonitor.formatWatts) ?? "0.0W") : "0.0W"
             bottom = b.externalConnected ? "AC" : "IDLE"
-            color = .secondaryLabelColor
+            color = b.externalConnected ? .labelColor : .secondaryLabelColor   // plugged in: full-strength text
         }
         let para = NSMutableParagraphStyle()
         para.alignment = .center
         NSAttributedString(string: top, attributes: [.font: font, .foregroundColor: label, .paragraphStyle: para])
             .draw(in: NSRect(x: r.minX, y: mid - 0.5, width: r.width, height: 11))
-        NSAttributedString(string: bottom, attributes: [.font: NSFont.systemFont(ofSize: 8, weight: .bold),
+        NSAttributedString(string: bottom, attributes: [.font: NSFont.systemFont(ofSize: b.externalConnected && b.direction == .idle ? 8.5 : 8, weight: .heavy),
                                                         .foregroundColor: color, .paragraphStyle: para])
             .draw(in: NSRect(x: r.minX, y: mid - 11, width: r.width, height: 11))
     }

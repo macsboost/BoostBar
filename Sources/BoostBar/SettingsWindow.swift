@@ -334,7 +334,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
                     set: { Prefs.allowCrossEye = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
-            p.note("A tribute to the classic desktop toys that kept an eye on your cursor.")
+            p.note("Click the eyes to open the About window. A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 
         #if !APPSTORE

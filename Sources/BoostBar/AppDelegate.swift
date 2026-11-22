@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.onHover = { [weak self] t in self?.hoverChanged(t) }
         graphView.onExit = { [weak self] in self?.hideHover() }
         graphView.onClick = { [weak self] in self?.openMenu() }
+        graphView.onEyesClick = { [weak self] in self?.hideHover(); self?.showAbout() }
         graphView.onDragBegan = { [weak self] in self?.hideHover() }
         graphView.onReorder = { [weak self] order in
             Prefs.segmentOrder = order
@@ -250,9 +251,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let b = battery ?? BatteryMonitor.read() else { return nil }
             let watts: (Double) -> String = { BatteryMonitor.formatWatts($0) }
             let vals = batteryHistory.values
+            var lines = BatteryMonitor.describe(b).split(separator: "\n").map(String.init)
+            var health: [String] = []
+            if let c = b.cycleCount { health.append("Cycle count: \(c)") }
+            if let h = b.healthPercent { health.append("Health: \(h)% of original capacity") }
+            if !health.isEmpty { lines.append(health.joined(separator: "  ·  ")) }
             return HoverContent(
                 title: "Battery" + (b.percent.map { " — \($0)%" } ?? ""),
-                lines: BatteryMonitor.describe(b).split(separator: "\n").map(String.init),
+                lines: lines,
                 top: .init(label: "Charging", values: vals.map { max($0, 0) }, color: StatusGraphView.chargeColor, format: watts),
                 bottom: .init(label: "Discharging", values: vals.map { max(-$0, 0) }, color: StatusGraphView.dischargeColor, format: watts),
                 timespan: "last 10 min")
