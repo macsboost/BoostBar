@@ -53,9 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.onClick = { [weak self] in self?.openMenu() }
         graphView.onEyesClick = { [weak self] in self?.hideHover(); self?.showAbout() }
         graphView.onDragBegan = { [weak self] in self?.hideHover() }
-        graphView.onReorder = { [weak self] order in
-            Prefs.segmentOrder = order
-            self?.refreshStatus()
+        graphView.onReorder = { [weak self] order in self?.setOrder(order) }
+        if let button = statusItem.button {
+            button.target = self
+            button.action = #selector(statusButtonDown(_:))
+            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
         }
         eyes.view = graphView
         #if !APPSTORE
@@ -203,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let bits = Prefs.useBits
         battery = BatteryMonitor.hasBattery ? BatteryMonitor.read() : nil
 
-        graphView.order = Prefs.segmentOrder
+        if !graphView.isDragging { graphView.order = Prefs.segmentOrder }  // don't yank a piece mid-drag
         graphView.showNetwork = Prefs.showNetwork
         graphView.showBattery = Prefs.showBattery
         graphView.showDisks = diskSettings.showDisks
@@ -333,18 +335,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         menuIsOpen = false
-        DispatchQueue.main.async { [weak self] in self?.statusItem.menu = nil }
+        DispatchQueue.main.async { [weak self] in
+            self?.statusItem.menu = nil
+            self?.statusItem.button?.action = #selector(AppDelegate.statusButtonDown(_:))
+        }
     }
 
     private func openMenu() {
         hideHover()
+        statusItem.button?.action = nil   // the menu handles this click, not our drag tracker
         statusItem.menu = statusMenu
         statusItem.button?.performClick(nil)
     }
 
     func resetOrder() {
-        Prefs.segmentOrder = StatusGraphView.defaultOrder
+        setOrder(StatusGraphView.defaultOrder)
+    }
+
+    func setOrder(_ order: [StatusGraphView.Segment]) {
+        Prefs.segmentOrder = order
+        lastLayoutKey = ""
         refreshStatus()
+        NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
+    }
+
+    func isSegmentShown(_ s: StatusGraphView.Segment) -> Bool {
+        switch s {
+        case .eyes: return Prefs.showEyes
+        case .network: return Prefs.showNetwork
+        case .battery: return Prefs.showBattery && BatteryMonitor.hasBattery
+        case .disks: return diskSettings.showDisks
+        }
+    }
+
+    /// Fallback path: if the local event monitor didn't see the mouse-down (it can miss status-bar
+    /// clicks on some macOS versions), the button fires this on mouse-down instead.
+    @objc private func statusButtonDown(_ sender: Any?) {
+        guard !menuIsOpen, let e = NSApp.currentEvent else { return }
+        if e.type == .rightMouseDown { openMenu(); return }
+        if e.type == .leftMouseDown { graphView.trackMouse(from: e) }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

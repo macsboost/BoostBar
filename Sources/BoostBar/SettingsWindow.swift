@@ -245,7 +245,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.custom(row, height: 28)
             #endif
             p.header("Menu Bar Layout")
-            p.note("Drag any piece of BoostBar in the menu bar (eyes, network graph, battery watts, disk lights) left or right to change the order. A plain click opens the menu.")
+            p.note("Order of BoostBar's pieces in the menu bar — top of the list is leftmost. Drag a row, or select it and use Left / Right. You can also drag a piece left or right right in the menu bar; a plain click there opens the menu.")
+            let editor = OrderEditor(order: { Prefs.segmentOrder }, isShown: { app.isSegmentShown($0) },
+                                     onChange: { app.setOrder($0) })
+            p.custom(editor, height: 134, onRefresh: { [weak editor] in editor?.reload() })
             p.button("Reset Order") { app.resetOrder() }
             p.header("Privacy")
             p.check("Share anonymous install count", get: { InstallPing.isEnabled }, set: { _ in app.toggleInstallPing() })

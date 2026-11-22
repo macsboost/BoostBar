@@ -18,6 +18,7 @@ final class StatusGraphView: NSView {
     var onDragBegan: (() -> Void)?
     var onReorder: (([Segment]) -> Void)?
     private var dragging: Segment?
+    var isDragging: Bool { dragging != nil }
 
     struct LED { let key: String; let color: NSColor }
 
@@ -217,7 +218,8 @@ final class StatusGraphView: NSView {
         guard let seg = clicked, visibleSegmentCount > 1 else { click(); return }
 
         var didDrag = false
-        while let e = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+        while let e = NSApp.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: .distantFuture,
+                                      inMode: .eventTracking, dequeue: true) {
             if e.type == .leftMouseUp { break }
             let p = convert(e.locationInWindow, from: nil)
             if !didDrag, abs(p.x - start.x) > 3 {
