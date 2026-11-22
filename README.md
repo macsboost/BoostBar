@@ -34,7 +34,7 @@ Keep the app in /Applications. Launch at login and in-place updates need it ther
 
 ### Permissions
 
-- **Reverse scrolling** needs **System Settings ▸ Privacy & Security ▸ Accessibility ▸ BoostBar**. The menu shows a shortcut if the permission is missing.
+- **Reverse scrolling** needs **System Settings ▸ Privacy & Security ▸ Accessibility ▸ BoostBar**. Whenever reverse scrolling is on but this permission is off (first run, after an update, or if it gets switched off), BoostBar shows a guide picture of exactly which switch to turn on, with a button that opens that settings page. The guide closes itself once the permission is on.
   Because builds are ad-hoc signed, macOS may forget this permission after an update. If scrolling stops reversing, toggle BoostBar off and on in that list, or remove it and add it again.
 - **Lid-closed sleep** asks for your admin password each time unless the password-free rule is installed.
 

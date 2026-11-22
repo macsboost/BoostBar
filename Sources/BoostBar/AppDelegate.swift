@@ -53,6 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
 
         scroll.reverseTrackpad = defaults.bool(forKey: Key.reverseTrackpad)
         scroll.reverseHorizontal = defaults.bool(forKey: Key.reverseHorizontal)
+        scroll.onNeedsPermission = { [weak self] in
+            guard let self, self.defaults.bool(forKey: Key.reverseScroll) else { return }
+            PermissionGuide.shared.show()
+        }
+        scroll.onStateChange = { if ScrollReverser.hasPermission { PermissionGuide.shared.close() } }
         if defaults.bool(forKey: Key.reverseScroll) { scroll.start() }
 
         sleep.keepDisplayAwake = defaults.bool(forKey: Key.keepDisplayAwake)
@@ -287,8 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
     }
 
     @objc private func openAccessibility() {
-        ScrollReverser.promptForPermission()
-        ScrollReverser.openAccessibilitySettings()
+        PermissionGuide.shared.show()
     }
 
     // MARK: - Actions: misc

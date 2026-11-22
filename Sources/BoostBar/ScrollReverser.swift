@@ -7,10 +7,13 @@ final class ScrollReverser {
     var reverseTrackpad = false
     var reverseHorizontal = false
     var onStateChange: (() -> Void)?
+    /// Called when reversing is wanted but macOS hasn't granted Accessibility (at start, or if it's revoked later).
+    var onNeedsPermission: (() -> Void)?
 
     fileprivate var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var permissionTimer: Timer?
+    private var healthTimer: Timer?
 
     var isRunning: Bool { tap != nil }
     var isWaitingForPermission: Bool { permissionTimer != nil }
@@ -30,8 +33,8 @@ final class ScrollReverser {
     func start() {
         guard tap == nil else { return }
         guard Self.hasPermission else {
-            Self.promptForPermission()
             waitForPermission()
+            onNeedsPermission?()
             return
         }
         let mask = CGEventMask(1) << CGEventMask(CGEventType.scrollWheel.rawValue)
@@ -44,6 +47,7 @@ final class ScrollReverser {
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
             waitForPermission()
+            onNeedsPermission?()
             return
         }
         tap = newTap
@@ -51,12 +55,28 @@ final class ScrollReverser {
         source = src
         CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
         CGEvent.tapEnable(tap: newTap, enable: true)
+
+        // If the permission is switched off (or lost after an update) while running, notice it.
+        healthTimer?.invalidate()
+        healthTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            guard let self, self.tap != nil, !Self.hasPermission else { return }
+            self.teardownTap()
+            self.waitForPermission()
+            self.onNeedsPermission?()
+        }
         onStateChange?()
     }
 
     func stop() {
         permissionTimer?.invalidate()
         permissionTimer = nil
+        teardownTap()
+        onStateChange?()
+    }
+
+    private func teardownTap() {
+        healthTimer?.invalidate()
+        healthTimer = nil
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -64,7 +84,6 @@ final class ScrollReverser {
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         tap = nil
         source = nil
-        onStateChange?()
     }
 
     private func waitForPermission() {
