@@ -11,7 +11,6 @@
   );
   const D2R = Math.PI / 180;
   const SHIPS = (window.SAVER_SCENE || CFG.scene) === 'starships';
-  if (SHIPS) renderer.toneMappingExposure = 0.85;
   const $ = (id) => document.getElementById(id);
 
   // ---------- renderer / scene ----------
@@ -20,7 +19,7 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35; // Starships: set below, once SHIPS is known
+  renderer.toneMappingExposure = SHIPS ? 0.85 : 1.35;
   renderer.setClearColor(0x000000, 1);
   document.body.appendChild(renderer.domElement);
 
