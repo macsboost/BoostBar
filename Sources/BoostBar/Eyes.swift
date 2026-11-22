@@ -7,6 +7,9 @@ final class EyesAnimator {
     weak var view: StatusGraphView?
     var googly = true
     var blink = true
+    /// true: each eye tracks the pointer from its own center (they go cross-eyed when the pointer
+    /// is between them). false: both eyes look the same way, aimed from the midpoint between them.
+    var allowCrossEye = true
 
     private var timer: Timer?
     private var pos: [CGPoint] = []
@@ -38,11 +41,17 @@ final class EyesAnimator {
         }
         let travel = v.pupilTravel
         var changed = mouse != lastMouse
+        let mid = CGPoint(x: centers.map(\.x).reduce(0, +) / CGFloat(centers.count),
+                          y: centers.map(\.y).reduce(0, +) / CGFloat(centers.count))
+        // Pointer right between the eyes (and close)? Go fully cross-eyed.
+        let betweenEyes = centers.count > 1 && allowCrossEye
+            && mouse.x > (centers.first!.x) && mouse.x < (centers.last!.x) && abs(mouse.y - mid.y) < 30
         for i in centers.indices {
-            let dx = mouse.x - centers[i].x
-            let dy = mouse.y - centers[i].y
+            let origin = allowCrossEye ? centers[i] : mid
+            let dx = mouse.x - origin.x
+            let dy = mouse.y - origin.y
             let dist = hypot(dx, dy)
-            let reach = min(1, dist / 60)
+            let reach = betweenEyes ? 1 : min(1, dist / 60)
             var target = dist > 0.01
                 ? CGPoint(x: dx / dist * travel.width * reach, y: dy / dist * travel.height * reach)
                 : .zero

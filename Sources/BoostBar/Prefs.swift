@@ -22,6 +22,7 @@ enum Prefs {
         static let googly = "googlyEyes"
         static let eyeBlink = "eyeBlink"
         static let segmentOrder = "segmentOrder"
+        static let crossEye = "allowCrossEye"
     }
 
     static func registerDefaults() {
@@ -41,6 +42,7 @@ enum Prefs {
             K.singleEye: false,
             K.googly: true,
             K.eyeBlink: true,
+            K.crossEye: true,
         ])
     }
 
@@ -72,6 +74,8 @@ enum Prefs {
     static var singleEye: Bool { get { bool(K.singleEye) } set { set(newValue, K.singleEye) } }
     static var googly: Bool { get { bool(K.googly) } set { set(newValue, K.googly) } }
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
+    /// Each eye aims at the pointer on its own, so they cross when it's between them.
+    static var allowCrossEye: Bool { get { bool(K.crossEye) } set { set(newValue, K.crossEye) } }
 
     static let sizeNames = ["Small", "Medium", "Large"]
 

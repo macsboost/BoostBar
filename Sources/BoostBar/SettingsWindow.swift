@@ -326,6 +326,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Single eye (cyclops)", get: { Prefs.singleEye }, set: { Prefs.singleEye = $0; app.applySettings() })
             p.check("Googly wobble", get: { Prefs.googly }, set: { Prefs.googly = $0; app.applySettings() })
             p.check("Blink now and then", get: { Prefs.eyeBlink }, set: { Prefs.eyeBlink = $0; app.applySettings() })
+            p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
+                    set: { Prefs.allowCrossEye = $0; app.applySettings() },
+                    enabled: { !Prefs.singleEye })
             p.note("A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 

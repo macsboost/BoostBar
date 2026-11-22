@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hoverTimer: Timer?
     private var menuIsOpen = false
     private let statusMenu = NSMenu()
+    private var mouseMonitor: Any?
 
     static let awakeDurations: [(label: String, minutes: Int?)] = [
         ("Indefinitely", nil), ("15 Minutes", 15), ("30 Minutes", 30), ("1 Hour", 60),
@@ -56,6 +57,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // The menu is attached only while it's open, so a drag on the bar can reorder pieces instead.
         statusMenu.delegate = self
         statusMenu.autoenablesItems = false
+
+        // Catch mouse-downs on our status item before the status button does, so we can tell a
+        // click (open the menu) from a drag (reorder pieces). ⌘-drag is left to macOS.
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
+            guard let self, let w = self.statusItem.button?.window, e.window === w,
+                  !e.modifierFlags.contains(.command), !self.menuIsOpen else { return e }
+            self.graphView.trackMouse(from: e)
+            return nil
+        }
 
 #if !APPSTORE
         scroll.reverseTrackpad = Prefs.reverseTrackpad
@@ -125,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         eyes.googly = Prefs.googly
         eyes.blink = Prefs.eyeBlink
+        eyes.allowCrossEye = Prefs.allowCrossEye
         eyes.setRunning(Prefs.showEyes)
 
         if statusItem != nil { refreshStatus() }

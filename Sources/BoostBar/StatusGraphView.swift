@@ -191,39 +191,41 @@ final class StatusGraphView: NSView {
 
     // MARK: Click to open the menu, drag a segment to reorder
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        frame.contains(point) ? self : nil
-    }
+    // Clicks are routed here by the app's event monitor (see AppDelegate), so the status
+    // button never swallows them. Hover tracking areas still work with hitTest = nil.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
+    /// Runs a click-or-drag tracking loop starting from a mouse-down in this view's window.
+    func trackMouse(from event: NSEvent) {
         let start = convert(event.locationInWindow, from: nil)
         guard let seg = segment(at: start), visibleSegmentCount > 1 else { onClick?(); return }
 
         var didDrag = false
         while let e = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
-            let p = convert(e.locationInWindow, from: nil)
             if e.type == .leftMouseUp { break }
-            if !didDrag, abs(p.x - start.x) > 4 {
+            let p = convert(e.locationInWindow, from: nil)
+            if !didDrag, abs(p.x - start.x) > 3 {
                 didDrag = true
                 dragging = seg
                 onDragBegan?()
                 NSCursor.closedHand.push()
             }
             guard didDrag else { continue }
-            // Swap with the neighbour the pointer has moved past.
-            let mine = rect(of: seg)
-            if let other = order.first(where: { $0 != seg && !rect(of: $0).isEmpty && rect(of: $0).contains(NSPoint(x: p.x, y: rect(of: $0).midY)) }) {
-                let r = rect(of: other)
-                let movingRight = r.midX > mine.midX
-                if (movingRight && p.x > r.midX) || (!movingRight && p.x < r.midX),
-                   let i = order.firstIndex(of: seg), let j = order.firstIndex(of: other) {
-                    order.swapAt(i, j)
-                    layoutSegments(height: bounds.height)
-                }
+
+            // Place the dragged piece by the pointer: count how many other visible pieces
+            // have their middle to the left of the pointer.
+            let visible = order.filter { !rect(of: $0).isEmpty }
+            let others = visible.filter { $0 != seg }
+            let index = others.filter { rect(of: $0).midX < p.x }.count
+            var newVisible = others
+            newVisible.insert(seg, at: index)
+            let hidden = order.filter { !visible.contains($0) }
+            let newOrder = newVisible + hidden
+            if newOrder != order {
+                order = newOrder
+                layoutSegments(height: bounds.height)
             }
-            display()   // the event loop blocks normal redraws, so draw now
+            display()   // the tracking loop blocks normal redraws
         }
 
         if didDrag {
