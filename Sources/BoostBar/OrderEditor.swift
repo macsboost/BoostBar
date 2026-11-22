@@ -39,8 +39,8 @@ final class OrderEditor: NSView, NSTableViewDataSource, NSTableViewDelegate {
         scroll.borderType = .bezelBorder
         addSubview(scroll)
 
-        for (b, sym, tip, sel) in [(upButton, "arrow.left", "Move left (up the list)", #selector(moveUp)),
-                                   (downButton, "arrow.right", "Move right (down the list)", #selector(moveDown))] {
+        for (b, sym, tip, sel) in [(upButton, "arrow.left", "Move left (up the list)", #selector(moveItemLeft)),
+                                   (downButton, "arrow.right", "Move right (down the list)", #selector(moveItemRight))] {
             b.bezelStyle = .rounded
             b.image = NSImage(systemSymbolName: sym, accessibilityDescription: tip)
             b.title = sym == "arrow.left" ? " Left" : " Right"
@@ -73,8 +73,8 @@ final class OrderEditor: NSView, NSTableViewDataSource, NSTableViewDelegate {
         updateButtons()
     }
 
-    @objc private func moveUp() { move(by: -1) }
-    @objc private func moveDown() { move(by: 1) }
+    @objc private func moveItemLeft() { move(by: -1) }
+    @objc private func moveItemRight() { move(by: 1) }
     private func move(by d: Int) {
         let i = table.selectedRow
         guard i >= 0, i + d >= 0, i + d < items.count else { return }
