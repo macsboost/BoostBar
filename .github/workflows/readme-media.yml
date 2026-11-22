@@ -34,17 +34,18 @@ jobs:
         run: |
           sudo apt-get install -y -qq ffmpeg >/dev/null || true
           mkdir -p docs/media Saver/thumbs/starships
+          pip install --quiet pillow
           enc() { # frames-dir name
             ffmpeg -y -loglevel error -framerate 30 -i "$1/f%04d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 -preset slow -movflags +faststart "docs/media/$2.mp4"
             ffmpeg -y -loglevel error -framerate 30 -i "$1/f%04d.png" -vf "fps=15,scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" "docs/media/$2.gif"
-            ffmpeg -y -loglevel error -i "$1/f0200.png" -q:v 3 "docs/media/$2.jpg"
+            ffmpeg -y -loglevel error -i "$(python3 tools/pick_frame.py "$1" 1.78)" -q:v 3 "docs/media/$2.jpg"
           }
           enc out/frames flying-cars
           enc out/ships starships
           # System Settings thumbnails for the Starships saver: centre crop of a frame at 90x58 / 180x116 / 300x194
           for sz in "thumbnail:90:58" "thumbnail@2x:180:116" "thumbnail@3x:300:194"; do
             IFS=: read n w h <<< "$sz"
-            ffmpeg -y -loglevel error -i out/ships/f0150.png -vf "crop=in_h*1.55:in_h:(in_w-in_h*1.55)/2:0,scale=$w:$h:flags=lanczos" "Saver/thumbs/starships/$n.png"
+            ffmpeg -y -loglevel error -i "$(python3 tools/pick_frame.py out/ships 1.55)" -vf "crop=in_h*1.55:in_h:(in_w-in_h*1.55)/2:0,scale=$w:$h:flags=lanczos" "Saver/thumbs/starships/$n.png"
           done
           ls -la docs/media
       - name: Commit media
