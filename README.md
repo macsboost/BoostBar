@@ -69,6 +69,15 @@ BoostBar checks GitHub for a newer release when it starts, and you can check any
 
 On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) only while this is turned on — **Settings ▸ Eyes ▸ Shake the Mac to make them dizzy**. Direct download only.
 
+## Starships screen saver 🚀
+
+<p align="center">
+  <img src="docs/media/starships.gif" width="720" alt="BoostBar Starships screen saver: Starships gliding across the screen, flaps beating like wings">
+  <br><sub><a href="docs/media/starships.mp4">Watch in full quality (MP4)</a></sub>
+</p>
+
+**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
+
 ## Hot corners
 
 In **Settings ▸ Sleep ▸ Hot Corners**, choose a screen corner to toggle **Keep Awake** and one to **Sleep now**. Rest the pointer in the corner for a moment, and a small badge confirms the action.
