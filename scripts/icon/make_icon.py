@@ -38,23 +38,41 @@ for k in range(-S, S, 28):
     gdr.line([(k,0),(k+S,S)], fill=(255,255,255,10), width=2)
 bg = Image.alpha_composite(bg, grid)
 
-# Bandwidth bars (mirrored, white, left->right growing), behind the bolt
-bars = Image.new('RGBA', (S,S), (0,0,0,0))
-bd = ImageDraw.Draw(bars)
-cx0, cx1 = inset+90, S-inset-90
-mid = S*0.60
-n = 18
-bw = (cx1-cx0)/n
-heights = [0.15,0.22,0.18,0.30,0.26,0.40,0.34,0.48,0.42,0.55,0.50,0.62,0.58,0.70,0.64,0.78,0.72,0.85]
-for i,h in enumerate(heights):
-    x = cx0 + i*bw
-    up = h*150
-    dn = h*110*(0.6+0.4*math.sin(i*1.3)**2)
-    a = int(70 + 120*i/n)
-    bd.rounded_rectangle([x+4, mid-up, x+bw-4, mid-3], radius=5, fill=(255,255,255,a))
-    bd.rounded_rectangle([x+4, mid+3, x+bw-4, mid+dn], radius=5, fill=(255,255,255,int(a*0.55)))
-bd.rectangle([cx0, mid-2, cx1, mid+2], fill=(255,255,255,120))
-bg = Image.alpha_composite(bg, bars)
+# Strip chart (like BoostBar's hover chart): upload area above the center line, download below
+import random
+random.seed(7)
+chart = Image.new('RGBA', (S,S), (0,0,0,0))
+cd = ImageDraw.Draw(chart)
+cx0, cx1 = inset+70, S-inset-70
+mid = S*0.62
+N = 64
+def series(amp, base, phase):
+    vals, v = [], base
+    for i in range(N):
+        v += random.uniform(-0.22, 0.22)
+        v = 0.65*v + 0.35*(base + 0.35*math.sin(i*0.35+phase))
+        vals.append(max(0.04, min(1.0, v + (0.55 if i in (18,19,40,41,52) else 0))))
+    return [x*amp for x in vals]
+up = series(150, 0.45, 0.0)
+dn = series(115, 0.40, 1.7)
+step = (cx1-cx0)/(N-1)
+pts_up = [(cx0+i*step, mid-up[i]) for i in range(N)]
+pts_dn = [(cx0+i*step, mid+dn[i]) for i in range(N)]
+cd.polygon([(cx0,mid)]+pts_up+[(cx1,mid)], fill=(255,255,255,70))
+cd.polygon([(cx0,mid)]+pts_dn+[(cx1,mid)], fill=(116,251,76,70))
+cd.line(pts_up, fill=(255,255,255,235), width=7, joint="curve")
+cd.line(pts_dn, fill=(140,255,100,235), width=7, joint="curve")
+cd.rectangle([cx0, mid-2, cx1, mid+2], fill=(255,255,255,150))
+# fade the chart toward the left edge like a scrolling strip chart
+fade = Image.new('L', (S,S), 0)
+fdp = fade.load()
+for x in range(S):
+    t = min(max((x-cx0)/(cx1-cx0), 0), 1)
+    a_ = int(255*(0.25+0.75*t))
+    for y in range(S):
+        fdp[x,y] = a_
+chart.putalpha(ImageChops.multiply(chart.getchannel('A'), fade))
+bg = Image.alpha_composite(bg, chart)
 
 # Lightning bolt polygon (normalized coords)
 pts = [(0.565,0.175),(0.345,0.545),(0.488,0.545),(0.420,0.840),(0.665,0.445),(0.520,0.445),(0.610,0.175)]
@@ -80,11 +98,34 @@ bg = Image.composite(fill, bg, bolt_mask)
 edge = bolt_mask.filter(ImageFilter.FIND_EDGES).filter(ImageFilter.GaussianBlur(1.5))
 bg = Image.composite(Image.new('RGBA',(S,S),(255,255,220,255)), bg, edge.point(lambda v: min(255, v*2)))
 
-# Disk LED dot (top-right)
-led = Image.new('L', (S,S), 0)
-ImageDraw.Draw(led).ellipse([S*0.73, S*0.22, S*0.79, S*0.28], fill=255)
-bg = Image.composite(Image.new('RGBA',(S,S),(90,255,90,255)), bg, led.filter(ImageFilter.GaussianBlur(14)))
-bg = Image.composite(Image.new('RGBA',(S,S),(200,255,200,255)), bg, led)
+# Googly eyes stuck on the bolt
+def googly_eye(img, cx, cy, r, look):
+    layer = Image.new('RGBA', (S,S), (0,0,0,0))
+    sh = Image.new('L', (S,S), 0)
+    ImageDraw.Draw(sh).ellipse([cx-r+6, cy-r+12, cx+r+6, cy+r+12], fill=150)
+    layer = Image.composite(Image.new('RGBA',(S,S),(0,0,0,170)), layer, sh.filter(ImageFilter.GaussianBlur(10)))
+    d = ImageDraw.Draw(layer)
+    d.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(250,250,250,255), outline=(20,20,20,255), width=7)
+    # subtle shading on the white
+    shade = Image.new('L', (S,S), 0)
+    ImageDraw.Draw(shade).ellipse([cx-r*0.95, cy-r*0.15, cx+r*0.95, cy+r*0.95], fill=60)
+    shade = ImageChops.multiply(shade.filter(ImageFilter.GaussianBlur(r*0.25)), Image.new('L',(S,S),255))
+    layer = Image.composite(Image.new('RGBA',(S,S),(170,180,175,255)), layer, ImageChops.multiply(shade, layer.getchannel('A')))
+    d = ImageDraw.Draw(layer)
+    d.ellipse([cx-r, cy-r, cx+r, cy+r], outline=(20,20,20,255), width=7)
+    pr = r*0.52
+    px, py = cx + look[0]*(r-pr-9), cy + look[1]*(r-pr-9)
+    d.ellipse([px-pr, py-pr, px+pr, py+pr], fill=(12,12,12,255))
+    g = pr*0.32
+    d.ellipse([px-pr*0.45-g, py-pr*0.45-g, px-pr*0.45+g, py-pr*0.45+g], fill=(255,255,255,235))
+    # plastic dome highlight
+    hl = Image.new('L', (S,S), 0)
+    ImageDraw.Draw(hl).ellipse([cx-r*0.70, cy-r*0.85, cx+r*0.05, cy-r*0.35], fill=130)
+    layer = Image.composite(Image.new('RGBA',(S,S),(255,255,255,255)), layer, hl.filter(ImageFilter.GaussianBlur(6)))
+    return Image.alpha_composite(img, layer)
+
+bg = googly_eye(bg, S*0.445, S*0.375, S*0.082, (0.55, -0.35))
+bg = googly_eye(bg, S*0.590, S*0.345, S*0.072, (0.75, 0.15))
 
 # Clip to rounded square + inner rim + drop shadow
 mask = squircle_mask(S, inset, radius)
