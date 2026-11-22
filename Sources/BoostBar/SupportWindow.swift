@@ -8,6 +8,8 @@ final class SupportWindow: NSObject, NSWindowDelegate {
     static let amount = "4.95"
     static let payEmail = "mac@supermac.net"
     static let venmoUser = "john-mcalpine-16"
+    /// Card payments via Stripe, hosted on biz-cord.com (that page decides which Stripe link to use).
+    static let stripeURL = "https://biz-cord.com/boostbar/donate"
 
     private static let shownKey = "supportShownOnce"
 
@@ -17,6 +19,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         Link(title: "ssi-d.com", url: "https://ssi-d.com"),
         Link(title: "x1racing.com", url: "https://x1racing.com"),
         Link(title: "buildflyingcars.com", url: "https://buildflyingcars.com"),
+        Link(title: "biz-cord.com", url: "https://biz-cord.com"),
     ]
 
     private var window: NSWindow?
@@ -62,6 +65,16 @@ final class SupportWindow: NSObject, NSWindowDelegate {
             .init(name: "txn", value: "pay"),
             .init(name: "amount", value: Self.amount),
             .init(name: "note", value: "BoostBar energy drink ⚡"),
+        ]
+        if let u = c.url { NSWorkspace.shared.open(u) }
+    }
+
+    @objc private func payStripe() {
+        var c = URLComponents(string: Self.stripeURL)!
+        c.queryItems = [
+            .init(name: "amount", value: Self.amount),
+            .init(name: "app", value: "BoostBar"),
+            .init(name: "version", value: Updater.currentVersion),
         ]
         if let u = c.url { NSWorkspace.shared.open(u) }
     }
@@ -131,8 +144,10 @@ final class SupportWindow: NSObject, NSWindowDelegate {
              "Pay $\(Self.amount) to \(Self.payEmail) with PayPal"),
             ("Venmo  $\(Self.amount)", #selector(payVenmo), NSColor(srgbRed: 0.0, green: 0.55, blue: 1.0, alpha: 1),
              "Pay $\(Self.amount) to @\(Self.venmoUser) on Venmo"),
+            ("Card  $\(Self.amount)", #selector(payStripe), NSColor(srgbRed: 0.39, green: 0.36, blue: 1.0, alpha: 1),
+             "Pay $\(Self.amount) by card (Stripe) on biz-cord.com"),
         ]
-        let bw: CGFloat = 176, gap: CGFloat = 14
+        let bw: CGFloat = 140, gap: CGFloat = 12
         var x = (width - (bw * 3 + gap * 2)) / 2
         for (label, sel, color, tip) in pays {
             let b = NSButton(title: label, target: self, action: sel)
@@ -148,7 +163,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         }
 
         y -= 26
-        let hint = NSTextField(labelWithString: "Apple Cash opens Messages to \(Self.payEmail) — tap ＄ and send $\(Self.amount).")
+        let hint = NSTextField(labelWithString: "Card payments are processed by Stripe on biz-cord.com. Apple Cash opens Messages — tap ＄ and send $\(Self.amount).")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
         hint.alignment = .center
@@ -156,7 +171,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         content.addSubview(hint)
 
         // Site links
-        y -= 46
+        y -= 40
         let linkFont = NSFont.systemFont(ofSize: 13, weight: .medium)
         var linkButtons: [NSButton] = []
         for (i, site) in Self.sites.enumerated() {
@@ -171,19 +186,27 @@ final class SupportWindow: NSObject, NSWindowDelegate {
             b.sizeToFit()
             linkButtons.append(b)
         }
-        let totalW = linkButtons.reduce(0) { $0 + $1.frame.width } + CGFloat(linkButtons.count - 1) * 26
+        let totalW = linkButtons.reduce(0) { $0 + $1.frame.width } + CGFloat(linkButtons.count - 1) * 18
         x = (width - totalW) / 2
         for b in linkButtons {
             b.frame.origin = NSPoint(x: x, y: y)
             content.addSubview(b)
-            x += b.frame.width + 26
+            x += b.frame.width + 18
         }
 
         let footer = NSTextField(labelWithString: "Free to use either way — may the boost be with you!")
         footer.font = .systemFont(ofSize: 11)
         footer.textColor = .secondaryLabelColor
-        footer.frame = NSRect(x: 20, y: 22, width: 360, height: 16)
+        footer.frame = NSRect(x: 20, y: 30, width: 480, height: 16)
         content.addSubview(footer)
+
+        let privacy = NSTextField(labelWithString:
+            "BoostBar sends biz-cord.com one anonymous install count per version (no personal info). Turn it off in the menu.")
+        privacy.font = .systemFont(ofSize: 10)
+        privacy.textColor = .tertiaryLabelColor
+        privacy.frame = NSRect(x: 20, y: 12, width: 500, height: 14)
+        privacy.lineBreakMode = .byTruncatingTail
+        content.addSubview(privacy)
 
         let close = NSButton(title: "Close", target: self, action: #selector(closeWindow))
         close.bezelStyle = .rounded

@@ -97,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         net.start()
 
         SupportWindow.shared.showIfFirstLaunch()
+        InstallPing.sendIfNeeded()
 
         if defaults.bool(forKey: Key.checkOnLaunch) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
@@ -332,6 +333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Check for Updates at Launch", #selector(toggleCheckOnLaunch), on: defaults.bool(forKey: Key.checkOnLaunch), indent: 1))
         menu.addItem(item("BoostBar on GitHub", #selector(openGitHub), on: false))
         menu.addItem(item("Buy Me an Energy Drink ⚡…", #selector(showAbout), on: false))
+        menu.addItem(item("Share Anonymous Install Count", #selector(toggleInstallPing), on: InstallPing.isEnabled))
         menu.addItem(.separator())
         menu.addItem(item("Quit BoostBar", #selector(quit), on: false, key: "q"))
     }
@@ -528,6 +530,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openGitHub() { NSWorkspace.shared.open(Updater.repoPage) }
 
     @objc private func showAbout() { SupportWindow.shared.show() }
+
+    @objc private func toggleInstallPing() {
+        InstallPing.isEnabled.toggle()
+        if InstallPing.isEnabled { InstallPing.sendIfNeeded() }
+    }
 
     @objc private func quit() { NSApp.terminate(nil) }
 }
