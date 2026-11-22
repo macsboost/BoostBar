@@ -82,6 +82,10 @@ Apple Cash to mac@supermac.net ·
 
 More from MacsBoost: [macsboost.com](https://macsboost.com) · [ssi-d.com](https://ssi-d.com) · [x1racing.com](https://x1racing.com) · [buildflyingcars.com](https://buildflyingcars.com) · [biz-cord.com](https://biz-cord.com)
 
+### Thanks
+
+Thanks to Dave Plummer for the HDD LED inspiration. Check out [TMOG (Task Manager OG)](https://tmog.org).
+
 ### Install count
 
 BoostBar sends one anonymous message to biz-cord.com per version per Mac. It contains a random ID, the app version, the macOS version and the CPU type, with no personal info. Turn it off with **Share Anonymous Install Count** in the menu. The server side is described in [docs/biz-cord-endpoints.md](docs/biz-cord-endpoints.md).

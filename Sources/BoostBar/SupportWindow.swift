@@ -22,6 +22,8 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         Link(title: "biz-cord.com", url: "https://biz-cord.com"),
     ]
 
+    static let tmogURL = "https://tmog.org"
+
     private var window: NSWindow?
 
     /// Call at launch: pops the window up the first time BoostBar runs.
@@ -98,6 +100,8 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         guard sender.tag >= 0, sender.tag < Self.sites.count else { return }
         Self.open(Self.sites[sender.tag].url)
     }
+
+    @objc private func openTMOG() { Self.open(Self.tmogURL) }
 
     @objc private func closeWindow() { window?.close() }
 
@@ -228,6 +232,22 @@ final class SupportWindow: NSObject, NSWindowDelegate {
             content.addSubview(b)
             x += b.frame.width + 18
         }
+
+        // Credit: HDD LED inspiration
+        let credit = NSMutableAttributedString(string: "Thanks to Dave Plummer for the HDD LED inspiration — check out ", attributes: [
+            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor,
+        ])
+        credit.append(NSAttributedString(string: "TMOG (Task Manager OG)", attributes: [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+        ]))
+        let creditButton = NSButton(title: "", target: self, action: #selector(openTMOG))
+        creditButton.isBordered = false
+        creditButton.attributedTitle = credit
+        creditButton.toolTip = Self.tmogURL
+        creditButton.sizeToFit()
+        creditButton.frame.origin = NSPoint(x: (width - creditButton.frame.width) / 2, y: 60)
+        content.addSubview(creditButton)
 
         let footer = NSTextField(labelWithString: "Free to use either way — may the boost be with you!")
         footer.font = .systemFont(ofSize: 11)
