@@ -30,6 +30,11 @@ final class StatusGraphView: NSView {
     /// the single combined graph above is drawn.
     struct NetRow: Equatable { let id: String; let symbol: String; let up: [Double]; let down: [Double]; let upText: String; let downText: String }
     var netRows: [NetRow] = []
+    /// TMOG-style stacked labels (NET / BAT / HDD) in front of each piece; the eyes get none.
+    var verticalLabels = false
+    private var labelRects: [(text: String, rect: NSRect)] = []
+    static let labelWidth: CGFloat = 7
+    static let labelFont = NSFont.systemFont(ofSize: 7, weight: .heavy)
     private var netRowRects: [(id: String, rect: NSRect)] = []
     private static let linkIconWidth: CGFloat = 13
     var downText = "0.0 KB/s"
@@ -119,11 +124,17 @@ final class StatusGraphView: NSView {
         var x = Self.pad
         if showsAwakeDot || !showsAnything { x += Self.dotWidth }
         netRowRects = []
+        labelRects = []
         networkRect = .zero; batteryRect = .zero; diskRect = .zero; eyesRect = .zero; ledRects = []; eyeRects = []
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
         var first = true
         func gap() { if !first { x += 4 }; first = false }
+        func label(_ text: String) {
+            guard verticalLabels else { return }
+            labelRects.append((text, NSRect(x: x, y: 0, width: Self.labelWidth, height: h)))
+            x += Self.labelWidth + 2
+        }
 
         for seg in order {
             switch seg {
@@ -142,6 +153,7 @@ final class StatusGraphView: NSView {
             case .network:
                 if showNetwork {
                     gap()
+                    label("NET")
                     if netRows.count >= 2 {
                         let start = x
                         for (i, row) in netRows.enumerated() {
@@ -159,12 +171,14 @@ final class StatusGraphView: NSView {
             case .battery:
                 if showsBattery {
                     gap()
+                    label("BAT")
                     batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
                     x = batteryRect.maxX
                 }
             case .disks:
                 if showsDisks {
                     gap()
+                    label("HDD")
                     // Small LEDs stack in two rows when there are several drives; medium/large use one row.
                     let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]
                     let cell = dia + 2
@@ -326,6 +340,7 @@ final class StatusGraphView: NSView {
         }
 
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        for (text, r) in labelRects { drawVerticalLabel(text, in: r, color: label) }
         if showNetwork {
             if netRowRects.isEmpty {
                 drawNetwork(in: networkRect, up: up, down: down, upText: upText, downText: downText, label: label, font: font)
@@ -466,6 +481,22 @@ final class StatusGraphView: NSView {
             return true
         }
         tinted.draw(in: NSRect(x: x + (Self.iconWidth - s.width) / 2, y: (h - s.height) / 2, width: s.width, height: s.height))
+    }
+
+    /// Letters stacked top to bottom, centred in the column, like TMOG's "CPU".
+    private func drawVerticalLabel(_ text: String, in r: NSRect, color: NSColor) {
+        let font = Self.labelFont
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color.withAlphaComponent(0.92)]
+        let letters = text.map(String.init)
+        let step: CGFloat = min(7, (r.height - 1) / CGFloat(max(letters.count, 1)))
+        let cap = font.capHeight
+        let top = r.midY + step * CGFloat(letters.count - 1) / 2
+        for (i, ch) in letters.enumerated() {
+            let s = NSAttributedString(string: ch, attributes: attrs)
+            let w = s.size().width
+            let baseline = top - CGFloat(i) * step - cap / 2
+            s.draw(at: NSPoint(x: r.midX - w / 2, y: baseline + font.descender))
+        }
     }
 
     private func drawNetwork(in r: NSRect, up: [Double], down: [Double], upText: String, downText: String,

@@ -246,6 +246,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             #endif
             p.header("Menu Bar Layout")
             p.note("Order of BoostBar's pieces in the menu bar — top of the list is leftmost. Drag a row, or select it and use Left / Right. You can also drag a piece left or right right in the menu bar; a plain click there opens the menu.")
+            p.check("Label pieces with stacked text: NET, BAT, HDD (wider)", get: { Prefs.verticalLabels },
+                    set: { Prefs.verticalLabels = $0; app.applySettings() })
             let editor = OrderEditor(order: { Prefs.segmentOrder }, isShown: { app.isSegmentShown($0) },
                                      onChange: { app.setOrder($0) })
             p.custom(editor, height: 134, onRefresh: { [weak editor] in editor?.reload() })

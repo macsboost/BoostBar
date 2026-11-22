@@ -28,6 +28,7 @@ enum Prefs {
         static let bloodshotAwake = "bloodshotWhenAwake"
         static let shakeEyes = "dizzyEyesOnShake"
         static let netSplit = "networkGraphPerConnection"
+        static let verticalLabels = "verticalLabels"
         static let pirate = "pirateEyes"
         static let cornerAwake = "hotCornerKeepAwake"
         static let cornerSleep = "hotCornerSleepNow"
@@ -103,6 +104,7 @@ enum Prefs {
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
     /// Each eye aims at the pointer on its own, so they cross when it's between them.
     static var bloodshot: Bool { get { bool(K.bloodshot) } set { set(newValue, K.bloodshot) } }
+    static var verticalLabels: Bool { get { bool(K.verticalLabels) } set { set(newValue, K.verticalLabels) } }
     static var netSplit: Bool { get { bool(K.netSplit) } set { set(newValue, K.netSplit) } }
     static var shakeEyes: Bool { get { bool(K.shakeEyes) } set { set(newValue, K.shakeEyes) } }
     static var bloodshotAwake: Bool { get { bool(K.bloodshotAwake) } set { set(newValue, K.bloodshotAwake) } }

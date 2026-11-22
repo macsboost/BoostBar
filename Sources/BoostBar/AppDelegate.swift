@@ -217,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.singleEye = Prefs.singleEye
         graphView.bloodshot = Prefs.bloodshot || (Prefs.bloodshotAwake && (sleep.isPreventing || lidSleepDisabled))
         graphView.eyesShowAwake = Prefs.bloodshotAwake && !Prefs.bloodshot
+        graphView.verticalLabels = Prefs.verticalLabels
         graphView.pirate = Prefs.pirate
         graphView.ledSize = diskSettings.ledSize
         graphView.upColor = Prefs.upColor
