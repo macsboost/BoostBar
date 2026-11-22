@@ -5,7 +5,7 @@ import AppKit
 ///                                ▼ 340 KB/s   OUT   ● ●   ← disk LEDs
 final class StatusGraphView: NSView {
     enum AwakeState { case normal, keepAwake, lidAwake }
-    enum Target: Equatable { case network, battery, disk(String) }
+    enum Target: Equatable { case network(String?), battery, disk(String) }
 
     /// The reorderable pieces of the status item.
     enum Segment: String, CaseIterable { case eyes, network, battery, disks }
@@ -26,6 +26,12 @@ final class StatusGraphView: NSView {
     var up: [Double] = []
     var down: [Double] = []
     var upText = "0.0 KB/s"
+    /// One graph per connection (LAN, Wi‑Fi, …). Two or more rows → separate graphs; otherwise
+    /// the single combined graph above is drawn.
+    struct NetRow: Equatable { let id: String; let symbol: String; let up: [Double]; let down: [Double]; let upText: String; let downText: String }
+    var netRows: [NetRow] = []
+    private var netRowRects: [(id: String, rect: NSRect)] = []
+    private static let linkIconWidth: CGFloat = 13
     var downText = "0.0 KB/s"
     var awake: AwakeState = .normal
     /// Bloodshot eyes already say "keeping awake", so the yellow dot can go.
@@ -112,6 +118,7 @@ final class StatusGraphView: NSView {
     func layoutSegments(height h: CGFloat) -> CGFloat {
         var x = Self.pad
         if showsAwakeDot || !showsAnything { x += Self.dotWidth }
+        netRowRects = []
         networkRect = .zero; batteryRect = .zero; diskRect = .zero; eyesRect = .zero; ledRects = []; eyeRects = []
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
@@ -135,8 +142,19 @@ final class StatusGraphView: NSView {
             case .network:
                 if showNetwork {
                     gap()
-                    networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + Self.netTextWidth, height: h)
-                    x = networkRect.maxX
+                    if netRows.count >= 2 {
+                        let start = x
+                        for (i, row) in netRows.enumerated() {
+                            if i > 0 { x += 5 }
+                            let r = NSRect(x: x, y: 0, width: Self.linkIconWidth + Self.graphWidth + 4 + Self.netTextWidth, height: h)
+                            netRowRects.append((row.id, r))
+                            x = r.maxX
+                        }
+                        networkRect = NSRect(x: start, y: 0, width: x - start, height: h)
+                    } else {
+                        networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + Self.netTextWidth, height: h)
+                        x = networkRect.maxX
+                    }
                 }
             case .battery:
                 if showsBattery {
@@ -167,7 +185,10 @@ final class StatusGraphView: NSView {
     }
 
     func target(at p: NSPoint) -> Target? {
-        if networkRect.insetBy(dx: -2, dy: 0).contains(p) { return .network }
+        if networkRect.insetBy(dx: -2, dy: 0).contains(p) {
+            if let row = netRowRects.first(where: { $0.rect.insetBy(dx: -3, dy: 0).contains(p) }) { return .network(row.id) }
+            return .network(nil)
+        }
         if batteryRect.insetBy(dx: -2, dy: 0).contains(p) { return .battery }
         if diskRect.insetBy(dx: -2, dy: 0).contains(p) {
             // nearest LED to the pointer
@@ -181,7 +202,7 @@ final class StatusGraphView: NSView {
     func screenRect(for t: Target) -> NSRect? {
         let r: NSRect
         switch t {
-        case .network: r = networkRect
+        case .network(let id): r = netRowRects.first(where: { $0.id == id })?.rect ?? networkRect
         case .battery: r = batteryRect
         case .disk(let k): r = ledRects.first(where: { $0.key == k })?.rect.insetBy(dx: -4, dy: -8) ?? diskRect
         }
@@ -305,7 +326,32 @@ final class StatusGraphView: NSView {
         }
 
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-        if showNetwork { drawNetwork(in: networkRect, label: label, font: font) }
+        if showNetwork {
+            if netRowRects.isEmpty {
+                drawNetwork(in: networkRect, up: up, down: down, upText: upText, downText: downText, label: label, font: font)
+            } else {
+                for (row, r) in zip(netRows, netRowRects.map(\.rect)) {
+                    if let img = NSImage(systemSymbolName: row.symbol, accessibilityDescription: nil)
+                        ?? NSImage(systemSymbolName: "network", accessibilityDescription: nil) {
+                        let cfg = NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold)
+                        let sym = img.withSymbolConfiguration(cfg) ?? img
+                        let tinted = NSImage(size: sym.size, flipped: false) { rect in
+                            sym.draw(in: rect)
+                            label.withAlphaComponent(0.85).set()
+                            rect.fill(using: .sourceAtop)
+                            return true
+                        }
+                        let sz = sym.size
+                        tinted.draw(in: NSRect(x: r.minX + (Self.linkIconWidth - 2 - sz.width) / 2, y: (r.height - sz.height) / 2,
+                                               width: sz.width, height: sz.height))
+                    }
+                    var g = r
+                    g.origin.x += Self.linkIconWidth
+                    g.size.width -= Self.linkIconWidth
+                    drawNetwork(in: g, up: row.up, down: row.down, upText: row.upText, downText: row.downText, label: label, font: font)
+                }
+            }
+        }
         if showsBattery, let b = battery { drawBattery(b, in: batteryRect, label: label, font: font) }
         if showsDisks { drawDisks(label: label) }
         if showEyes { drawEyes(); drawEyepatch() }
@@ -422,7 +468,8 @@ final class StatusGraphView: NSView {
         tinted.draw(in: NSRect(x: x + (Self.iconWidth - s.width) / 2, y: (h - s.height) / 2, width: s.width, height: s.height))
     }
 
-    private func drawNetwork(in r: NSRect, label: NSColor, font: NSFont) {
+    private func drawNetwork(in r: NSRect, up: [Double], down: [Double], upText: String, downText: String,
+                             label: NSColor, font: NSFont) {
         let g = NSRect(x: r.minX, y: 3, width: Self.graphWidth, height: r.height - 6)
         label.withAlphaComponent(0.12).setFill()
         NSBezierPath(roundedRect: g, xRadius: 2, yRadius: 2).fill()

@@ -14,6 +14,7 @@ let package = Package(
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("WebKit"),
+                .linkedFramework("SystemConfiguration"),
             ]
         )
     ]

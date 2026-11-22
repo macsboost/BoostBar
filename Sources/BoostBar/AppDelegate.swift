@@ -223,6 +223,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.down = net.downHistory
         graphView.upText = NetworkMonitor.format(net.currentUp, bits: bits)
         graphView.downText = NetworkMonitor.format(net.currentDown, bits: bits)
+        let links = Prefs.netSplit ? net.activeLinks : []
+        graphView.netRows = links.count >= 2 ? links.map {
+            .init(id: $0.id, symbol: $0.symbol, up: $0.up, down: $0.down,
+                  upText: NetworkMonitor.format($0.currentUp, bits: bits), downText: NetworkMonitor.format($0.currentDown, bits: bits))
+        } : []
         graphView.leds = disk.drives.filter { diskSettings.isEnabled($0) }
             .map { StatusGraphView.LED(key: $0.key, color: diskSettings.color($0)) }
         graphView.litKeys = disk.lit
@@ -271,12 +276,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let bits = Prefs.useBits
         let rate: (Double) -> String = { NetworkMonitor.format($0, bits: bits) }
         switch t {
-        case .network:
+        case .network(let id):
+            if let id, let l = net.link(id) {
+                let sent = l.longUp.values.reduce(0, +), received = l.longDown.values.reduce(0, +)
+                return HoverContent(
+                    title: "\(l.short) — \(l.name) (\(l.id))",
+                    lines: [
+                        "Upload \(rate(l.currentUp))  ·  Download \(rate(l.currentDown))",
+                        "Last 5 min: \(DiskMonitor.formatBytes(Int64(sent))) sent · \(DiskMonitor.formatBytes(Int64(received))) received",
+                        "All connections: ▲ \(rate(net.currentUp))  ▼ \(rate(net.currentDown))",
+                    ],
+                    top: .init(label: "Upload", values: l.longUp.values, color: Prefs.upColor, format: rate),
+                    bottom: .init(label: "Download", values: l.longDown.values, color: Prefs.downColor, format: rate),
+                    timespan: "last 5 min")
+            }
             let sent = net.longUp.values.reduce(0, +), received = net.longDown.values.reduce(0, +)
             var lines = [
                 "Upload \(rate(net.currentUp))  ·  Download \(rate(net.currentDown))",
                 "Last 5 min: \(DiskMonitor.formatBytes(Int64(sent))) sent · \(DiskMonitor.formatBytes(Int64(received))) received",
             ]
+            let active = net.activeLinks
+            if active.count > 1 {
+                for l in active { lines.append("\(l.short): ▲ \(rate(l.currentUp))  ▼ \(rate(l.currentDown))") }
+            }
             if lidSleepDisabled { lines.append("Sleep disabled (incl. lid closed)") }
             else if sleep.isPreventing { lines.append("Keeping Mac awake") }
             return HoverContent(
@@ -357,6 +379,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         lastLayoutKey = ""
         refreshStatus()
         NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
+    }
+
+    /// "Connected now: LAN (en7), Wi‑Fi (en0)" for Settings ▸ Network.
+    func networkSummary() -> String {
+        let l = net.activeLinks
+        if l.isEmpty { return "No active connections right now." }
+        let list = l.map { "\($0.short) (\($0.id))" }.joined(separator: ", ")
+        return l.count > 1 ? "Connected now: \(list). Separate graphs show when two or more are connected."
+                           : "Connected now: \(list). A second connection gets its own graph."
     }
 
     func isSegmentShown(_ s: StatusGraphView.Segment) -> Bool {

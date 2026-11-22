@@ -295,6 +295,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.header("Menu Bar")
             p.check("Show network speed graph", get: { Prefs.showNetwork }, set: { Prefs.showNetwork = $0; app.applySettings() })
             p.check("Show bits per second (Kb/s) instead of bytes (KB/s)", get: { Prefs.useBits }, set: { Prefs.useBits = $0; app.applySettings() })
+            p.popup("Graphs", items: ["One combined graph (all connections)", "Separate graph per connection (LAN, Wi‑Fi, …)"],
+                    get: { Prefs.netSplit ? 1 : 0 }, set: { Prefs.netSplit = $0 == 1; app.applySettings() })
+            p.label(indent: true) { app.networkSummary() }
             p.header("Trace Colors")
             p.color("Upload", get: { Prefs.upColor }, set: { Prefs.upColor = $0; app.applySettings() })
             p.color("Download", get: { Prefs.downColor }, set: { Prefs.downColor = $0; app.applySettings() })
