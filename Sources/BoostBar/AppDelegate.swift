@@ -279,13 +279,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .network(let id):
             if let id, let l = net.link(id) {
                 let sent = l.longUp.values.reduce(0, +), received = l.longDown.values.reduce(0, +)
+                var lines = [
+                    "Upload \(rate(l.currentUp))  ·  Download \(rate(l.currentDown))",
+                    "Last 5 min: \(DiskMonitor.formatBytes(Int64(sent))) sent · \(DiskMonitor.formatBytes(Int64(received))) received",
+                    "All connections: ▲ \(rate(net.currentUp))  ▼ \(rate(net.currentDown))",
+                ]
+                if l.kind == .wifi, let w = WiFiInfo.shared.line(for: l.id) { lines.insert(w, at: 0) }
                 return HoverContent(
                     title: "\(l.short) — \(l.name) (\(l.id))",
-                    lines: [
-                        "Upload \(rate(l.currentUp))  ·  Download \(rate(l.currentDown))",
-                        "Last 5 min: \(DiskMonitor.formatBytes(Int64(sent))) sent · \(DiskMonitor.formatBytes(Int64(received))) received",
-                        "All connections: ▲ \(rate(net.currentUp))  ▼ \(rate(net.currentDown))",
-                    ],
+                    lines: lines,
                     top: .init(label: "Upload", values: l.longUp.values, color: Prefs.upColor, format: rate),
                     bottom: .init(label: "Download", values: l.longDown.values, color: Prefs.downColor, format: rate),
                     timespan: "last 5 min")
@@ -296,6 +298,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 "Last 5 min: \(DiskMonitor.formatBytes(Int64(sent))) sent · \(DiskMonitor.formatBytes(Int64(received))) received",
             ]
             let active = net.activeLinks
+            if let wifi = active.first(where: { $0.kind == .wifi }), let w = WiFiInfo.shared.line(for: wifi.id) {
+                lines.insert(active.count > 1 ? w.replacingOccurrences(of: "Network: ", with: "Wi‑Fi network: ") : w, at: 0)
+            }
             if active.count > 1 {
                 for l in active { lines.append("\(l.short): ▲ \(rate(l.currentUp))  ▼ \(rate(l.currentDown))") }
             }

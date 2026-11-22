@@ -7,6 +7,9 @@
     <!-- Install count ping + App Store tip jar -->
     <key>com.apple.security.network.client</key>
     <true/>
+    <!-- macOS only reveals the Wi‑Fi network name (SSID) to apps allowed to use Location Services. -->
+    <key>com.apple.security.personal-information.location</key>
+    <true/>
     <key>com.apple.application-identifier</key>
     <string>__TEAM_ID__.com.macsboost.boostbar</string>
     <key>com.apple.developer.team-identifier</key>

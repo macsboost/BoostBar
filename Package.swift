@@ -15,6 +15,8 @@ let package = Package(
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("WebKit"),
                 .linkedFramework("SystemConfiguration"),
+                .linkedFramework("CoreWLAN"),
+                .linkedFramework("CoreLocation"),
             ]
         )
     ]

@@ -28,6 +28,10 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSLocationUsageDescription</key>
+    <string>macOS only shares your Wi‑Fi network name with apps allowed to use Location Services. BoostBar uses it to show the network name in the network chart — it never reads or stores your location.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>macOS only shares your Wi‑Fi network name with apps allowed to use Location Services. BoostBar uses it to show the network name in the network chart — it never reads or stores your location.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>BoostBar asks for your admin password to change lid-closed sleep (pmset).</string>
     <key>NSHumanReadableCopyright</key>

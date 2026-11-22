@@ -5,5 +5,8 @@
     <!-- Needed under the hardened runtime for the admin-password prompt (do shell script … with administrator privileges). -->
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+    <!-- macOS only reveals the Wi‑Fi network name (SSID) to apps allowed to use Location Services. -->
+    <key>com.apple.security.personal-information.location</key>
+    <true/>
 </dict>
 </plist>
