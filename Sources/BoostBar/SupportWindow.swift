@@ -149,9 +149,9 @@ final class SupportWindow: NSObject, NSWindowDelegate {
 
         y -= 44
         #if APPSTORE
-        let blurbText = "It's free. If you like it, buy me an energy drink — it keeps the boost coming.\nBy John McAlpine · MacsBoost"
+        let blurbText = "It's free. If you like it, buy me an energy drink — it keeps the boost coming.\nBy Mac McAlpine · MacsBoost"
         #else
-        let blurbText = "It's free. If you like it, buy me an energy drink — $\(Self.amount) keeps the boost coming.\nBy John McAlpine · MacsBoost"
+        let blurbText = "It's free. If you like it, buy me an energy drink — $\(Self.amount) keeps the boost coming.\nBy Mac McAlpine · MacsBoost"
         #endif
         let blurb = NSTextField(wrappingLabelWithString: blurbText)
         blurb.alignment = .center
