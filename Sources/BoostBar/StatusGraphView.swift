@@ -48,6 +48,7 @@ final class StatusGraphView: NSView {
     var eyeSize = 1            // 0 small, 1 medium, 2 large
     var singleEye = false
     var bloodshot = false
+    var pirate = false
     var pupilOffsets: [CGPoint] = []
     var eyesClosed = false
 
@@ -296,11 +297,13 @@ final class StatusGraphView: NSView {
         if showNetwork { drawNetwork(in: networkRect, label: label, font: font) }
         if showsBattery, let b = battery { drawBattery(b, in: batteryRect, label: label, font: font) }
         if showsDisks { drawDisks(label: label) }
-        if showEyes { drawEyes() }
+        if showEyes { drawEyes(); drawEyepatch() }
     }
 
     private func drawEyes() {
+        let patched = pirate && eyeRects.count > 1 ? 0 : -1   // pirate: patch over the left eye
         for (i, r) in eyeRects.enumerated() {
+            if i == patched { continue }
             let eye = NSBezierPath(ovalIn: r.insetBy(dx: 0.5, dy: 0.5))
             if eyesClosed {
                 NSColor(white: 0.85, alpha: 1).setFill()
@@ -336,6 +339,30 @@ final class StatusGraphView: NSView {
             eye.lineWidth = 1
             eye.stroke()
         }
+    }
+
+    /// Black eyepatch over the left eye, with its strap running up and across.
+    private func drawEyepatch() {
+        guard pirate, eyeRects.count > 1 else { return }
+        let r = eyeRects[0]
+        let other = eyeRects[eyeRects.count - 1]
+        let strap = NSBezierPath()
+        // strap: from the far left edge, over the patch, and up past the other eye
+        strap.move(to: NSPoint(x: r.minX - 2, y: r.minY + r.height * 0.15))
+        strap.line(to: NSPoint(x: r.midX, y: r.midY))
+        strap.curve(to: NSPoint(x: other.maxX + 2, y: other.maxY + 1),
+                    controlPoint1: NSPoint(x: r.maxX + 1, y: r.maxY - 1),
+                    controlPoint2: NSPoint(x: other.midX, y: other.maxY + 1))
+        strap.lineWidth = max(1, r.width * 0.1)
+        strap.lineCapStyle = .round
+        NSColor.black.setStroke()
+        strap.stroke()
+
+        let patch = NSBezierPath(ovalIn: r.insetBy(dx: -0.5, dy: r.height * 0.06))
+        NSGradient(starting: NSColor(white: 0.22, alpha: 1), ending: NSColor(white: 0.02, alpha: 1))?.draw(in: patch, angle: -90)
+        NSColor(white: 0.55, alpha: 0.6).setStroke()
+        patch.lineWidth = 0.6
+        patch.stroke()
     }
 
     /// Thin red veins creeping in from the rim toward the iris.

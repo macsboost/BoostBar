@@ -24,6 +24,7 @@ enum Prefs {
         static let segmentOrder = "segmentOrder"
         static let crossEye = "allowCrossEye"
         static let bloodshot = "bloodshotEyes"
+        static let pirate = "pirateEyes"
     }
 
     static func registerDefaults() {
@@ -45,6 +46,7 @@ enum Prefs {
             K.eyeBlink: true,
             K.crossEye: true,
             K.bloodshot: false,
+            K.pirate: false,
         ])
     }
 
@@ -84,6 +86,7 @@ enum Prefs {
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
     /// Each eye aims at the pointer on its own, so they cross when it's between them.
     static var bloodshot: Bool { get { bool(K.bloodshot) } set { set(newValue, K.bloodshot) } }
+    static var pirate: Bool { get { bool(K.pirate) } set { set(newValue, K.pirate) } }
     static var allowCrossEye: Bool { get { bool(K.crossEye) } set { set(newValue, K.crossEye) } }
 
     static let sizeNames = ["Small", "Medium", "Large"]

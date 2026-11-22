@@ -331,6 +331,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Googly wobble", get: { Prefs.googly }, set: { Prefs.googly = $0; app.applySettings() })
             p.check("Blink now and then", get: { Prefs.eyeBlink }, set: { Prefs.eyeBlink = $0; app.applySettings() })
             p.check("Bloodshot 🩸", get: { Prefs.bloodshot }, set: { Prefs.bloodshot = $0; app.applySettings() })
+            p.check("Pirate eyepatch 🏴‍☠️", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
+                    enabled: { !Prefs.singleEye })
             p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
                     set: { Prefs.allowCrossEye = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
