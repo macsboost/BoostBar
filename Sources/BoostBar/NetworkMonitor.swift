@@ -7,6 +7,9 @@ final class NetworkMonitor {
     let capacity: Int
     private(set) var upHistory: [Double]     // bytes per second, oldest first
     private(set) var downHistory: [Double]
+    /// Longer history (5 minutes at 1 Hz) for the hover chart.
+    private(set) var longUp = History(capacity: 300)
+    private(set) var longDown = History(capacity: 300)
     var onUpdate: (() -> Void)?
 
     private var last: (rx: UInt64, tx: UInt64, t: TimeInterval)?
@@ -41,6 +44,8 @@ final class NetworkMonitor {
             let down = c.rx >= l.rx ? Double(c.rx - l.rx) / dt : 0
             upHistory.append(up); upHistory.removeFirst(upHistory.count - capacity)
             downHistory.append(down); downHistory.removeFirst(downHistory.count - capacity)
+            longUp.append(up)
+            longDown.append(down)
         }
         last = (c.rx, c.tx, now)
         onUpdate?()

@@ -1,7 +1,7 @@
 import AppKit
 import ServiceManagement
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSViewToolTipOwner {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
@@ -11,7 +11,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
     private let defaults = UserDefaults.standard
     private var lidSleepDisabled = false
     private var battery: BatteryReading?
+    private var batteryHistory = History(capacity: 600)   // watts, 10 min at 1 Hz
     private var lastLayoutKey = ""
+
+    private let disk = DiskMonitor()
+    private let diskSettings = DiskLightSettings()
+    private var diskWindow: DiskLightsWindow?
+
+    private var hoverTarget: StatusGraphView.Target?
+    private var hoverTimer: Timer?
+    private var menuIsOpen = false
+    private var colorPanelKey: String?
 
     private enum Key {
         static let reverseScroll = "reverseScroll"
@@ -23,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
         static let lidWarningShown = "lidWarningShown"
         static let showNetwork = "showNetwork"
         static let showBattery = "showBattery"
+        static let upColor = "netUpColor"
+        static let downColor = "netDownColor"
     }
 
     // MARK: - Lifecycle
@@ -37,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
             Key.checkOnLaunch: true,
             Key.showNetwork: true,
             Key.showBattery: BatteryMonitor.hasBattery,
+            Key.upColor: "White",
+            Key.downColor: "White",
         ])
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -46,6 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
             button.addSubview(graphView)
             button.setAccessibilityLabel("BoostBar")
         }
+        graphView.onHover = { [weak self] t in self?.hoverChanged(t) }
+        graphView.onExit = { [weak self] in self?.hideHover() }
         let menu = NSMenu()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -65,7 +81,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
 
         lidSleepDisabled = LidSleep.isDisabled
 
-        net.onUpdate = { [weak self] in self?.refreshStatus() }
+        disk.onLEDChange = { [weak self] in
+            guard let self else { return }
+            self.graphView.litKeys = self.disk.lit
+            self.graphView.needsDisplay = true
+        }
+        disk.onDrivesChanged = { [weak self] in
+            self?.applyDiskSettings()
+            self?.diskWindow?.reload()
+        }
+        disk.start()
+        applyDiskSettings()
+
+        net.onUpdate = { [weak self] in self?.tick() }
         net.start()
 
         if defaults.bool(forKey: Key.checkOnLaunch) {
@@ -82,52 +110,147 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
 
     // MARK: - Status item
 
+    /// Once per second: sample battery history, redraw, and refresh an open hover panel.
+    private func tick() {
+        if BatteryMonitor.hasBattery, let b = BatteryMonitor.read() {
+            batteryHistory.append(b.watts)
+        }
+        refreshStatus()
+        if HoverPanel.shared.isVisible, let t = hoverTarget, let c = hoverContent(for: t) {
+            HoverPanel.shared.update(c)
+        }
+    }
+
+    private func applyDiskSettings() {
+        disk.ledDurationMs = Double(diskSettings.durationMs)
+        disk.enabledKeys = Set(disk.drives.filter { diskSettings.isEnabled($0) }.map(\.key))
+        disk.isActive = diskSettings.showDisks
+        if statusItem != nil { refreshStatus() }
+    }
+
+    private var upColor: NSColor { Palette.resolve(defaults.string(forKey: Key.upColor), default: .white) }
+    private var downColor: NSColor { Palette.resolve(defaults.string(forKey: Key.downColor), default: .white) }
+
     private func refreshStatus() {
         let bits = defaults.bool(forKey: Key.useBits)
         battery = BatteryMonitor.hasBattery ? BatteryMonitor.read() : nil
 
         graphView.showNetwork = defaults.bool(forKey: Key.showNetwork)
         graphView.showBattery = defaults.bool(forKey: Key.showBattery)
+        graphView.showDisks = diskSettings.showDisks
+        graphView.upColor = upColor
+        graphView.downColor = downColor
         graphView.battery = battery
         graphView.up = net.upHistory
         graphView.down = net.downHistory
         graphView.upText = NetworkMonitor.format(net.currentUp, bits: bits)
         graphView.downText = NetworkMonitor.format(net.currentDown, bits: bits)
+        graphView.leds = disk.drives.filter { diskSettings.isEnabled($0) }
+            .map { StatusGraphView.LED(key: $0.key, color: diskSettings.color($0)) }
+        graphView.litKeys = disk.lit
         graphView.awake = lidSleepDisabled ? .lidAwake : (sleep.isPreventing ? .keepAwake : .normal)
 
-        // Resize the status item and re-register hover regions only when the layout changes.
         let h = statusItem.button?.bounds.height ?? NSStatusBar.system.thickness
         let width = graphView.layoutSegments(height: h)
-        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)"
-        if layoutKey != lastLayoutKey, let button = statusItem.button {
+        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)"
+        if layoutKey != lastLayoutKey {
             lastLayoutKey = layoutKey
             statusItem.length = width
-            button.toolTip = nil
-            button.removeAllToolTips()
-            for r in [graphView.networkRect, graphView.batteryRect] where !r.isEmpty {
-                _ = button.addToolTip(r, owner: self, userData: nil)
-            }
-            if graphView.networkRect.isEmpty && graphView.batteryRect.isEmpty {
-                button.toolTip = "BoostBar"
-            }
+            statusItem.button?.toolTip = nil
         }
         graphView.needsDisplay = true
     }
 
-    /// Hover text, computed live for whichever segment the pointer is over.
-    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
-        if graphView.batteryRect.contains(point) || (point.x >= graphView.batteryRect.minX && !graphView.batteryRect.isEmpty) {
-            if let b = battery ?? BatteryMonitor.read() { return BatteryMonitor.describe(b) }
-            return "No battery"
+    // MARK: - Hover panel
+
+    private func hoverChanged(_ t: StatusGraphView.Target?) {
+        guard t != hoverTarget else { return }
+        hoverTarget = t
+        hoverTimer?.invalidate()
+        guard let t else {
+            hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in self?.hideHover() }
+            return
         }
+        if HoverPanel.shared.isVisible {
+            showHover(t)
+        } else {
+            hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in self?.showHover(t) }
+        }
+    }
+
+    private func showHover(_ t: StatusGraphView.Target) {
+        guard !menuIsOpen, hoverTarget == t, let c = hoverContent(for: t), let anchor = graphView.screenRect(for: t) else { return }
+        HoverPanel.shared.show(c, below: anchor)
+    }
+
+    private func hideHover() {
+        hoverTimer?.invalidate()
+        hoverTarget = nil
+        HoverPanel.shared.hide()
+    }
+
+    private func hoverContent(for t: StatusGraphView.Target) -> HoverContent? {
         let bits = defaults.bool(forKey: Key.useBits)
-        var tip = "Upload \(NetworkMonitor.format(net.currentUp, bits: bits)) · Download \(NetworkMonitor.format(net.currentDown, bits: bits))"
-        if lidSleepDisabled { tip += "\nSleep disabled (incl. lid closed)" }
-        else if sleep.isPreventing { tip += "\nKeeping awake" }
-        return tip
+        let rate: (Double) -> String = { NetworkMonitor.format($0, bits: bits) }
+        switch t {
+        case .network:
+            let sent = net.longUp.values.reduce(0, +), received = net.longDown.values.reduce(0, +)
+            var lines = [
+                "Upload \(rate(net.currentUp))  ·  Download \(rate(net.currentDown))",
+                "Last 5 min: \(DiskMonitor.formatBytes(Int64(sent))) sent · \(DiskMonitor.formatBytes(Int64(received))) received",
+            ]
+            if lidSleepDisabled { lines.append("Sleep disabled (incl. lid closed)") }
+            else if sleep.isPreventing { lines.append("Keeping Mac awake") }
+            return HoverContent(
+                title: "Network",
+                lines: lines,
+                top: .init(label: "Upload", values: net.longUp.values, color: upColor, format: rate),
+                bottom: .init(label: "Download", values: net.longDown.values, color: downColor, format: rate),
+                timespan: "last 5 min")
+
+        case .battery:
+            guard let b = battery ?? BatteryMonitor.read() else { return nil }
+            let watts: (Double) -> String = { BatteryMonitor.formatWatts($0) }
+            let vals = batteryHistory.values
+            return HoverContent(
+                title: "Battery" + (b.percent.map { " — \($0)%" } ?? ""),
+                lines: BatteryMonitor.describe(b).split(separator: "\n").map(String.init),
+                top: .init(label: "Charging", values: vals.map { max($0, 0) }, color: StatusGraphView.chargeColor, format: watts),
+                bottom: .init(label: "Discharging", values: vals.map { max(-$0, 0) }, color: StatusGraphView.dischargeColor, format: watts),
+                timespan: "last 10 min")
+
+        case .disk(let key):
+            guard let d = disk.drives.first(where: { $0.key == key }) else { return nil }
+            let r = disk.readHistory[key] ?? History(capacity: 60)
+            let w = disk.writeHistory[key] ?? History(capacity: 60)
+            let diskRate: (Double) -> String = { NetworkMonitor.format($0, bits: false) }
+            var lines = ["\(d.bsd)  ·  \(d.kind)  ·  \(DiskMonitor.formatBytes(d.size))"]
+            let vols = disk.volumes(on: d)
+            if vols.isEmpty {
+                lines.append("No mounted volumes")
+            } else {
+                for v in vols.prefix(4) {
+                    lines.append("\(v.name) (\(v.mountPoint)) — \(DiskMonitor.formatBytes(v.available)) free of \(DiskMonitor.formatBytes(v.total))")
+                }
+            }
+            lines.append("Last second: read \(diskRate(r.last)) · write \(diskRate(w.last))")
+            return HoverContent(
+                title: d.name,
+                lines: lines,
+                top: .init(label: "Read", values: r.values, color: diskSettings.color(d), format: diskRate),
+                bottom: .init(label: "Write", values: w.values, color: .systemPink, format: diskRate),
+                timespan: "last 60 s")
+        }
     }
 
     // MARK: - Menu
+
+    func menuWillOpen(_ menu: NSMenu) {
+        menuIsOpen = true
+        hideHover()
+    }
+
+    func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         lidSleepDisabled = LidSleep.isDisabled
@@ -157,6 +280,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
                            #selector(toggleShowBattery), on: BatteryMonitor.hasBattery && defaults.bool(forKey: Key.showBattery))
         batItem.isEnabled = BatteryMonitor.hasBattery
         menu.addItem(batItem)
+        menu.addItem(item("Show Disk Lights", #selector(toggleShowDisks), on: diskSettings.showDisks))
+        menu.addItem(item("Disk Lights…", #selector(openDiskLights), on: false, key: "d", indent: 1))
 
         // Sleep
         menu.addItem(.separator())
@@ -195,6 +320,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
         menu.addItem(.separator())
         menu.addItem(sectionHeader("Network"))
         menu.addItem(item("Show Bits per Second (Kb/s)", #selector(toggleBits), on: bits))
+        menu.addItem(colorMenu(title: "Upload Color", key: Key.upColor))
+        menu.addItem(colorMenu(title: "Download Color", key: Key.downColor))
 
         // App
         menu.addItem(.separator())
@@ -214,6 +341,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
         i.state = on ? .on : .off
         i.indentationLevel = indent
         return i
+    }
+
+    private func colorMenu(title: String, key: String) -> NSMenuItem {
+        let current = defaults.string(forKey: key) ?? "White"
+        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        parent.image = swatch(Palette.resolve(current, default: .white))
+        let sub = NSMenu()
+        for entry in Palette.named {
+            let i = item(entry.name, #selector(pickPresetColor(_:)), on: current == entry.name)
+            i.representedObject = [key, entry.name]
+            i.image = swatch(entry.color)
+            sub.addItem(i)
+        }
+        sub.addItem(.separator())
+        let custom = item("Custom…", #selector(pickCustomColor(_:)), on: Palette.color(named: current) == nil)
+        custom.representedObject = key
+        sub.addItem(custom)
+        parent.submenu = sub
+        return parent
+    }
+
+    private func swatch(_ c: NSColor) -> NSImage {
+        NSImage(size: NSSize(width: 12, height: 12), flipped: false) { r in
+            c.setFill()
+            let p = NSBezierPath(roundedRect: r.insetBy(dx: 1, dy: 1), xRadius: 3, yRadius: 3)
+            p.fill()
+            NSColor.black.withAlphaComponent(0.25).setStroke()
+            p.lineWidth = 0.5
+            p.stroke()
+            return true
+        }
     }
 
     private func sectionHeader(_ title: String) -> NSMenuItem {
@@ -304,6 +462,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSView
 
     @objc private func toggleShowBattery() {
         defaults.set(!defaults.bool(forKey: Key.showBattery), forKey: Key.showBattery)
+        refreshStatus()
+    }
+
+    @objc private func toggleShowDisks() {
+        diskSettings.showDisks.toggle()
+        applyDiskSettings()
+        diskWindow?.reload()
+    }
+
+    @objc private func openDiskLights() {
+        if diskWindow == nil {
+            diskWindow = DiskLightsWindow(monitor: disk, settings: diskSettings) { [weak self] in self?.applyDiskSettings() }
+        }
+        diskWindow?.show()
+    }
+
+    @objc private func pickPresetColor(_ sender: NSMenuItem) {
+        guard let pair = sender.representedObject as? [String], pair.count == 2 else { return }
+        defaults.set(pair[1], forKey: pair[0])
+        refreshStatus()
+    }
+
+    @objc private func pickCustomColor(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String else { return }
+        colorPanelKey = key
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = false
+        panel.color = Palette.resolve(defaults.string(forKey: key), default: .white)
+        panel.setTarget(self)
+        panel.setAction(#selector(colorPanelChanged(_:)))
+        panel.title = key == Key.upColor ? "Upload Color" : "Download Color"
+        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFront(nil)
+    }
+
+    @objc private func colorPanelChanged(_ sender: NSColorPanel) {
+        guard let key = colorPanelKey else { return }
+        defaults.set(sender.color.hexString, forKey: key)
         refreshStatus()
     }
 

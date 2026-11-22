@@ -1,10 +1,13 @@
 import AppKit
 
 /// Drawn inside the NSStatusItem button. Each segment can be turned on/off:
-///  [●] [ upload bars ↑ | download bars ↓ ] ▲ 12 KB/s   8.4W
-///                                        ▼ 340 KB/s   OUT
+///  [●] [ upload ↑ | download ↓ ] ▲ 12 KB/s   8.4W   ● ●
+///                                ▼ 340 KB/s   OUT   ● ●   ← disk LEDs
 final class StatusGraphView: NSView {
     enum AwakeState { case normal, keepAwake, lidAwake }
+    enum Target: Equatable { case network, battery, disk(String) }
+
+    struct LED { let key: String; let color: NSColor }
 
     // Content
     var up: [Double] = []
@@ -13,13 +16,22 @@ final class StatusGraphView: NSView {
     var downText = "0.0 KB/s"
     var awake: AwakeState = .normal
     var battery: BatteryReading?
+    var leds: [LED] = []
+    var litKeys: Set<String> = []
+
+    // Appearance
+    var upColor: NSColor = .white
+    var downColor: NSColor = .white
 
     // Which segments to show
     var showNetwork = true
     var showBattery = false
+    var showDisks = true
 
-    static let upColor = NSColor.systemRed
-    static let downColor = NSColor.systemBlue
+    // Hover callbacks (point is in this view's coordinates)
+    var onHover: ((Target?) -> Void)?
+    var onExit: (() -> Void)?
+
     static let chargeColor = NSColor.systemGreen
     static let dischargeColor = NSColor.systemOrange
 
@@ -29,40 +41,104 @@ final class StatusGraphView: NSView {
     private static let netTextWidth: CGFloat = 58
     private static let batteryWidth: CGFloat = 30
     private static let iconWidth: CGFloat = 20
+    private static let ledCell: CGFloat = 9
 
     private var showsBattery: Bool { showBattery && battery != nil }
+    private var showsDisks: Bool { showDisks && !leds.isEmpty }
+    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks }
 
-    /// Segment rects in this view's coordinates (used for hover tooltips).
+    /// Segment rects in this view's coordinates.
     private(set) var networkRect = NSRect.zero
     private(set) var batteryRect = NSRect.zero
+    private(set) var diskRect = NSRect.zero
+    private var ledRects: [(key: String, rect: NSRect)] = []
 
     /// Lays out the segments and returns the total width the status item needs.
     @discardableResult
     func layoutSegments(height h: CGFloat) -> CGFloat {
         var x = Self.pad
-        if awake != .normal || (!showNetwork && !showsBattery) { x += Self.dotWidth }
-        if !showNetwork && !showsBattery {
-            networkRect = .zero; batteryRect = .zero
-            return x + Self.iconWidth + Self.pad
-        }
+        if awake != .normal || !showsAnything { x += Self.dotWidth }
+        networkRect = .zero; batteryRect = .zero; diskRect = .zero; ledRects = []
+        if !showsAnything { return x + Self.iconWidth + Self.pad }
+
+        var first = true
+        func gap() { if !first { x += 4 }; first = false }
+
         if showNetwork {
+            gap()
             networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + Self.netTextWidth, height: h)
             x = networkRect.maxX
-        } else {
-            networkRect = .zero
         }
         if showsBattery {
-            if showNetwork { x += 2 }
+            gap()
             batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
             x = batteryRect.maxX
-        } else {
-            batteryRect = .zero
+        }
+        if showsDisks {
+            gap()
+            // One LED centered if a single drive; otherwise two rows, filling column by column.
+            let rows = leds.count == 1 ? 1 : 2
+            let cols = Int(ceil(Double(leds.count) / Double(rows)))
+            diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * Self.ledCell + 1, height: h)
+            for (i, led) in leds.enumerated() {
+                let col = i / rows, row = i % rows
+                let cy: CGFloat = rows == 1 ? h / 2 : (row == 0 ? h / 2 + 4.5 : h / 2 - 4.5)
+                let rect = NSRect(x: x + CGFloat(col) * Self.ledCell + 1.5, y: cy - 3.5, width: 7, height: 7)
+                ledRects.append((led.key, rect))
+            }
+            x = diskRect.maxX
         }
         return x + Self.pad
     }
 
+    func target(at p: NSPoint) -> Target? {
+        if networkRect.insetBy(dx: -2, dy: 0).contains(p) { return .network }
+        if batteryRect.insetBy(dx: -2, dy: 0).contains(p) { return .battery }
+        if diskRect.insetBy(dx: -2, dy: 0).contains(p) {
+            // nearest LED to the pointer
+            return ledRects.min(by: { hypot($0.rect.midX - p.x, $0.rect.midY - p.y) < hypot($1.rect.midX - p.x, $1.rect.midY - p.y) })
+                .map { .disk($0.key) }
+        }
+        return nil
+    }
+
+    /// Screen rect of a segment (for anchoring the hover panel).
+    func screenRect(for t: Target) -> NSRect? {
+        let r: NSRect
+        switch t {
+        case .network: r = networkRect
+        case .battery: r = batteryRect
+        case .disk(let k): r = ledRects.first(where: { $0.key == k })?.rect.insetBy(dx: -4, dy: -8) ?? diskRect
+        }
+        guard !r.isEmpty, let win = window else { return nil }
+        return win.convertToScreen(convert(r, to: nil))
+    }
+
     // Let clicks fall through to the status button so the menu opens.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    // MARK: Hover tracking
+
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let t = tracking { removeTrackingArea(t) }
+        let t = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                               owner: self, userInfo: nil)
+        addTrackingArea(t)
+        tracking = t
+    }
+
+    override func mouseEntered(with event: NSEvent) { report(event) }
+    override func mouseMoved(with event: NSEvent) { report(event) }
+    override func mouseExited(with event: NSEvent) { onExit?() }
+
+    private func report(_ event: NSEvent) {
+        onHover?(target(at: convert(event.locationInWindow, from: nil)))
+    }
+
+    // MARK: Drawing
 
     override func draw(_ dirtyRect: NSRect) {
         let h = bounds.height
@@ -70,34 +146,34 @@ final class StatusGraphView: NSView {
         let label = NSColor.labelColor
         let mid = h / 2
 
-        // Keep-awake indicator dot
         if awake != .normal {
             let color: NSColor = (awake == .lidAwake) ? .systemOrange : .systemYellow
             color.setFill()
             NSBezierPath(ovalIn: NSRect(x: Self.pad, y: mid - 2, width: 4, height: 4)).fill()
         }
 
-        if !showNetwork && !showsBattery {
-            let x = Self.pad + Self.dotWidth
-            if let img = NSImage(systemSymbolName: "gauge.with.dots.needle.33percent", accessibilityDescription: "BoostBar") {
-                let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-                let sized = img.withSymbolConfiguration(cfg) ?? img
-                let s = sized.size
-                let tinted = NSImage(size: s, flipped: false) { r in
-                    sized.draw(in: r)
-                    label.set()
-                    r.fill(using: .sourceAtop)
-                    return true
-                }
-                tinted.draw(in: NSRect(x: x + (Self.iconWidth - s.width) / 2, y: (h - s.height) / 2, width: s.width, height: s.height))
-            }
+        if !showsAnything {
+            drawIdleIcon(x: Self.pad + Self.dotWidth, h: h, label: label)
             return
         }
 
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-
         if showNetwork { drawNetwork(in: networkRect, label: label, font: font) }
         if showsBattery, let b = battery { drawBattery(b, in: batteryRect, label: label, font: font) }
+        if showsDisks { drawDisks(label: label) }
+    }
+
+    private func drawIdleIcon(x: CGFloat, h: CGFloat, label: NSColor) {
+        guard let img = NSImage(systemSymbolName: "gauge.with.dots.needle.33percent", accessibilityDescription: "BoostBar") else { return }
+        let sized = img.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)) ?? img
+        let s = sized.size
+        let tinted = NSImage(size: s, flipped: false) { r in
+            sized.draw(in: r)
+            label.set()
+            r.fill(using: .sourceAtop)
+            return true
+        }
+        tinted.draw(in: NSRect(x: x + (Self.iconWidth - s.width) / 2, y: (h - s.height) / 2, width: s.width, height: s.height))
     }
 
     private func drawNetwork(in r: NSRect, label: NSColor, font: NSFont) {
@@ -113,12 +189,12 @@ final class StatusGraphView: NSView {
         let maxUp = max(up.max() ?? 0, floorScale)
         let maxDown = max(down.max() ?? 0, floorScale)
 
-        Self.upColor.setFill()
+        upColor.setFill()
         for (i, v) in up.enumerated() where v > 0 {
             let bh = max(CGFloat(v / maxUp) * half, 0.5)
             NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid + 0.5, width: barW, height: bh)).fill()
         }
-        Self.downColor.setFill()
+        downColor.setFill()
         for (i, v) in down.enumerated() where v > 0 {
             let bh = max(CGFloat(v / maxDown) * half, 0.5)
             NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid - 0.5 - bh, width: barW, height: bh)).fill()
@@ -132,15 +208,13 @@ final class StatusGraphView: NSView {
             s.append(NSAttributedString(string: " " + text, attributes: [.font: font, .foregroundColor: label]))
             return s
         }
-        line("▲", Self.upColor, upText).draw(at: NSPoint(x: tx, y: mid - 0.5))
-        line("▼", Self.downColor, downText).draw(at: NSPoint(x: tx, y: mid - 11))
+        line("▲", upColor, upText).draw(at: NSPoint(x: tx, y: mid - 0.5))
+        line("▼", downColor, downText).draw(at: NSPoint(x: tx, y: mid - 11))
     }
 
     private func drawBattery(_ b: BatteryReading, in r: NSRect, label: NSColor, font: NSFont) {
         let mid = r.height / 2
-        let top: String
-        let bottom: String
-        let color: NSColor
+        let top: String, bottom: String, color: NSColor
         switch b.direction {
         case .charging:    top = BatteryMonitor.formatWatts(b.watts); bottom = "IN";  color = Self.chargeColor
         case .discharging: top = BatteryMonitor.formatWatts(b.watts); bottom = "OUT"; color = Self.dischargeColor
@@ -151,10 +225,34 @@ final class StatusGraphView: NSView {
         }
         let para = NSMutableParagraphStyle()
         para.alignment = .center
-        let topStr = NSAttributedString(string: top, attributes: [.font: font, .foregroundColor: label, .paragraphStyle: para])
-        let botFont = NSFont.systemFont(ofSize: 8, weight: .bold)
-        let botStr = NSAttributedString(string: bottom, attributes: [.font: botFont, .foregroundColor: color, .paragraphStyle: para])
-        topStr.draw(in: NSRect(x: r.minX, y: mid - 0.5, width: r.width, height: 11))
-        botStr.draw(in: NSRect(x: r.minX, y: mid - 11, width: r.width, height: 11))
+        NSAttributedString(string: top, attributes: [.font: font, .foregroundColor: label, .paragraphStyle: para])
+            .draw(in: NSRect(x: r.minX, y: mid - 0.5, width: r.width, height: 11))
+        NSAttributedString(string: bottom, attributes: [.font: NSFont.systemFont(ofSize: 8, weight: .bold),
+                                                        .foregroundColor: color, .paragraphStyle: para])
+            .draw(in: NSRect(x: r.minX, y: mid - 11, width: r.width, height: 11))
+    }
+
+    private func drawDisks(label: NSColor) {
+        for (i, entry) in ledRects.enumerated() {
+            let led = leds[i]
+            let on = litKeys.contains(entry.key)
+            let path = NSBezierPath(ovalIn: entry.rect)
+            if on {
+                NSGraphicsContext.saveGraphicsState()
+                let glow = NSShadow()
+                glow.shadowColor = led.color.withAlphaComponent(0.9)
+                glow.shadowBlurRadius = 3
+                glow.set()
+                led.color.setFill()
+                path.fill()
+                NSGraphicsContext.restoreGraphicsState()
+            } else {
+                led.color.withAlphaComponent(0.18).setFill()
+                path.fill()
+                label.withAlphaComponent(0.35).setStroke()
+                path.lineWidth = 0.75
+                path.stroke()
+            }
+        }
     }
 }
