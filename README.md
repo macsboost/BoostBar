@@ -21,6 +21,14 @@ A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It ha
 
 A dot left of the graph shows the sleep state. Yellow means "Keep awake" is on. Orange means sleep is disabled even with the lid closed.
 
+## Flying Cars screen saver ✈️
+
+BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic flying toasters. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
+
+## Hot corners
+
+In **Settings ▸ Sleep ▸ Hot Corners**, choose a screen corner to toggle **Keep Awake** and one to **Sleep now**. Rest the pointer in the corner for a moment, and a small badge confirms the action.
+
 ## Install
 
 Requires macOS 13 Ventura or newer. Runs natively on Apple Silicon and Intel.

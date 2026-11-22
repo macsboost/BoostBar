@@ -16,16 +16,16 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.35;
   renderer.setClearColor(0x000000, 1);
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(28, innerWidth / innerHeight, 1, 400);
-  camera.position.set(0, 0, 80);
+  camera.position.set(0, 0, 52);
   camera.lookAt(0, 0, 0);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x223322, 1.15));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334433, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.6);
   sun.position.set(-30, 40, 60);
   scene.add(sun);
   const rim = new THREE.DirectionalLight(0x88ff66, 0.5);
