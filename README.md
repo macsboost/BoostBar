@@ -1,4 +1,26 @@
-# BoostBar
+<p align="center">
+  <img src="Resources/AppIcon-1024.png" width="160" alt="BoostBar app icon">
+</p>
+
+<h1 align="center">BoostBar</h1>
+
+<p align="center">
+  <a href="https://github.com/macsboost/BoostBar/releases/latest/download/BoostBar.zip">
+    <img src="https://img.shields.io/badge/⬇%20Download%20BoostBar-FREE%20for%20macOS-56BE37?style=for-the-badge&labelColor=0e0f0e" height="56" alt="Download BoostBar — free for macOS">
+  </a>
+</p>
+
+<p align="center">
+  <b><a href="https://github.com/macsboost/BoostBar/releases/latest/download/BoostBar.zip">Download the latest BoostBar.zip</a></b> · free · macOS 13 or later · Apple silicon &amp; Intel · signed &amp; notarized by Apple<br>
+  <sub>Unzip, drag <b>BoostBar</b> to Applications, open it. It lives in your menu bar. <a href="https://github.com/macsboost/BoostBar/releases">All versions</a></sub>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/macsboost/BoostBar?label=latest&color=74FB4C&labelColor=0e0f0e" alt="Latest version">
+  <img src="https://img.shields.io/github/downloads/macsboost/BoostBar/total?color=56BE37&labelColor=0e0f0e" alt="Downloads">
+</p>
+
+---
 
 A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It has no Dock icon and uses about 1% CPU or less.
 
