@@ -179,7 +179,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
             x += b.frame.width + 26
         }
 
-        let footer = NSTextField(labelWithString: "Free to use either way — thanks for the boost!")
+        let footer = NSTextField(labelWithString: "Free to use either way — may the boost be with you!")
         footer.font = .systemFont(ofSize: 11)
         footer.textColor = .secondaryLabelColor
         footer.frame = NSRect(x: 20, y: 22, width: 360, height: 16)
