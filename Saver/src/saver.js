@@ -1,13 +1,16 @@
-/* BoostBar Flying Cars — X1 SkyRacers drifting across the screen, flying-toasters style.
-   The model is the X1 SkyRacer airframe GLB; liveries use the same format and paint logic as the
-   X1 SkyRacer Flying Car Race Sim (src/game/30_livery.js), applied per craft. */
+/* BoostBar screen savers, flying-toasters style.
+   scene 'cars'      BoostBar Flying Cars: X1 SkyRacers; liveries use the same format and paint logic as the
+                     X1 SkyRacer Flying Car Race Sim (src/game/30_livery.js), applied per craft.
+   scene 'starships' BoostBar Starships: Starship (Ship 42, from the sim's Starbase world, built from code by
+                     X1_sim/tools/starship/ship42.py) with its four flaps flapping like the toasters' wings. */
 (() => {
   'use strict';
   const CFG = Object.assign(
-    { liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, stars: true, preview: false },
+    { scene: 'cars', liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, stars: true, preview: false },
     window.SAVER_CONFIG || {},
   );
   const D2R = Math.PI / 180;
+  const SHIPS = (window.SAVER_SCENE || CFG.scene) === 'starships';
   const $ = (id) => document.getElementById(id);
 
   // ---------- renderer / scene ----------
@@ -28,7 +31,7 @@
   const sun = new THREE.DirectionalLight(0xffffff, 2.6);
   sun.position.set(-30, 40, 60);
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(0x88ff66, 0.5);
+  const rim = new THREE.DirectionalLight(SHIPS ? 0xffb070 : 0x88ff66, SHIPS ? 0.7 : 0.5);
   rim.position.set(40, -20, -30);
   scene.add(rim);
 
@@ -53,7 +56,7 @@
   });
 
   // ---------- liveries (ported from the sim's 30_livery.js, per craft) ----------
-  const LIVERIES = JSON.parse($('liveries').textContent);
+  const LIVERIES = $('liveries') ? JSON.parse($('liveries').textContent) : [];
   const LIV_MM = 1000;
   const texCache = {};
   function livTexture(url, flipY) {
@@ -357,6 +360,79 @@
     );
   }
 
+  // ---------- Starship ----------
+  // The ship model stands nose up (+y), heat shield on +z, flaps on +-x. A pivot lays it down nose-first (+z, which
+  // lookAt points along the flight path) with the heat shield underneath, like a belly-flopping ship gliding along.
+  const SHIP_SCALE = 0.15; // 60 m ship -> 9 scene units (a SkyRacer is about 4)
+  function glowTexture(inner, outer) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    const x = cv.getContext('2d'),
+      g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, inner);
+    g.addColorStop(0.35, outer);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(cv);
+  }
+  function loadStarship() {
+    return new Promise((res, rej) =>
+      new THREE.GLTFLoader().parse(
+        buf.buffer.slice(0),
+        '',
+        (g) => {
+          const ship = g.scene.getObjectByName('ship') || g.scene;
+          const box = new THREE.Box3().setFromObject(ship);
+          const mid = box.getCenter(new THREE.Vector3());
+          ship.position.sub(mid); // centre the hull on the pivot
+          ship.traverse((o) => {
+            if (!o.isMesh) return;
+            o.frustumCulled = false;
+            const m = (o.material = o.material.clone());
+            m.side = THREE.DoubleSide;
+            if (m.name === 'steel') { m.metalness = 0.55; m.roughness = 0.32; } // no environment map: keep it bright
+          });
+          const pivot = new THREE.Group();
+          pivot.rotation.x = Math.PI / 2; // nose (+y) -> +z, heat shield (+z) -> down
+          pivot.scale.setScalar(SHIP_SCALE);
+          pivot.add(ship);
+          const root = new THREE.Group();
+          root.add(pivot);
+          // Raptor glow out of the engines
+          const tail = (box.min.y - mid.y) * SHIP_SCALE;
+          const plume = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: glowTexture('rgba(255,255,255,1)', 'rgba(255,150,60,0.75)'),
+            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
+          }));
+          plume.position.set(0, 0, tail - 0.4);
+          plume.scale.set(1.9, 1.9, 1);
+          plume.name = 'plume';
+          root.add(plume);
+          const core = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: glowTexture('rgba(220,235,255,1)', 'rgba(120,160,255,0.6)'),
+            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
+          }));
+          core.position.set(0, 0, tail - 0.15);
+          core.scale.set(0.9, 0.9, 1);
+          core.name = 'core';
+          root.add(core);
+          res(root);
+        },
+        rej,
+      ),
+    );
+  }
+  function flapsOf(root) {
+    const flaps = [];
+    root.traverse((o) => {
+      if (o.userData && o.userData.flap) flaps.push({ o, q0: o.quaternion.clone(), s: o.userData.s || 1, fwd: o.userData.flap === 'fwd' });
+    });
+    return flaps;
+  }
+  const yAxis = new THREE.Vector3(0, 1, 0),
+    flapQ = new THREE.Quaternion();
+
   const wanted = CFG.liveries.filter((id) => LIVERIES.some((l) => l.id === id));
   const ids = wanted.length ? wanted : ['macsboost'];
 
@@ -382,10 +458,10 @@
     } else if (Math.random() < w / (w + h)) {
       // enter along the top edge
       c.x = (Math.random() * 2 - 0.6) * w;
-      c.y = h + 6;
+      c.y = h + (SHIPS ? 10 : 6);
     } else {
       // enter along the right edge
-      c.x = w + 8;
+      c.x = w + (SHIPS ? 13 : 8);
       c.y = (Math.random() * 2 - 0.6) * h;
     }
     c.phase = Math.random() * Math.PI * 2;
@@ -454,6 +530,23 @@
   }
 
   async function build() {
+    if (SHIPS) {
+      const tpl = await loadStarship();
+      const n = Math.max(1, Math.min(20, CFG.count | 0));
+      for (let i = 0; i < n; i++) {
+        const root = tpl.clone(true),
+          g = new THREE.Group();
+        root.traverse((o) => { if (o.isSprite) o.material = o.material.clone(); });
+        g.add(root);
+        scene.add(g);
+        const c = { g, fans: [], flaps: flapsOf(root), plume: root.getObjectByName('plume'), core: root.getObjectByName('core'),
+          flapRate: 5.2 + Math.random() * 2.2, spin: Math.random() * 10 };
+        spawn(c, true);
+        craft.push(c);
+      }
+      $('loading') && $('loading').remove();
+      return;
+    }
     const templates = {};
     for (const id of ids) {
       const root = await loadAirframe();
@@ -486,7 +579,7 @@
   };
   // ---------- bumping ----------
   // Cars that get too close bounce apart (and wobble a bit) instead of flying through each other.
-  const R = 1.7; // rough radius of a SkyRacer in scene units
+  const R = SHIPS ? 2.3 : 1.7; // rough radius of a SkyRacer / a Starship in scene units
   const lastHit = new Map();
   const n = new THREE.Vector3();
   function bump(t) {
@@ -532,7 +625,7 @@
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
-      if (c.x < -w - 10 || c.y < -h - 8) spawn(c, false);
+      if (c.x < -w - (SHIPS ? 15 : 10) || c.y < -h - (SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const st = stunt(c, t);
@@ -546,6 +639,17 @@
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
+      if (c.flaps) {
+        // flap like the toasters' wings: each flap swings about its hinge, the forward pair a beat behind the aft
+        for (const f of c.flaps) {
+          const ph = c.spin * c.flapRate + c.phase - (f.fwd ? 0.6 : 0);
+          const deg = f.fwd ? 18 + 30 * Math.sin(ph) : 24 + 36 * Math.sin(ph);
+          f.o.quaternion.copy(f.q0).multiply(flapQ.setFromAxisAngle(yAxis, f.s * deg * D2R));
+        }
+        const fl = 0.85 + 0.15 * Math.sin(t * 37 + c.phase) + 0.08 * Math.sin(t * 61);
+        if (c.plume) c.plume.scale.set(1.9 * fl, 1.9 * fl, 1);
+        if (c.core) c.core.scale.set(0.9 * fl, 0.9 * fl, 1);
+      }
     }
     bump(t);
     renderer.render(scene, camera);
@@ -554,6 +658,6 @@
     .then(() => (CFG.manual ? (window.__ready = true) : requestAnimationFrame(frame)))
     .catch((e) => {
       const el = $('loading');
-      if (el) el.textContent = 'Could not load the SkyRacer: ' + e;
+      if (el) el.textContent = (SHIPS ? 'Could not load Starship: ' : 'Could not load the SkyRacer: ') + e;
     });
 })();

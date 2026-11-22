@@ -370,17 +370,25 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         #if !APPSTORE
         // Screen saver
         list.append(Pane(title: "Screen Saver", symbol: "airplane") { p in
-            p.header("BoostBar Flying Cars")
-            p.note("X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries drift across your screen, fans spinning, like the classic flying-toasters screen saver.")
+            func saverSection(_ sv: BundledSaver, _ about: String) {
+                p.header(sv.name)
+                p.note(about)
+                let row = p.row([
+                    p.makeButton("Preview") { SaverPreviewWindow.shared.show(sv) },
+                    p.makeButton(sv.isInstalled ? "Reinstall" : "Install") { sv.install() },
+                ])
+                p.custom(row, height: 30)
+                p.label { sv.isInstalled ? "✓ Installed — choose it in System Settings ▸ Screen Saver" : "Not installed yet" }
+            }
+            saverSection(.flyingCars, "X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries drift across your screen, fans spinning, like the classic flying-toasters screen saver.")
+            saverSection(.starships, "A fleet of Starships glides across the screen, flapping their flaps like the toasters' wings, Raptors glowing.")
+            p.header("")
             let row = p.row([
-                p.makeButton("Preview") { SaverPreviewWindow.shared.show() },
-                p.makeButton(FlyingCarsSaver.isInstalled ? "Reinstall Screen Saver" : "Install Screen Saver") { FlyingCarsSaver.install() },
-                p.makeButton("Start Now") { FlyingCarsSaver.startNow() },
+                p.makeButton("Open Screen Saver Settings…") { BundledSaver.openSettings() },
+                p.makeButton("Start Now") { BundledSaver.startNow() },
             ])
             p.custom(row, height: 30)
-            p.label { FlyingCarsSaver.isInstalled ? "✓ Installed — choose it in System Settings ▸ Screen Saver" : "Not installed yet" }
-            p.button("Open Screen Saver Settings…") { FlyingCarsSaver.openSettings() }
-            p.note("Choose which liveries fly, how many cars and how fast in System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. The X1 SkyRacer model and the XXONE and Yonder liveries come from the X1 SkyRacer Flying Car Race Sim.")
+            p.note("Start Now runs whichever screen saver is chosen in System Settings. Each saver's Options button there sets how many fly, how fast, and stars; Flying Cars also lets you pick liveries. The X1 SkyRacer, its liveries and the Starship model come from the X1 SkyRacer Flying Car Race Sim. Not affiliated with SpaceX.")
         })
 
         // Scrolling

@@ -2,15 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>com.macsboost.boostbar.saver</string>
-    <key>CFBundleName</key><string>BoostBar Flying Cars</string>
-    <key>CFBundleDisplayName</key><string>BoostBar Flying Cars</string>
-    <key>CFBundleExecutable</key><string>BoostBarSaver</string>
+    <key>CFBundleIdentifier</key><string>__ID__</string>
+    <key>CFBundleName</key><string>__NAME__</string>
+    <key>CFBundleDisplayName</key><string>__NAME__</string>
+    <key>CFBundleExecutable</key><string>__EXEC__</string>
     <key>CFBundlePackageType</key><string>BNDL</string>
     <key>CFBundleShortVersionString</key><string>__VERSION__</string>
     <key>CFBundleVersion</key><string>__BUILD__</string>
-    <key>NSPrincipalClass</key><string>BoostBarSaverView</string>
+    <key>NSPrincipalClass</key><string>__CLASS__</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
-    <key>NSHumanReadableCopyright</key><string>© 2026 MacsBoost / X1 Racing. X1 SkyRacer model © X1 Racing.</string>
+    <key>NSHumanReadableCopyright</key><string>© 2026 MacsBoost / X1 Racing. __CREDIT__</string>
 </dict>
 </plist>

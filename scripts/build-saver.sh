@@ -1,29 +1,38 @@
 #!/usr/bin/env bash
-# Builds "BoostBar Flying Cars.saver" (a macOS screen saver) at the path given.
-#   ./scripts/build-saver.sh "dist/BoostBar.app/Contents/Library/Screen Savers/BoostBar Flying Cars.saver" [version] [build]
-# Downloads three.js r147 (and its GLTFLoader) once into build/saver/ — the saver runs offline after that.
+# Builds one of BoostBar's macOS screen savers at the path given.
+#   ./scripts/build-saver.sh "<App>/Contents/Library/Screen Savers/BoostBar Flying Cars.saver" [version] [build] [cars|starships]
+# Downloads three.js r147 (and its GLTFLoader) once into build/saver/ — the savers run offline after that.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-OUT="$1"; VERSION="${2:-$(tr -d '[:space:]' < VERSION)}"; BUILD="${3:-1}"
+OUT="$1"; VERSION="${2:-$(tr -d '[:space:]' < VERSION)}"; BUILD="${3:-1}"; SCENE="${4:-cars}"
 W=build/saver
 mkdir -p "$W"
 [[ -s "$W/three.min.js" ]] || curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js -o "$W/three.min.js"
 [[ -s "$W/GLTFLoader.js" ]] || curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js -o "$W/GLTFLoader.js"
 
+case "$SCENE" in
+  cars)      ID=com.macsboost.boostbar.saver;     NAME="BoostBar Flying Cars"; EXEC=BoostBarSaver;     CLASS=BoostBarSaverView
+             MODULE=BoostBarSaver;     FLAGS=();             CREDIT="X1 SkyRacer model © X1 Racing." ;;
+  starships) ID=com.macsboost.boostbar.starships; NAME="BoostBar Starships";   EXEC=BoostBarStarships; CLASS=BoostBarStarshipsView
+             MODULE=BoostBarStarships; FLAGS=(-D STARSHIPS); CREDIT="Starship model from the X1 SkyRacer sim (Ship 42, built from code). Not affiliated with SpaceX." ;;
+  *) echo "unknown scene $SCENE"; exit 1 ;;
+esac
+
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
-python3 tools/build_saver_html.py "$W/three.min.js" "$W/GLTFLoader.js" "$OUT/Contents/Resources/saver.html"
-cp Saver/thumbnail*.png "$OUT/Contents/Resources/"
-sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Saver/Info.plist > "$OUT/Contents/Info.plist"
+python3 tools/build_saver_html.py "$W/three.min.js" "$W/GLTFLoader.js" "$OUT/Contents/Resources/saver.html" "$SCENE"
+cp Saver/thumbs/"$SCENE"/thumbnail*.png "$OUT/Contents/Resources/" 2>/dev/null || true
+sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__ID__/$ID/" -e "s/__NAME__/$NAME/g" \
+    -e "s/__EXEC__/$EXEC/" -e "s/__CLASS__/$CLASS/" -e "s/__CREDIT__/$CREDIT/" Saver/Info.plist > "$OUT/Contents/Info.plist"
 
 if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCHS=(arm64 x86_64); else ARCHS=("$(uname -m)"); fi
 BINS=()
 for a in "${ARCHS[@]}"; do
-  swiftc -O -target "$a-apple-macos13.0" -parse-as-library -module-name BoostBarSaver \
+  swiftc -O -target "$a-apple-macos13.0" -parse-as-library -module-name "$MODULE" ${FLAGS[@]+"${FLAGS[@]}"} \
     -emit-executable -Xlinker -bundle -framework ScreenSaver -framework WebKit \
-    Saver/BoostBarSaverView.swift -o "$W/BoostBarSaver-$a"
-  BINS+=("$W/BoostBarSaver-$a")
+    Saver/BoostBarSaverView.swift -o "$W/$EXEC-$a"
+  BINS+=("$W/$EXEC-$a")
 done
-lipo -create "${BINS[@]}" -o "$OUT/Contents/MacOS/BoostBarSaver"
-file "$OUT/Contents/MacOS/BoostBarSaver"
+lipo -create "${BINS[@]}" -o "$OUT/Contents/MacOS/$EXEC"
+file "$OUT/Contents/MacOS/$EXEC"
 echo "Built $OUT"

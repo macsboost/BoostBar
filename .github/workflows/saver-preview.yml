@@ -23,11 +23,13 @@ jobs:
           curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js -o build/saver/three.min.js
           curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js -o build/saver/GLTFLoader.js
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/saver.html
+          python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starships.html starships
       - name: Screenshots
         run: |
           npm install --no-save --silent puppeteer-core@23
+          node tools/saver_shots.mjs "$PWD/out/starships.html" out ship
           node tools/saver_shots.mjs "$PWD/out/saver.html" out
-          for f in out/frame_*.png; do
+          for f in out/ship_*.png out/frame_0.png; do
             sips -s format jpeg -s formatOptions 60 --resampleWidth 720 "$f" --out "${f%.png}.jpg" >/dev/null
             echo "IMG_BEGIN $(basename "$f")"; base64 -i "${f%.png}.jpg" | tr -d '\n'; echo; echo "IMG_END"
           done

@@ -1,12 +1,32 @@
 import ScreenSaver
 import WebKit
 
-/// BoostBar Flying Cars: X1 SkyRacers in MacsBoost, Yonder and XXONE liveries crossing the screen,
-/// flying-toasters style. The scene is a self-contained three.js page (saver.html) in this bundle.
+/// BoostBar's screen savers, flying-toasters style. One source, two bundles (scripts/build-saver.sh):
+///   BoostBar Flying Cars  X1 SkyRacers in MacsBoost, Yonder and XXONE liveries
+///   BoostBar Starships    Starships flapping their flaps like the toasters' wings (built with -D STARSHIPS)
+/// Each scene is a self-contained three.js page (saver.html) in its bundle.
+#if STARSHIPS
+@objc(BoostBarStarshipsView)
+final class BoostBarStarshipsView: BoostBarSceneView {}
+#else
 @objc(BoostBarSaverView)
-final class BoostBarSaverView: ScreenSaverView {
+final class BoostBarSaverView: BoostBarSceneView {}
+#endif
+
+class BoostBarSceneView: ScreenSaverView {
+    #if STARSHIPS
+    static let moduleName = "com.macsboost.boostbar.starships"
+    static let title = "BoostBar Starships"
+    static let things = "Starships"
+    static let allLiveries: [(id: String, name: String)] = []
+    static let defaultCount = 6
+    #else
     static let moduleName = "com.macsboost.boostbar.saver"
+    static let title = "BoostBar Flying Cars"
+    static let things = "Flying cars"
     static let allLiveries: [(id: String, name: String)] = [("macsboost", "MacsBoost"), ("yonder", "Yonder 01"), ("xxone", "XXONE 51")]
+    static let defaultCount = 7
+    #endif
 
     private var web: WKWebView?
     private var sheet: NSWindow?
@@ -17,7 +37,7 @@ final class BoostBarSaverView: ScreenSaverView {
 
     private var defaults: UserDefaults {
         let d = ScreenSaverDefaults(forModuleWithName: Self.moduleName) ?? UserDefaults.standard
-        d.register(defaults: ["liveries": "macsboost,yonder,xxone", "count": 7, "speed": 1.0, "stars": true])
+        d.register(defaults: ["liveries": "macsboost,yonder,xxone", "count": Self.defaultCount, "speed": 1.0, "stars": true])
         return d
     }
 
@@ -49,7 +69,7 @@ final class BoostBarSaverView: ScreenSaverView {
         w.autoresizingMask = [.width, .height]
         w.setValue(false, forKey: "drawsBackground")
         addSubview(w)
-        if let url = Bundle(for: BoostBarSaverView.self).url(forResource: "saver", withExtension: "html") {
+        if let url = Bundle(for: type(of: self)).url(forResource: "saver", withExtension: "html") {
             w.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
         }
         web = w
@@ -72,13 +92,19 @@ final class BoostBarSaverView: ScreenSaverView {
     override var hasConfigureSheet: Bool { true }
 
     override var configureSheet: NSWindow? {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 270), styleMask: [.titled], backing: .buffered, defer: false)
-        w.title = "BoostBar Flying Cars"
+        let hasLiveries = !Self.allLiveries.isEmpty
+        let height: CGFloat = hasLiveries ? 270 : 170
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: height), styleMask: [.titled], backing: .buffered, defer: false)
+        w.title = Self.title
         let v = NSView(frame: w.contentRect(forFrameRect: w.frame))
-        var y: CGFloat = 230
-        let title = NSTextField(labelWithString: "Liveries")
-        title.font = .boldSystemFont(ofSize: 13)
-        title.frame = NSRect(x: 20, y: y, width: 200, height: 18); v.addSubview(title)
+        var y: CGFloat = height - 40
+        if hasLiveries {
+            let title = NSTextField(labelWithString: "Liveries")
+            title.font = .boldSystemFont(ofSize: 13)
+            title.frame = NSRect(x: 20, y: y, width: 200, height: 18); v.addSubview(title)
+        } else {
+            y += 26
+        }
         let on = Set((defaults.string(forKey: "liveries") ?? "").split(separator: ",").map(String.init))
         checks = []
         for l in Self.allLiveries {
@@ -90,7 +116,7 @@ final class BoostBarSaverView: ScreenSaverView {
             checks.append(b)
         }
         y -= 36
-        let cl = NSTextField(labelWithString: "Flying cars"); cl.frame = NSRect(x: 20, y: y, width: 90, height: 20); v.addSubview(cl)
+        let cl = NSTextField(labelWithString: Self.things); cl.frame = NSRect(x: 20, y: y, width: 90, height: 20); v.addSubview(cl)
         let cs = NSSlider(value: Double(defaults.integer(forKey: "count")), minValue: 1, maxValue: 16, target: nil, action: nil)
         cs.frame = NSRect(x: 120, y: y, width: 230, height: 20); v.addSubview(cs); countSlider = cs
         y -= 30
@@ -116,9 +142,9 @@ final class BoostBarSaverView: ScreenSaverView {
         if sender.tag == 1 {
             let d = defaults
             var ids = checks.filter { $0.state == .on }.compactMap { $0.identifier?.rawValue }
-            if ids.isEmpty { ids = ["macsboost"] }
-            d.set(ids.joined(separator: ","), forKey: "liveries")
-            d.set(Int(countSlider?.doubleValue ?? 7), forKey: "count")
+            if ids.isEmpty && !Self.allLiveries.isEmpty { ids = ["macsboost"] }
+            if !Self.allLiveries.isEmpty { d.set(ids.joined(separator: ","), forKey: "liveries") }
+            d.set(Int(countSlider?.doubleValue ?? Double(Self.defaultCount)), forKey: "count")
             d.set(speedSlider?.doubleValue ?? 1, forKey: "speed")
             d.set(starsCheck?.state == .on, forKey: "stars")
             d.synchronize()
