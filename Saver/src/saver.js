@@ -1,0 +1,462 @@
+/* BoostBar Flying Cars — X1 SkyRacers drifting across the screen, flying-toasters style.
+   The model is the X1 SkyRacer airframe GLB; liveries use the same format and paint logic as the
+   X1 SkyRacer Flying Car Race Sim (src/game/30_livery.js), applied per craft. */
+(() => {
+  'use strict';
+  const CFG = Object.assign(
+    { liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, stars: true, preview: false },
+    window.SAVER_CONFIG || {},
+  );
+  const D2R = Math.PI / 180;
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- renderer / scene ----------
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CFG.preview ? 1 : 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.setClearColor(0x000000, 1);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(28, innerWidth / innerHeight, 1, 400);
+  camera.position.set(0, 0, 80);
+  camera.lookAt(0, 0, 0);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x223322, 1.15));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+  sun.position.set(-30, 40, 60);
+  scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x88ff66, 0.5);
+  rim.position.set(40, -20, -30);
+  scene.add(rim);
+
+  // faint starfield
+  if (CFG.stars) {
+    const n = 500,
+      p = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      p[i * 3] = (Math.random() - 0.5) * 300;
+      p[i * 3 + 1] = (Math.random() - 0.5) * 200;
+      p[i * 3 + 2] = -120 - Math.random() * 60;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8899aa, size: 0.6, sizeAttenuation: true })));
+  }
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // ---------- liveries (ported from the sim's 30_livery.js, per craft) ----------
+  const LIVERIES = JSON.parse($('liveries').textContent);
+  const LIV_MM = 1000;
+  const texCache = {};
+  function livTexture(url, flipY) {
+    const k = url.length + ':' + url.slice(-64) + flipY;
+    if (texCache[k]) return texCache[k];
+    const t = new THREE.TextureLoader().load(url);
+    t.encoding = THREE.sRGBEncoding;
+    t.flipY = !!flipY;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    return (texCache[k] = t);
+  }
+  function livPart(o) {
+    return o.parent && o.parent.name && o.name.indexOf(o.parent.name) === 0 && /_\d+$/.test(o.name)
+      ? o.parent.name
+      : o.name;
+  }
+  function livTris(o, inv) {
+    const g = o.geometry,
+      p = g.attributes.position,
+      ix = g.index,
+      n = ix ? ix.count : p.count,
+      M = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld),
+      v = new THREE.Vector3(),
+      mm = new Float32Array(n * 3),
+      loc = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) {
+      const i = ix ? ix.getX(k) : k;
+      v.fromBufferAttribute(p, i);
+      loc[k * 3] = v.x;
+      loc[k * 3 + 1] = v.y;
+      loc[k * 3 + 2] = v.z;
+      v.applyMatrix4(M);
+      mm[k * 3] = v.x * LIV_MM;
+      mm[k * 3 + 1] = -v.z * LIV_MM;
+      mm[k * 3 + 2] = v.y * LIV_MM;
+    }
+    return { mm, loc, n: n / 3 };
+  }
+  function canopySill(root, inv) {
+    const o = root.getObjectByName('Canopy');
+    if (!o) return null;
+    const T = livTris(o, inv),
+      by = new Map();
+    for (let k = 0; k < T.n * 3; k++) {
+      const y = Math.round(T.mm[k * 3 + 1] / 10) * 10;
+      let r = by.get(y);
+      if (!r) by.set(y, (r = { n: 0, hw: 0, z: 1e9 }));
+      r.n++;
+      r.hw = Math.max(r.hw, Math.abs(T.mm[k * 3]));
+      r.z = Math.min(r.z, T.mm[k * 3 + 2]);
+    }
+    const S = [...by]
+      .filter(([, r]) => r.n >= 6)
+      .map(([y, r]) => [y, r.hw, r.z])
+      .sort((a, b) => a[0] - b[0]);
+    return S.length > 1 ? S : null;
+  }
+  function underGlass(S, x, y, z) {
+    if (!S || y < S[0][0] || y > S[S.length - 1][0]) return false;
+    let i = 1;
+    while (i < S.length - 1 && S[i][0] < y) i++;
+    const a = S[i - 1],
+      b = S[i],
+      t = (y - a[0]) / (b[0] - a[0] || 1),
+      hw = a[1] + (b[1] - a[1]) * t,
+      sz = a[2] + (b[2] - a[2]) * t;
+    return Math.abs(x) < hw + 15 && z > sz - 10;
+  }
+
+  function applyLivery(root, L) {
+    // paint: the side-projected map on the 'Livery' material, recolours on Paint_White / Paint_Red parts
+    let livMat = null;
+    root.traverse((o) => {
+      if (o.isMesh && o.material && o.material.name === 'Livery' && !livMat) livMat = o.material;
+    });
+    if (livMat) {
+      livMat = livMat.clone();
+      livMat.map = livTexture(L.base, false);
+      livMat.needsUpdate = true;
+    }
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    // flank panels get the body's side projection
+    const M = new THREE.Matrix4(),
+      v = new THREE.Vector3();
+    root.traverse((o) => {
+      if (!o.isMesh || !/^Flank_Swoosh_[LR]$/.test(o.name) || o.geometry.attributes.uv2done) return;
+      const p = o.geometry.attributes.position,
+        uv = new Float32Array(p.count * 2);
+      M.multiplyMatrices(inv, o.matrixWorld);
+      for (let k = 0; k < p.count; k++) {
+        v.fromBufferAttribute(p, k).applyMatrix4(M);
+        uv[k * 2] = 0.5 - 0.178571 * v.z;
+        uv[k * 2 + 1] = 1.263158 - 1.052632 * v.y;
+      }
+      o.geometry = o.geometry.clone();
+      o.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    });
+    const rec = L.recolor.map(([re, paint, hex]) => [new RegExp(re), paint === 'red' ? 'Paint_Red' : 'Paint_White', hex]);
+    const recMats = new Map();
+    root.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      const base = o.material,
+        part = livPart(o);
+      if (base.name === 'Livery' && livMat) {
+        o.material = livMat;
+        return;
+      }
+      if (/^Flank_Swoosh_[LR]$/.test(part) && livMat) {
+        o.material = livMat;
+        return;
+      }
+      for (const [re, paint, hex] of rec)
+        if (re.test(part) && base.name === paint) {
+          const k = base.uuid + hex;
+          let m = recMats.get(k);
+          if (!m) {
+            m = base.clone();
+            m.color.set(hex).convertSRGBToLinear();
+            recMats.set(k, m);
+          }
+          o.material = m;
+          break;
+        }
+    });
+
+    // decals: separate meshes parented to the part they sit on
+    const sill = canopySill(root, inv);
+    const meshes = [];
+    root.traverse((o) => {
+      if (o.isMesh && !o.userData.decal) meshes.push(o);
+    });
+    const mats = {};
+    for (const o of meshes) {
+      const name = livPart(o),
+        list = L.decals.filter((d) => new RegExp(d.parts).test(name));
+      if (!list.length) continue;
+      const T = livTris(o, inv),
+        q = T.mm;
+      let vol = 0,
+        cx = 0,
+        cy = 0,
+        cz = 0;
+      for (let k = 0; k < T.n * 3; k++) {
+        cx += q[k * 3];
+        cy += q[k * 3 + 1];
+        cz += q[k * 3 + 2];
+      }
+      cx /= T.n * 3;
+      cy /= T.n * 3;
+      cz /= T.n * 3;
+      for (let f = 0; f < T.n; f++) {
+        const a = f * 9,
+          ax = q[a] - cx,
+          ay = q[a + 1] - cy,
+          az = q[a + 2] - cz,
+          bx = q[a + 3] - cx,
+          by = q[a + 4] - cy,
+          bz = q[a + 5] - cz,
+          ex = q[a + 6] - cx,
+          ey = q[a + 7] - cy,
+          ez = q[a + 8] - cz;
+        vol += ax * (by * ez - bz * ey) - ay * (bx * ez - bz * ex) + az * (bx * ey - by * ex);
+      }
+      const out = vol < 0 ? -1 : 1,
+        right = /_R$/.test(name);
+      for (const d of list) {
+        const b = d.box,
+          x0 = b.x ? (right ? -b.x[1] : b.x[0]) : 0,
+          x1 = b.x ? (right ? -b.x[0] : b.x[1]) : 0,
+          ps = [],
+          us = [];
+        for (let f = 0; f < T.n; f++) {
+          const a = f * 9,
+            vv = [
+              [q[a], q[a + 1], q[a + 2]],
+              [q[a + 3], q[a + 4], q[a + 5]],
+              [q[a + 6], q[a + 7], q[a + 8]],
+            ],
+            e1 = [vv[1][0] - vv[0][0], vv[1][1] - vv[0][1], vv[1][2] - vv[0][2]],
+            e2 = [vv[2][0] - vv[0][0], vv[2][1] - vv[0][1], vv[2][2] - vv[0][2]];
+          let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+          const len = Math.hypot(n[0], n[1], n[2]);
+          if (len < 1e-9) continue;
+          n = n.map((c) => (c * out) / len);
+          let uv;
+          if (d.proj === 'side') {
+            if (Math.abs(n[0]) < d.nmin) continue;
+            const sd = n[0] > 0 ? 1 : -1;
+            uv = vv.map((p) => [
+              sd > 0 ? (p[1] - b.y[0]) / (b.y[1] - b.y[0]) : (b.y[1] - p[1]) / (b.y[1] - b.y[0]),
+              (p[2] - b.z[0]) / (b.z[1] - b.z[0]),
+            ]);
+          } else if (d.proj === 'top') {
+            if (n[2] < d.nmin) continue;
+            uv = vv.map((p) => [(x1 - p[0]) / (x1 - x0), (b.y[1] - p[1]) / (b.y[1] - b.y[0])]);
+          } else if (d.proj === 'top-out') {
+            if (n[2] < d.nmin) continue;
+            uv = vv.map((p) =>
+              right
+                ? [(b.y[1] - p[1]) / (b.y[1] - b.y[0]), (p[0] - x0) / (x1 - x0)]
+                : [(p[1] - b.y[0]) / (b.y[1] - b.y[0]), (x1 - p[0]) / (x1 - x0)],
+            );
+          } else {
+            if (n[2] > -d.nmin) continue;
+            uv = vv.map((p) => [(p[0] - b.x[0]) / (b.x[1] - b.x[0]), (b.y[1] - p[1]) / (b.y[1] - b.y[0])]);
+          }
+          if (
+            uv.every((t) => t[0] < 0) ||
+            uv.every((t) => t[0] > 1) ||
+            uv.every((t) => t[1] < 0) ||
+            uv.every((t) => t[1] > 1)
+          )
+            continue;
+          if (
+            d.clear_glass &&
+            !/^Canopy/.test(name) &&
+            underGlass(
+              sill,
+              (vv[0][0] + vv[1][0] + vv[2][0]) / 3,
+              (vv[0][1] + vv[1][1] + vv[2][1]) / 3,
+              (vv[0][2] + vv[1][2] + vv[2][2]) / 3,
+            )
+          )
+            continue;
+          for (const k of out > 0 ? [0, 1, 2] : [0, 2, 1]) {
+            ps.push(T.loc[a + k * 3], T.loc[a + k * 3 + 1], T.loc[a + k * 3 + 2]);
+            us.push(uv[k][0], uv[k][1]);
+          }
+        }
+        if (!ps.length) continue;
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(us, 2));
+        geo.computeVertexNormals();
+        const mat =
+          mats[d.id] ||
+          (mats[d.id] = new THREE.MeshStandardMaterial({
+            map: livTexture(d.png, true),
+            transparent: true,
+            depthWrite: false,
+            roughness: 0.35,
+            metalness: 0,
+            polygonOffset: true,
+            polygonOffsetFactor: -4,
+            polygonOffsetUnits: -4,
+            side: THREE.DoubleSide,
+          }));
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.renderOrder = 5;
+        mesh.frustumCulled = false;
+        mesh.userData.decal = L.id;
+        o.add(mesh);
+      }
+    }
+  }
+
+  // ---------- load one airframe per livery ----------
+  const bin = atob($('glb').textContent.trim()),
+    buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+
+  function loadAirframe() {
+    return new Promise((res, rej) =>
+      new THREE.GLTFLoader().parse(
+        buf.buffer.slice(0),
+        '',
+        (g) => {
+          const root = g.scene;
+          // wings deployed: hold the Fold clip at its first frame
+          const fold = g.animations.find((a) => a.name === 'Fold');
+          if (fold) {
+            fold.tracks = fold.tracks.filter((t) => !/Rotor_/.test(t.name));
+            const mixer = new THREE.AnimationMixer(root),
+              act = mixer.clipAction(fold);
+            act.play();
+            act.paused = true;
+            act.time = 0;
+            mixer.update(0);
+          }
+          root.traverse((o) => {
+            if (!o.isMesh) return;
+            o.frustumCulled = false;
+            if (o.material && !o.material.transparent) o.material.side = THREE.DoubleSide;
+            if (/^(Tank_|Engine_|Firewall)/.test(o.name)) o.visible = false;
+            if (/^Canopy$/.test(o.name)) {
+              o.material = o.material.clone();
+              o.material.color.set(0x6f8aa0);
+              o.material.roughness = 0.05;
+              o.material.metalness = 0.2;
+              o.material.opacity = 0.55;
+              o.material.transparent = true;
+              o.material.depthWrite = false;
+            }
+          });
+          res(root);
+        },
+        rej,
+      ),
+    );
+  }
+
+  const wanted = CFG.liveries.filter((id) => LIVERIES.some((l) => l.id === id));
+  const ids = wanted.length ? wanted : ['macsboost'];
+
+  // ---------- the flock ----------
+  const craft = [];
+  const DIR = new THREE.Vector3(-1, -0.52, 0).normalize(); // toward lower-left, like the toasters
+  function viewHalf(z) {
+    const h = Math.tan((camera.fov * D2R) / 2) * (camera.position.z - z);
+    return { w: h * camera.aspect, h };
+  }
+  function spawn(c, initial) {
+    c.z = -40 + Math.random() * 45;
+    const { w, h } = viewHalf(c.z);
+    c.speed = (6 + Math.random() * 4) * CFG.speed;
+    if (initial) {
+      c.x = (Math.random() * 2 - 1) * w * 1.1;
+      c.y = (Math.random() * 2 - 1) * h * 1.1;
+    } else if (Math.random() < w / (w + h)) {
+      // enter along the top edge
+      c.x = (Math.random() * 2 - 0.6) * w;
+      c.y = h + 6;
+    } else {
+      // enter along the right edge
+      c.x = w + 8;
+      c.y = (Math.random() * 2 - 0.6) * h;
+    }
+    c.phase = Math.random() * Math.PI * 2;
+  }
+
+  function fansOf(root) {
+    const fans = [];
+    root.traverse((o) => {
+      const m = /^Rotor_(FL|FR|RL|RR)_(Upper|Lower)/.exec(o.name);
+      if (m && !o.userData.decal)
+        fans.push({ o, y0: o.rotation.y, sg: /FL_Upper|FR_Lower|RR_Upper|RL_Lower/.test(o.name) ? 1 : -1, rate: 34 });
+      const t = /^Thruster_Fan_(L|R)/.exec(o.name);
+      if (t && !o.userData.decal) fans.push({ o, y0: o.rotation.y, sg: t[1] === 'L' ? 1 : -1, rate: 40 });
+    });
+    return fans;
+  }
+
+  async function build() {
+    const templates = {};
+    for (const id of ids) {
+      const root = await loadAirframe();
+      applyLivery(root, LIVERIES.find((l) => l.id === id));
+      templates[id] = root;
+    }
+    const n = Math.max(1, Math.min(20, CFG.count | 0));
+    for (let i = 0; i < n; i++) {
+      const id = ids[i % ids.length],
+        root = templates[id].clone(true),
+        g = new THREE.Group();
+      g.add(root);
+      scene.add(g);
+      const c = { g, fans: fansOf(root), spin: Math.random() * 10 };
+      spawn(c, true);
+      craft.push(c);
+    }
+    $('loading') && $('loading').remove();
+  }
+
+  // ---------- animate ----------
+  const tmpQ = new THREE.Quaternion(),
+    tgt = new THREE.Vector3();
+  let last = performance.now(),
+    paused = false;
+  window.__pause = () => (paused = true);
+  window.__resume = () => {
+    paused = false;
+    last = performance.now();
+  };
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (paused) return;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const t = now / 1000;
+    for (const c of craft) {
+      c.x += DIR.x * c.speed * dt;
+      c.y += DIR.y * c.speed * dt;
+      const { w, h } = viewHalf(c.z);
+      if (c.x < -w - 10 || c.y < -h - 8) spawn(c, false);
+      const bob = Math.sin(t * 1.3 + c.phase) * 0.35;
+      c.g.position.set(c.x, c.y + bob, c.z);
+      // nose along the direction of travel, left flank toward the viewer, rolled a little to show the roof
+      tgt.copy(c.g.position).add(DIR);
+      c.g.lookAt(tgt);
+      c.g.rotateZ(-0.38 + Math.sin(t * 0.9 + c.phase) * 0.05);
+      c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04);
+      c.spin += dt;
+      for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
+    }
+    // far ones first (transparent canopies/decals sort better)
+    renderer.render(scene, camera);
+  }
+  build()
+    .then(() => requestAnimationFrame(frame))
+    .catch((e) => {
+      const el = $('loading');
+      if (el) el.textContent = 'Could not load the SkyRacer: ' + e;
+    });
+})();

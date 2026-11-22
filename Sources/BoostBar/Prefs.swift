@@ -25,6 +25,8 @@ enum Prefs {
         static let crossEye = "allowCrossEye"
         static let bloodshot = "bloodshotEyes"
         static let pirate = "pirateEyes"
+        static let cornerAwake = "hotCornerKeepAwake"
+        static let cornerSleep = "hotCornerSleepNow"
     }
 
     static func registerDefaults() {
@@ -86,6 +88,14 @@ enum Prefs {
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
     /// Each eye aims at the pointer on its own, so they cross when it's between them.
     static var bloodshot: Bool { get { bool(K.bloodshot) } set { set(newValue, K.bloodshot) } }
+    static var cornerAwake: Corner {
+        get { Corner(rawValue: d.integer(forKey: K.cornerAwake)) ?? .none }
+        set { d.set(newValue.rawValue, forKey: K.cornerAwake) }
+    }
+    static var cornerSleep: Corner {
+        get { Corner(rawValue: d.integer(forKey: K.cornerSleep)) ?? .none }
+        set { d.set(newValue.rawValue, forKey: K.cornerSleep) }
+    }
     static var pirate: Bool { get { bool(K.pirate) } set { set(newValue, K.pirate) } }
     static var allowCrossEye: Bool { get { bool(K.crossEye) } set { set(newValue, K.crossEye) } }
 

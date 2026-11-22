@@ -23,7 +23,7 @@ private final class Pane: NSViewController {
     required init?(coder: NSCoder) { fatalError() }
 
     override func loadView() {
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 470))
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 9
@@ -206,7 +206,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         panes = makePanes()
         let symbols: [String: String] = [
             "General": "gearshape", "Sleep": "moon.zzz", "Network": "network", "Battery": "battery.75percent",
-            "Disks": "internaldrive", "Eyes": "eyes", "Scrolling": "computermouse",
+            "Disks": "internaldrive", "Eyes": "eyes", "Screen Saver": "airplane", "Scrolling": "computermouse",
         ]
         for p in panes {
             let item = NSTabViewItem(viewController: p)
@@ -220,7 +220,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         w.styleMask = [.titled, .closable, .miniaturizable]
         w.isReleasedWhenClosed = false
         w.delegate = self
-        w.setContentSize(NSSize(width: 620, height: 470))
+        w.setContentSize(NSSize(width: 720, height: 600))
         return w
     }
 
@@ -273,6 +273,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.note("Runs “pmset -a disablesleep 1” (admin password). Stays on after quitting or restarting until you turn it off. Don’t bag a running Mac with this on.", indent: true)
             p.check("Toggle lid mode without a password", indent: true, get: { LidSleep.helperInstalled }, set: { _ in app.toggleLidHelper() })
             #endif
+            p.header("Hot Corners")
+            let corners = Corner.allCases.map(\.title)
+            p.popup("Toggle Keep Awake", items: corners, get: { Prefs.cornerAwake.rawValue },
+                    set: { Prefs.cornerAwake = Corner(rawValue: $0) ?? .none; app.applySettings() })
+            #if !APPSTORE
+            p.popup("Sleep now", items: corners, get: { Prefs.cornerSleep.rawValue },
+                    set: { Prefs.cornerSleep = Corner(rawValue: $0) ?? .none; app.applySettings() })
+            #endif
+            p.note("Rest the pointer in the corner for a moment. If macOS has its own Hot Corner there (System Settings ▸ Desktop & Dock ▸ Hot Corners), both will run.")
             p.note("Keep Awake is also in the BoostBar menu for one-click access.")
         })
 
@@ -340,6 +349,21 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         })
 
         #if !APPSTORE
+        // Screen saver
+        list.append(Pane(title: "Screen Saver", symbol: "airplane") { p in
+            p.header("BoostBar Flying Cars")
+            p.note("X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries drift across your screen, fans spinning, like the classic flying-toasters screen saver.")
+            let row = p.row([
+                p.makeButton("Preview") { SaverPreviewWindow.shared.show() },
+                p.makeButton(FlyingCarsSaver.isInstalled ? "Reinstall Screen Saver" : "Install Screen Saver") { FlyingCarsSaver.install() },
+                p.makeButton("Start Now") { FlyingCarsSaver.startNow() },
+            ])
+            p.custom(row, height: 30)
+            p.label { FlyingCarsSaver.isInstalled ? "✓ Installed — choose it in System Settings ▸ Screen Saver" : "Not installed yet" }
+            p.button("Open Screen Saver Settings…") { FlyingCarsSaver.openSettings() }
+            p.note("Choose which liveries fly, how many cars and how fast in System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. The X1 SkyRacer model and the XXONE and Yonder liveries come from the X1 SkyRacer Flying Car Race Sim.")
+        })
+
         // Scrolling
         list.append(Pane(title: "Scrolling", symbol: "computermouse") { p in
             p.header("Mouse Scrolling")

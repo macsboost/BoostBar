@@ -44,6 +44,15 @@ fi
 
 IDENTITY="${SIGN_IDENTITY:--}"
 
+# Flying-cars screen saver (direct edition), shipped inside the app and installed from Settings ▸ Screen Saver
+if [[ "$EDITION" != "appstore" && "${SKIP_SAVER:-0}" != "1" ]]; then
+  SAVER="$APP/Contents/Library/Screen Savers/BoostBar Flying Cars.saver"
+  ./scripts/build-saver.sh "$SAVER" "$VERSION" "$BUILD"
+  SAVER_ARGS=(--force --options runtime --sign "$IDENTITY")
+  [[ "$IDENTITY" != "-" ]] && SAVER_ARGS+=(--timestamp)
+  codesign "${SAVER_ARGS[@]}" "$SAVER"
+fi
+
 if [[ "$EDITION" == "appstore" ]]; then
   : "${TEAM_ID:?TEAM_ID is required for the App Store edition}"
   [[ -n "${PROVISION_PROFILE:-}" ]] && cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"

@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
     private let eyes = EyesAnimator()
+    private let corners = HotCorners()
 #if !APPSTORE
     private let scroll = ScrollReverser()
     private let updater = Updater()
@@ -54,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.refreshStatus()
         }
         eyes.view = graphView
+        corners.onCorner = { [weak self] c, screen in self?.hotCorner(c, screen) }
 
         // The menu is attached only while it's open, so a drag on the bar can reorder pieces instead.
         statusMenu.delegate = self
@@ -139,7 +141,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         eyes.allowCrossEye = Prefs.allowCrossEye
         eyes.setRunning(Prefs.showEyes)
 
+        var watch: Set<Corner> = [Prefs.cornerAwake]
+        #if !APPSTORE
+        watch.insert(Prefs.cornerSleep)
+        #endif
+        corners.watched = watch
+
         if statusItem != nil { refreshStatus() }
+    }
+
+    private func hotCorner(_ c: Corner, _ screen: NSScreen) {
+        #if !APPSTORE
+        if c == Prefs.cornerSleep && c != .none {
+            Toast.shared.show("Sleeping…", symbol: "moon.zzz.fill", near: c, on: screen)
+            sleep.allow()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                Shell.run("/usr/bin/pmset", ["sleepnow"])
+            }
+            return
+        }
+        #endif
+        if c == Prefs.cornerAwake && c != .none {
+            toggleKeepAwake()
+            Toast.shared.show(sleep.isPreventing ? "Keep Awake ON" : "Keep Awake OFF",
+                              symbol: sleep.isPreventing ? "cup.and.saucer.fill" : "moon.fill", near: c, on: screen)
+        }
     }
 
     func keepAwake(minutes: Int?) {
