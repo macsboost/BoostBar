@@ -124,8 +124,8 @@ def googly_eye(img, cx, cy, r, look):
     layer = Image.composite(Image.new('RGBA',(S,S),(255,255,255,255)), layer, hl.filter(ImageFilter.GaussianBlur(6)))
     return Image.alpha_composite(img, layer)
 
-bg = googly_eye(bg, S*0.445, S*0.375, S*0.082, (0.55, -0.35))
-bg = googly_eye(bg, S*0.590, S*0.345, S*0.072, (0.75, 0.15))
+bg = googly_eye(bg, S*0.405, S*0.375, S*0.130, (0.55, -0.35))
+bg = googly_eye(bg, S*0.635, S*0.340, S*0.115, (0.75, 0.15))
 
 # Clip to rounded square + inner rim + drop shadow
 mask = squircle_mask(S, inset, radius)
