@@ -34,6 +34,10 @@ jobs:
             grep -iE "console|error|uncaught" "out/console_$t.txt" | grep -v -iE "gpu|dbus|fontconfig|crashpad" | head -20 || true
           done
           ls -la out
+          for f in out/frame_*.png; do
+            sips -s format jpeg -s formatOptions 60 --resampleWidth 720 "$f" --out "${f%.png}.jpg" >/dev/null
+            echo "IMG_BEGIN $(basename "$f")"; base64 -i "${f%.png}.jpg" | tr -d '\n'; echo; echo "IMG_END"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: saver-preview
