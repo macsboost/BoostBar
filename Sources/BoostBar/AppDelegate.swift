@@ -201,7 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showEyes = Prefs.showEyes
         graphView.eyeSize = Prefs.eyeSize
         graphView.singleEye = Prefs.singleEye
-        graphView.bloodshot = Prefs.bloodshot
+        graphView.bloodshot = Prefs.bloodshot || (Prefs.bloodshotAwake && (sleep.isPreventing || lidSleepDisabled))
         graphView.pirate = Prefs.pirate
         graphView.ledSize = diskSettings.ledSize
         graphView.upColor = Prefs.upColor
