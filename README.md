@@ -20,6 +20,14 @@
   <img src="https://img.shields.io/github/downloads/macsboost/BoostBar/total?color=56BE37&labelColor=0e0f0e" alt="Downloads">
 </p>
 
+<p align="center">
+  <img src="docs/media/menubar.png" width="790" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts and a disk LED, next to TMOG's CPU meter">
+</p>
+<p align="center">
+  <img src="docs/media/menubar-hover.png" width="600" alt="Hovering the network graph opens a 5-minute upload/download chart">
+  <br><sub>Hover any piece for a 5-minute chart. Shown here next to the CPU meter from Dave Plummer's <a href="https://tmog.org">TMOG</a> — they make a great combo.</sub>
+</p>
+
 ---
 
 A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It has no Dock icon and uses about 1% CPU or less.
