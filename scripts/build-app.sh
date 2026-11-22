@@ -20,6 +20,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/BoostBar" "$APP/Contents/MacOS/BoostBar"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Resources/Info.plist > "$APP/Contents/Info.plist"
 [[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+cp Resources/SupportBanner.jpg "$APP/Contents/Resources/"
 
 # Signing: ad-hoc by default. Set SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" to sign for distribution.
 IDENTITY="${SIGN_IDENTITY:--}"

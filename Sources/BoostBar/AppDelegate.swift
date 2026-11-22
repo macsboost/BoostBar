@@ -96,6 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         net.onUpdate = { [weak self] in self?.tick() }
         net.start()
 
+        SupportWindow.shared.showIfFirstLaunch()
+
         if defaults.bool(forKey: Key.checkOnLaunch) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.updater.check(userInitiated: false)
@@ -257,9 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshStatus()
         menu.removeAllItems()
 
-        let header = NSMenuItem(title: "BoostBar \(Updater.currentVersion)", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
+        menu.addItem(item("About BoostBar \(Updater.currentVersion)…", #selector(showAbout), on: false))
         let bits = defaults.bool(forKey: Key.useBits)
         let live = NSMenuItem(title: "▲ \(NetworkMonitor.format(net.currentUp, bits: bits))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits))", action: nil, keyEquivalent: "")
         live.isEnabled = false
@@ -331,6 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Check for Updates…", #selector(checkForUpdates), on: false, key: "u"))
         menu.addItem(item("Check for Updates at Launch", #selector(toggleCheckOnLaunch), on: defaults.bool(forKey: Key.checkOnLaunch), indent: 1))
         menu.addItem(item("BoostBar on GitHub", #selector(openGitHub), on: false))
+        menu.addItem(item("Buy Me an Energy Drink ⚡…", #selector(showAbout), on: false))
         menu.addItem(.separator())
         menu.addItem(item("Quit BoostBar", #selector(quit), on: false, key: "q"))
     }
@@ -525,6 +526,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openGitHub() { NSWorkspace.shared.open(Updater.repoPage) }
+
+    @objc private func showAbout() { SupportWindow.shared.show() }
 
     @objc private func quit() { NSApp.terminate(nil) }
 }
