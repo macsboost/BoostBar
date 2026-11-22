@@ -384,6 +384,42 @@
       c.y = (Math.random() * 2 - 0.6) * h;
     }
     c.phase = Math.random() * Math.PI * 2;
+    c.man = null;
+    c.next = (performance.now() / 1000) + 2 + Math.random() * 9;
+  }
+
+  // ---------- stunts ----------
+  // Every few seconds a car either barrel-rolls or veers left/right (banking into it) and back.
+  const PERP = new THREE.Vector3(-DIR.y, DIR.x, 0); // in-screen sideways
+  const LAT = PERP.clone().multiplyScalar(0.45).add(new THREE.Vector3(0, 0, 0.9)).normalize(); // car's own left/right
+  const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
+  function stunt(c, t) {
+    // returns { off: Vector3 offset, roll: extra roll (rad) }
+    if (!c.man && t >= c.next) {
+      const roll = Math.random() < 0.35;
+      c.man = roll
+        ? { type: 'roll', t0: t, dur: 1.5 + Math.random() * 0.8, dirn: Math.random() < 0.5 ? -1 : 1, r: 0.9 + Math.random() * 0.6 }
+        : { type: 'veer', t0: t, dur: 2.6 + Math.random() * 1.6, dirn: Math.random() < 0.5 ? -1 : 1, amp: 2.5 + Math.random() * 3 };
+    }
+    const m = c.man;
+    if (!m) return null;
+    const u = (t - m.t0) / m.dur;
+    if (u >= 1) {
+      c.man = null;
+      c.next = t + 4 + Math.random() * 12;
+      return null;
+    }
+    if (m.type === 'roll') {
+      const a = ease(u) * Math.PI * 2 * m.dirn;
+      // fly a small corkscrew around the path while rolling
+      const off = PERP.clone().multiplyScalar(Math.sin(a) * m.r * m.dirn).add(new THREE.Vector3(0, 0, (1 - Math.cos(a)) * m.r));
+      return { off, roll: a };
+    }
+    // veer: out and back along the car's left/right, banking with the sideways speed
+    const s = Math.sin(u * Math.PI);
+    const vel = Math.cos(u * Math.PI);
+    const off = LAT.clone().multiplyScalar(s * s * m.amp * m.dirn);
+    return { off, roll: -vel * s * 0.55 * m.dirn };
   }
 
   function fansOf(root) {
@@ -441,11 +477,13 @@
       const { w, h } = viewHalf(c.z);
       if (c.x < -w - 10 || c.y < -h - 8) spawn(c, false);
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35;
+      const st = stunt(c, t);
       c.g.position.set(c.x, c.y + bob, c.z);
+      if (st) c.g.position.add(st.off);
       // nose along the direction of travel, left flank toward the viewer, rolled a little to show the roof
       tgt.copy(c.g.position).add(DIR);
       c.g.lookAt(tgt);
-      c.g.rotateZ(-0.38 + Math.sin(t * 0.9 + c.phase) * 0.05);
+      c.g.rotateZ(-0.555 + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0)); // base tilt ≈ 32°
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
