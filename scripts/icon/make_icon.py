@@ -127,6 +127,26 @@ def googly_eye(img, cx, cy, r, look):
 bg = googly_eye(bg, S*0.405, S*0.375, S*0.130, (0.55, -0.35))
 bg = googly_eye(bg, S*0.635, S*0.340, S*0.115, (0.75, 0.15))
 
+# Green HDD activity LED, top right — glowing, with a bezel and a glint
+def led(img, cx, cy, r):
+    glow = Image.new('L', (S,S), 0)
+    ImageDraw.Draw(glow).ellipse([cx-r*2.6, cy-r*2.6, cx+r*2.6, cy+r*2.6], fill=170)
+    img = Image.composite(Image.new('RGBA',(S,S),(116,251,76,255)), img, glow.filter(ImageFilter.GaussianBlur(r*1.1)))
+    layer = Image.new('RGBA', (S,S), (0,0,0,0))
+    d = ImageDraw.Draw(layer)
+    d.ellipse([cx-r-9, cy-r-9, cx+r+9, cy+r+9], fill=(22,24,22,255))            # bezel
+    d.ellipse([cx-r-9, cy-r-9, cx+r+9, cy+r+9], outline=(90,95,90,255), width=3)
+    d.ellipse([cx-r, cy-r, cx+r, cy+r], fill=(86,190,55,255))                    # #56BE37
+    core = Image.new('L', (S,S), 0)
+    ImageDraw.Draw(core).ellipse([cx-r*0.7, cy-r*0.7, cx+r*0.7, cy+r*0.7], fill=255)
+    layer = Image.composite(Image.new('RGBA',(S,S),(170,255,140,255)), layer, core.filter(ImageFilter.GaussianBlur(r*0.35)))
+    d = ImageDraw.Draw(layer)
+    g = r*0.32
+    d.ellipse([cx-r*0.42-g, cy-r*0.42-g, cx-r*0.42+g, cy-r*0.42+g], fill=(255,255,255,220))
+    return Image.alpha_composite(img, layer)
+
+bg = led(bg, S*0.795, S*0.205, S*0.042)
+
 # Clip to rounded square + inner rim + drop shadow
 mask = squircle_mask(S, inset, radius)
 body_img = Image.new('RGBA', (S,S), (0,0,0,0))
