@@ -152,11 +152,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         disk.isActive = diskSettings.showDisks
 
         eyes.googly = Prefs.googly
+        eyes.lazy = Prefs.lazyEyes
         eyes.blink = Prefs.eyeBlink
         eyes.allowCrossEye = Prefs.allowCrossEye
         eyes.setRunning(Prefs.showEyes)
         #if !APPSTORE
-        if Prefs.showEyes && Prefs.shakeEyes { shake.start() } else { shake.stop() }
+        if Prefs.showEyes { shake.start() } else { shake.stop() }
         #endif
 
         var watch: Set<Corner> = [Prefs.cornerAwake]

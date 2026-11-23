@@ -10,6 +10,9 @@ final class EyesAnimator {
     /// true: each eye tracks the pointer from its own center (they go cross-eyed when the pointer
     /// is between them). false: both eyes look the same way, aimed from the midpoint between them.
     var allowCrossEye = true
+    /// Lazy eyes take their time: where they're looking drifts slowly after the pointer.
+    var lazy = false
+    private var lazyTarget: [CGPoint] = []
 
     private var timer: Timer?
     private var pos: [CGPoint] = []
@@ -26,7 +29,7 @@ final class EyesAnimator {
     private var dizzyUntil: TimeInterval = 0
 
     // MARK: Circle-to-spin
-    // Draw two loops with the pointer near the eyes and the pupils start riding an internal wheel on a vertical
+    // Draw two and a half loops with the pointer near the eyes and the pupils start riding an internal wheel on a vertical
     // axis, at a speed that follows how fast you circle. Stop circling and the wheel coasts down, then the pupils
     // snap back to following the pointer.
     private var lastSample = NSPoint(x: CGFloat.nan, y: CGFloat.nan)
@@ -87,7 +90,7 @@ final class EyesAnimator {
             circling = abs(turnRate) > 2.0
         }
 
-        if !spinning, abs(winding) >= 4 * .pi {  // two full loops
+        if !spinning, abs(winding) >= 5 * .pi {  // two and a half loops
             spinning = true
             wheelVel = 0
             wheelAngle = 0
@@ -117,6 +120,7 @@ final class EyesAnimator {
             pos = Array(repeating: .zero, count: centers.count)
             vel = Array(repeating: .zero, count: centers.count)
         }
+        if lazyTarget.count != centers.count { lazyTarget = pos }
         let travel = v.pupilTravel
         var changed = mouse != lastMouse
         let mid = CGPoint(x: centers.map(\.x).reduce(0, +) / CGFloat(centers.count),
@@ -133,6 +137,15 @@ final class EyesAnimator {
             var target = dist > 0.01
                 ? CGPoint(x: dx / dist * travel.width * reach, y: dy / dist * travel.height * reach)
                 : .zero
+            if lazy {
+                // ease toward the pointer's direction over a second or so instead of snapping to it
+                lazyTarget[i].x += (target.x - lazyTarget[i].x) * 0.035
+                lazyTarget[i].y += (target.y - lazyTarget[i].y) * 0.035
+                if hypot(target.x - lazyTarget[i].x, target.y - lazyTarget[i].y) > 0.02 { changed = true }
+                target = lazyTarget[i]
+            } else {
+                lazyTarget[i] = target
+            }
             if googly {
                 target.y -= travel.height * 0.18          // googly pupils sag a little
                 vel[i].x = (vel[i].x + (target.x - pos[i].x) * 0.22) * 0.80

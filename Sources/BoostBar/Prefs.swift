@@ -21,6 +21,7 @@ enum Prefs {
         static let eyeSize = "eyeSize"
         static let singleEye = "singleEye"
         static let googly = "googlyEyes"
+        static let lazyEyes = "lazyEyes"
         static let eyeBlink = "eyeBlink"
         static let segmentOrder = "segmentOrder"
         static let crossEye = "allowCrossEye"
@@ -102,6 +103,7 @@ enum Prefs {
     static var eyeSize: Int { get { min(max(d.integer(forKey: K.eyeSize), 0), 2) } set { d.set(newValue, forKey: K.eyeSize) } }
     static var singleEye: Bool { get { bool(K.singleEye) } set { set(newValue, K.singleEye) } }
     static var googly: Bool { get { bool(K.googly) } set { set(newValue, K.googly) } }
+    static var lazyEyes: Bool { get { bool(K.lazyEyes) } set { set(newValue, K.lazyEyes) } }
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
     /// Each eye aims at the pointer on its own, so they cross when it's between them.
     static var bloodshot: Bool { get { bool(K.bloodshot) } set { set(newValue, K.bloodshot) } }

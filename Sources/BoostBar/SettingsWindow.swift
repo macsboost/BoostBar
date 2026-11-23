@@ -590,22 +590,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
                     set: { Prefs.allowCrossEye = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
-            #if !APPSTORE
-            p.check("Shake the Mac to make them dizzy", get: { Prefs.shakeEyes }, set: { Prefs.shakeEyes = $0; app.applySettings() })
-            p.label(indent: true) {
-                switch app.shake.available {
-                case .some(false): return "This Mac has no motion sensor BoostBar can read (needs a MacBook with Apple silicon)."
-                case .some(true): return "Motion sensor found. Shake firmly a few times — bumps and car rides are ignored."
-                case .none: return ShakeDetector.hasSensor ? "Shake firmly a few times — bumps and car rides are ignored." : "This Mac has no motion sensor BoostBar can read (needs a MacBook with Apple silicon)."
-                }
-            }
-            #endif
+            p.check("Lazy (they take their time following the pointer)", get: { Prefs.lazyEyes }, set: { Prefs.lazyEyes = $0; app.applySettings() })
             p.header("Looks")
             p.check("Bloodshot", get: { Prefs.bloodshot }, set: { Prefs.bloodshot = $0; app.applySettings() })
             p.check("Bloodshot while keeping the Mac awake", get: { Prefs.bloodshotAwake }, set: { Prefs.bloodshotAwake = $0; app.applySettings() })
             p.check("Pirate eyepatch", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
-            p.footnote("Click the eyes to open the About window. Circle them twice with the pointer to spin them. A tribute to the classic desktop toys that kept an eye on your cursor.")
+            p.footnote("Click the eyes to open the About window. Circle them two and a half times with the pointer to spin them. On a MacBook with a motion sensor, shake the Mac to make them dizzy. A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 
         #if !APPSTORE
