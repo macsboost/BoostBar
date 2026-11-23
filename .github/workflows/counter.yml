@@ -29,8 +29,9 @@ jobs:
           if git fetch -q --depth 1 origin counter 2>/dev/null; then git checkout -q -b counter FETCH_HEAD; else git checkout -q --orphan counter; fi
           [ -f state.txt ] || echo "0 0" > state.txt          # "<count shown> <our own reads>"
           read SHOWN SELF < state.txt
-          RAW=$(curl -fsS --max-time 20 "https://komarev.com/ghpvc/?username=macsboost-boostbar&label=visits" \
-                | python3 -c "import re,sys; t=re.findall(r'>\s*([\d,]+)\s*<', sys.stdin.read()); print(t[-1].replace(',','') if t else '')" || true)
+          curl -fsS --max-time 20 -A "Mozilla/5.0 (BoostBar counter)" "https://komarev.com/ghpvc/?username=macsboost-boostbar&label=visits" -o /tmp/badge.svg || true
+          echo "badge: $(head -c 1500 /tmp/badge.svg 2>/dev/null)"
+          RAW=$(python3 -c "import re,sys; t=re.findall(r'>\s*([\d,]+)\s*<', open('/tmp/badge.svg').read()); print(t[-1].replace(',','') if t else '')" 2>/dev/null || true)
           echo "raw=$RAW shown=$SHOWN self=$SELF"
           if [ -n "$RAW" ]; then
             SELF=$((SELF + 1))
