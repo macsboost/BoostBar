@@ -25,6 +25,10 @@ jobs:
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/saver.html
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starships.html starships
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starlink.html starlink
+      - name: WebKit check (as the .saver loads it)
+        run: |
+          swift tools/webkit_check.swift out/starships.html '{"count":4,"oxidation":0.8}' || true
+          swift tools/webkit_check.swift out/saver.html '{"count":5}' | grep -v "^IMG\|^[A-Za-z0-9+/=]\{200,\}" || true
       - name: Screenshots
         run: |
           npm install --no-save --silent puppeteer-core@23
