@@ -1,7 +1,7 @@
 // Renders the Flying Cars page in headless Chrome, waits for the cars to load, and
 // takes a few frames. Usage: node tools/saver_shots.mjs out/saver.html out
 import puppeteer from 'puppeteer-core';
-const [html, outDir, prefix = "frame"] = process.argv.slice(2);
+const [html, outDir, prefix = "frame", cfg = ""] = process.argv.slice(2);
 const browser = await puppeteer.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   headless: 'new',
@@ -11,6 +11,7 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1440, height: 900 });
 page.on('console', (m) => console.log('PAGE', m.type(), m.text()));
 page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
+if (cfg) await page.evaluateOnNewDocument((c) => { window.SAVER_CONFIG = JSON.parse(c); }, cfg);
 await page.goto('file://' + html);
 try {
   await page.waitForFunction(() => !document.getElementById('loading'), { timeout: 120000 });

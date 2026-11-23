@@ -8,7 +8,7 @@
 (() => {
   'use strict';
   const CFG = Object.assign(
-    { scene: 'cars', liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, stars: true, preview: false },
+    { scene: 'cars', liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, stars: true, oxidation: 0.35, preview: false },
     window.SAVER_CONFIG || {},
   );
   const D2R = Math.PI / 180;
@@ -380,6 +380,57 @@
     x.fillRect(0, 0, 64, 64);
     return new THREE.CanvasTexture(cv);
   }
+  // Re-entry oxidation on the heat shield (CFG.oxidation 0..1): procedural, nothing from photos. Rust-orange streaks
+  // run along the ship from the windward centre line, densest low on the hull and fading toward the nose; brighter
+  // copper where it's hottest, a few white flecks of exposed insulation, dark tiles still showing through. Higher
+  // values spread it wider and make it denser, from clean black tiles to a fully cooked ship.
+  const OX = { value: Math.max(0, Math.min(1, +CFG.oxidation || 0)) };
+  function oxidise(mat, y0, y1) {
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uOx = OX;
+      sh.uniforms.uY = { value: new THREE.Vector2(y0, y1) };
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vOxPos;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOxPos = position;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+varying vec3 vOxPos;
+uniform float uOx;
+uniform vec2 uY;
+float oxK = 0.0;
+float oxH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float oxN(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(oxH(i), oxH(i + vec2(1, 0)), u.x), mix(oxH(i + vec2(0, 1)), oxH(i + vec2(1, 1)), u.x), u.y);
+}
+float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a * oxN(p); p *= 2.03; a *= 0.5; } return v; }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  float th = atan(vOxPos.x, vOxPos.z);                    // 0 on the windward centre line
+  float yn = clamp((vOxPos.y - uY.x) / (uY.y - uY.x), 0.0, 1.0); // 0 tail .. 1 nose
+  // streaks: noise stretched along the hull (fine across, long along)
+  float streak = oxF(vec2(th * 11.0, yn * 1.6));
+  float fine = oxN(vec2(th * 70.0, yn * 6.0));
+  float side = 1.0 - smoothstep(0.55, 1.45, abs(th));     // heat is greatest on the centre line
+  float along = 1.0 - smoothstep(0.5, 0.92, yn);           // and lower on the hull
+  float m = side * along * (0.45 + 0.75 * streak) + 0.18 * (fine - 0.5);
+  oxK = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
+  vec3 rust = mix(vec3(0.42, 0.13, 0.035), vec3(0.96, 0.50, 0.16), clamp(streak * 1.25 + fine * 0.35 - 0.2, 0.0, 1.0));
+  diffuseColor.rgb = mix(diffuseColor.rgb, rust, oxK);
+  // white flecks: insulation where tiles came off (more of them the hotter it got)
+  float fleck = step(0.993 - 0.02 * uOx, oxH(floor(vec2(th * 90.0, yn * 260.0)))) * smoothstep(0.2, 0.6, oxK + 0.3 * uOx * side);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.9, 0.88), fleck);
+  // frosty white-blue streaks high on the windward nose when well cooked
+  float frost = uOx * smoothstep(0.62, 0.8, yn) * (1.0 - smoothstep(0.92, 1.0, yn)) * side * smoothstep(0.55, 0.8, oxF(vec2(th * 14.0, yn * 3.0)));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.84, 0.9), frost * 0.8);
+}`)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.42, oxK);')
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.55, oxK);');
+    };
+    mat.customProgramCacheKey = () => 'oxidised';
+  }
+
   function loadStarship() {
     return new Promise((res, rej) =>
       new THREE.GLTFLoader().parse(
@@ -396,6 +447,11 @@
             const m = (o.material = o.material.clone());
             m.side = THREE.DoubleSide;
             if (m.name === 'steel') { m.metalness = 0.5; m.roughness = 0.38; m.color.setHex(0xb9bec4); } // brushed stainless, not chrome-white
+            if (m.name === 'tile' && o.parent && o.parent.name === 'ship' || (m.name === 'tile' && o.name === 'ship')) {
+              o.geometry.computeBoundingBox();
+              const bb = o.geometry.boundingBox;
+              oxidise(m, bb.min.y, bb.max.y);
+            }
           });
           const pivot = new THREE.Group();
           pivot.rotation.x = Math.PI / 2; // nose (+y) -> +z, heat shield (+z) -> down
