@@ -71,6 +71,8 @@ final class StatusGraphView: NSView {
     var bloodshot = false
     var pirate = false
     var pupilOffsets: [CGPoint] = []
+    /// Set while the pupils ride the internal wheel (circle-to-spin); nil = normal.
+    var wheelAngle: CGFloat?
     var eyesClosed = false
 
     // Hover callbacks (point is in this view's coordinates)
@@ -397,14 +399,33 @@ final class StatusGraphView: NSView {
                 } else {
                     NSGradient(starting: .white, ending: NSColor(white: 0.82, alpha: 1))?.draw(in: eye, angle: -90)
                 }
-                let off = i < pupilOffsets.count ? pupilOffsets[i] : .zero
                 let pr = pupilRadius
-                let c = NSPoint(x: r.midX + off.x, y: r.midY + off.y)
-                NSColor.black.setFill()
-                NSBezierPath(ovalIn: NSRect(x: c.x - pr, y: c.y - pr, width: pr * 2, height: pr * 2)).fill()
-                NSColor.white.withAlphaComponent(0.9).setFill()
-                let g = max(pr * 0.35, 0.8)
-                NSBezierPath(ovalIn: NSRect(x: c.x - pr * 0.45, y: c.y + pr * 0.15, width: g, height: g)).fill()
+                func pupil(at c: NSPoint, squash: CGFloat = 1) {
+                    let w = pr * 2 * squash
+                    NSColor.black.setFill()
+                    NSBezierPath(ovalIn: NSRect(x: c.x - w / 2, y: c.y - pr, width: w, height: pr * 2)).fill()
+                    NSColor.white.withAlphaComponent(0.9 * squash).setFill()
+                    let g = max(pr * 0.35, 0.8)
+                    NSBezierPath(ovalIn: NSRect(x: c.x - pr * 0.45 * squash, y: c.y + pr * 0.15, width: g * squash, height: g)).fill()
+                }
+                if let wheel = wheelAngle {
+                    // four pupils on a wheel turning about a vertical axis through the middle of both eyes: the ones
+                    // on the near side show through the whites and slide from one eye into the other
+                    NSGraphicsContext.saveGraphicsState()
+                    eye.addClip()
+                    let span = eyesRect.width / 2 + 1
+                    for k in 0..<4 {
+                        let a = wheel + CGFloat(k) * .pi / 2
+                        let depth = cos(a)
+                        guard depth > 0 else { continue }      // round the back of the wheel
+                        let x = eyesRect.midX + span * sin(a)
+                        pupil(at: NSPoint(x: x, y: r.midY - pr * 0.15), squash: max(0.35, depth))
+                    }
+                    NSGraphicsContext.restoreGraphicsState()
+                } else {
+                    let off = i < pupilOffsets.count ? pupilOffsets[i] : .zero
+                    pupil(at: NSPoint(x: r.midX + off.x, y: r.midY + off.y))
+                }
             }
             (bloodshot && !eyesClosed ? NSColor(srgbRed: 0.6, green: 0.05, blue: 0.08, alpha: 1)
                                       : NSColor.black.withAlphaComponent(0.85)).setStroke()

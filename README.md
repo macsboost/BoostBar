@@ -65,6 +65,10 @@ BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of th
 
 BoostBar checks GitHub for a newer release when it starts, and you can check any time from the menu. Turn on **Settings ▸ General ▸ Install updates automatically** (or tick "Install future updates automatically" on the update prompt) and new versions are downloaded, verified as Apple-notarized and signed by MacsBoost, swapped in and relaunched with no prompt.
 
+## Spin the eyes
+
+Circle the pointer around the googly eyes twice and the pupils hop onto an internal wheel: it spins on a vertical axis, so the pupils slide out of one eye and into the other, and it turns as fast (and the same way) as you're circling. Stop, and the wheel keeps coasting for a few seconds before the pupils snap back to following the pointer.
+
 ## Dizzy eyes
 
 On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) only while this is turned on — **Settings ▸ Eyes ▸ Shake the Mac to make them dizzy**. Direct download only.

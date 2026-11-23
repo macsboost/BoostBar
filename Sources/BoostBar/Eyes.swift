@@ -25,6 +25,20 @@ final class EyesAnimator {
     /// …then pop open with the pupils spinning for a moment.
     private var dizzyUntil: TimeInterval = 0
 
+    // MARK: Circle-to-spin
+    // Draw two loops with the pointer near the eyes and the pupils start riding an internal wheel on a vertical
+    // axis, at a speed that follows how fast you circle. Stop circling and the wheel coasts down, then the pupils
+    // snap back to following the pointer.
+    private var lastSample = NSPoint(x: CGFloat.nan, y: CGFloat.nan)
+    private var lastHeading: CGFloat?
+    private var winding: CGFloat = 0            // radians the pointer's heading has turned, one direction
+    private var lastTurnAt: TimeInterval = 0
+    private var turnRate: CGFloat = 0           // smoothed, rad/s
+    private var spinning = false
+    private var wheelAngle: CGFloat = 0
+    private var wheelVel: CGFloat = 0           // rad/s
+    private var lastStep: TimeInterval = 0
+
     func setRunning(_ on: Bool) {
         if on, timer == nil {
             let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.step() }
@@ -35,6 +49,65 @@ final class EyesAnimator {
             t.invalidate()
             timer = nil
         }
+    }
+
+    /// Follows the pointer's heading; returns true while the eyes are in wheel mode (and advances the wheel).
+    private func trackCircles(mouse: NSPoint, mid: CGPoint, now: TimeInterval) -> Bool {
+        let dt = lastStep == 0 ? 1.0 / 30 : min(0.1, now - lastStep)
+        lastStep = now
+        let near = abs(mouse.x - mid.x) < 420 && mid.y - mouse.y < 480
+        var circling = false
+        if lastSample.x.isNaN { lastSample = mouse }
+        let dx = mouse.x - lastSample.x, dy = mouse.y - lastSample.y
+        if hypot(dx, dy) >= 3 {
+            let h = atan2(dy, dx)
+            if let lh = lastHeading, near {
+                var d = h - lh
+                while d > .pi { d -= 2 * .pi }
+                while d < -.pi { d += 2 * .pi }
+                // keep winding in one direction; a turn the other way (beyond jitter) starts over
+                if d != 0, (winding == 0 || (d > 0) == (winding > 0) || abs(d) < 0.15) {
+                    winding += d
+                } else if abs(d) >= 0.15 {
+                    winding = d
+                }
+                let rate = d / CGFloat(dt)
+                turnRate += (rate - turnRate) * 0.25
+                if abs(d) > 0.02 { lastTurnAt = now }
+            } else if !near {
+                winding = 0
+            }
+            lastHeading = h
+            lastSample = mouse
+        }
+        if now - lastTurnAt > 0.45 {           // stopped circling
+            winding = 0
+            turnRate *= 0.7
+        } else {
+            circling = abs(turnRate) > 2.0
+        }
+
+        if !spinning, abs(winding) >= 4 * .pi {  // two full loops
+            spinning = true
+            wheelVel = 0
+            wheelAngle = 0
+        }
+        guard spinning else { return false }
+
+        if circling {
+            // spin with the circles: faster loops, faster wheel (and the same way round)
+            let target = max(-20, min(20, turnRate * 1.15))
+            wheelVel += (target - wheelVel) * 0.12
+        } else {
+            wheelVel *= CGFloat(pow(0.55, dt))   // inertia: coasts down over a few seconds
+        }
+        wheelAngle += wheelVel * CGFloat(dt)
+        if !circling, abs(wheelVel) < 0.9 {
+            spinning = false
+            winding = 0
+            return false
+        }
+        return true
     }
 
     private func step() {
@@ -81,6 +154,20 @@ final class EyesAnimator {
         }
 
         let now = ProcessInfo.processInfo.systemUptime
+        if trackCircles(mouse: mouse, mid: mid, now: now) {
+            v.wheelAngle = wheelAngle
+            v.pupilOffsets = pos
+            v.eyesClosed = shaking
+            v.needsDisplay = true
+            lastMouse = mouse
+            return
+        }
+        if v.wheelAngle != nil {
+            v.wheelAngle = nil
+            // snap back: kick the springs so the pupils boing back toward the pointer
+            for i in vel.indices { vel[i] = CGPoint(x: CGFloat.random(in: -2...2), y: CGFloat.random(in: -1.5...1.5)) }
+            changed = true
+        }
         if now < dizzyUntil {
             // dizzy: pupils whirl around the rim, slowing down as it wears off
             let left = dizzyUntil - now
