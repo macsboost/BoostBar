@@ -4,11 +4,26 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    # README, media and other docs-only changes don't touch the app: don't spend a (scarce) macOS runner on them
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+      - "tools/record_saver.mjs"
+      - "tools/odometer.py"
+      - ".github/workflows/readme-media.yml"
+      - ".github/workflows/counter.yml"
+      - ".github/workflows/saver-video.yml"
+      - ".github/workflows/saver-preview.yml"
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# a newer push to the same branch supersedes a build still waiting for a runner
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
