@@ -17,6 +17,19 @@ enum GLBError: Error, CustomStringConvertible {
 }
 
 enum GLB {
+    static let vertexColorGeometry = """
+    #pragma varyings
+    float4 vcol;
+    #pragma body
+    out.vcol = _geometry.color;
+    """
+    static let vertexColorSurface = """
+    #pragma varyings
+    float4 vcol;
+    #pragma body
+    _surface.diffuse.rgb *= in.vcol.rgb;
+    """
+
     static func load(_ url: URL) throws -> GLBModel {
         let data = try Data(contentsOf: url)
         func u32(_ o: Int) -> Int { Int(data.subdata(in: o..<o + 4).withUnsafeBytes { $0.load(as: UInt32.self) }) }
@@ -171,7 +184,15 @@ private struct Builder {
                 let el = SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles,
                                             primitiveCount: idx.count / 3, bytesPerIndex: 4)
                 let g = SCNGeometry(sources: sources, elements: [el])
-                if let mi = p["material"] as? Int, mi < mats.count { g.materials = [mats[mi]] }
+                if let mi = p["material"] as? Int, mi < mats.count {
+                    if attrs["COLOR_0"] != nil, let own = mats[mi].copy() as? SCNMaterial {
+                        // SceneKit's physically based shading ignores vertex colours: multiply them in
+                        own.shaderModifiers = [.geometry: GLB.vertexColorGeometry, .surface: GLB.vertexColorSurface]
+                        g.materials = [own]
+                    } else {
+                        g.materials = [mats[mi]]
+                    }
+                }
                 return g
             }
         }

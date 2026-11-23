@@ -48,6 +48,14 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     func setAspect(_ a: CGFloat) { if a > 0 { aspect = Float(a) } }
 
+    /// For the CI check: park the first craft in front of the camera and hide the rest.
+    func closeup(distance: Float = 30) {
+        for (i, c) in craft.enumerated() {
+            c.g.isHidden = i > 0
+            if i == 0 { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.man = nil; c.next = .greatestFiniteMagnitude }
+        }
+    }
+
     // MARK: stage
 
     private func setUpStage() {
@@ -185,7 +193,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                     guard let name = o.name, let e = m.extras[name], let kind = e["flap"] as? String else { return }
                     c.flaps.append((o, o.simdOrientation, Float(e["s"] as? Double ?? 1), kind == "fwd"))
                 }
-                let plume = glow(inner: NSColor.white, outer: NSColor(srgbRed: 1, green: 0.59, blue: 0.24, alpha: 0.75), size: 1.9)
+                let plume = glow(inner: NSColor.white, outer: NSColor(srgbRed: 1, green: 0.59, blue: 0.24, alpha: 0.5), size: 1.9)
                 plume.simdPosition = SIMD3(0, 0, tail - 0.4)
                 let core = glow(inner: NSColor(srgbRed: 0.86, green: 0.92, blue: 1, alpha: 1), outer: NSColor(srgbRed: 0.47, green: 0.63, blue: 1, alpha: 0.6), size: 0.9)
                 core.simdPosition = SIMD3(0, 0, tail - 0.15)
@@ -234,7 +242,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     private func glow(inner: NSColor, outer: NSColor, size: CGFloat) -> SCNNode {
         let px = 64
         let img = NSImage(size: NSSize(width: px, height: px), flipped: false) { r in
-            NSGradient(colorsAndLocations: (inner, 0), (outer, 0.35), (outer.withAlphaComponent(0), 1))?
+            NSGradient(colorsAndLocations: (inner, 0), (inner.withAlphaComponent(0.8), 0.12), (outer, 0.35), (outer.withAlphaComponent(0), 1))?
                 .draw(in: NSBezierPath(ovalIn: r), relativeCenterPosition: .zero)
             return true
         }
@@ -259,8 +267,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             .geometry: """
             #pragma varyings
             float3 oxPos;
+            float4 vcol;
             #pragma body
             out.oxPos = _geometry.position.xyz;
+            out.vcol = _geometry.color;
             """,
             .surface: Self.oxSurface,
         ]
@@ -278,6 +288,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     float uY1;
     #pragma varyings
     float3 oxPos;
+    float4 vcol;
 
     float oxH(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
     float oxN(float2 p) {
@@ -315,7 +326,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
       float tongue = midW * side * on * smoothstep(0.62, 0.8, thin) * smoothstep(0.35, 0.8, uOx) * 0.8;
       rustK = max(rustK, tongue);
       float scorch = midW * side * uOx * (0.5 + 0.5 * streak);
-      float3 c = _surface.diffuse.rgb;
+      float3 c = _surface.diffuse.rgb * in.vcol.rgb;   // vertex colours: black tiles
       c = mix(c, float3(0.05, 0.06, 0.08), scorch * 0.6);
       float frostK = frontW * side * on * smoothstep(1.0 - 0.95 * uOx, 1.25 - 0.95 * uOx, 0.35 + 0.8 * streak + 0.25 * (thin - 0.5));
       float3 frost = mix(float3(0.36, 0.45, 0.58), float3(0.88, 0.91, 0.95), clamp(thin * 1.3 - 0.15, 0.0, 1.0));

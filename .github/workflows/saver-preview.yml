@@ -32,7 +32,7 @@ jobs:
           swiftc -O tools/native_check/main.swift Saver/native/GLB.swift Saver/native/Flock.swift -o build/native_check
           ./build/native_check build/native_res > build/native.txt 2>&1 || true
           grep -v "^[A-Za-z0-9+/=]\{200,\}" build/native.txt | head -40
-          for n in native_cars native_ships native_sats; do
+          for n in native_cars native_ships native_sats close_car close_ship close_sat; do
             awk -v n="$n" '$0=="IMG_BEGIN "n".jpg"{getline; print; exit}' build/native.txt | base64 -d > "build/$n.jpg" || true
             sips --resampleWidth 720 "build/$n.jpg" --out "build/${n}_s.jpg" >/dev/null 2>&1 || true
             echo "IMG_BEGIN ${n}.jpg"; base64 -i "build/${n}_s.jpg" | tr -d '\n'; echo; echo "IMG_END"

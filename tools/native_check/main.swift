@@ -10,7 +10,7 @@ guard let device = MTLCreateSystemDefaultDevice() else { print("NO METAL DEVICE"
 print("METAL:", device.name)
 let size = CGSize(width: 1280, height: 720)
 
-func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Double) {
+func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Double, closeup: Float? = nil) {
     let f = Flock(kind: kind, cfg: cfg, resources: res)
     if let e = f.error { print("SCENE ERROR \(name):", e) }
     f.setAspect(size.width / size.height)
@@ -19,6 +19,7 @@ func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Doub
     r.pointOfView = f.camera
     var t = 0.0
     f.step(to: t)
+    if let d = closeup { f.closeup(distance: d) }
     while t < seconds { t += 1.0 / 30; f.step(to: t) }
     let img = r.snapshot(atTime: t, with: size, antialiasingMode: .multisampling4X)
     guard let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
@@ -32,4 +33,10 @@ var ships = SaverConfig(); ships.count = 5; ships.oxidation = 0.8; ships.tilt = 
 shoot(.starships, ships, "native_ships", seconds: 4)
 var sats = SaverConfig(); sats.count = 5
 shoot(.starlink, sats, "native_sats", seconds: 4)
+var c1 = SaverConfig(); c1.count = 3; c1.liveries = ["macsboost"]
+shoot(.cars, c1, "close_car", seconds: 1.3, closeup: 14)
+var c2 = SaverConfig(); c2.count = 1; c2.oxidation = 0.6; c2.tilt = 30; c2.stunts = false
+shoot(.starships, c2, "close_ship", seconds: 1.3, closeup: 22)
+var c3 = SaverConfig(); c3.count = 1; c3.liveries = ["v3"]; c3.stunts = false
+shoot(.starlink, c3, "close_sat", seconds: 1.3, closeup: 40)
 print("DONE")
