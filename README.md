@@ -77,7 +77,7 @@ BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of th
   <br><sub><a href="docs/media/starships.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
+**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. An **Oxidation** slider in its Options takes the heat shield from fresh black tiles to a streaky, rust-orange post-re-entry burn on the belly. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
 
 ## Starlink screen saver 🛰
 

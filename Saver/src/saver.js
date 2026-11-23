@@ -414,7 +414,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   float fine = oxN(vec2(th * 70.0, yn * 6.0));
   float side = 1.0 - smoothstep(0.55, 1.45, abs(th));     // heat is greatest on the centre line
   float along = 1.0 - smoothstep(0.42, 0.8, yn);           // and lower on the hull
-  float thin = oxN(vec2(th * 160.0, yn * 2.2));            // long, thin flow lines
+  float thw = th + 0.05 * (oxN(vec2(yn * 7.0, th * 5.0)) - 0.5);   // wander a little, like real flow
+  float thin = oxN(vec2(thw * 130.0, yn * 2.6)) * 0.7 + oxN(vec2(thw * 47.0, yn * 1.3)) * 0.3; // long, thin flow lines
   float m = side * along * (0.45 + 0.75 * streak) + 0.18 * (fine - 0.5);
   float cover = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
   // patchy at first (dark tiles between the streaks), filling in as it gets hotter
