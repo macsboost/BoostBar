@@ -1044,7 +1044,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
           if (o.isMesh) { o.frustumCulled = false; o.material.side = THREE.DoubleSide; }
           if (o.userData && o.userData.wheel) wheels.push({ o, q0: o.quaternion.clone() });
         });
-        const pivot = new THREE.Group(); pivot.scale.setScalar(1.25); pivot.add(car);
+        const pivot = new THREE.Group(); pivot.scale.setScalar(1.6); pivot.add(car);
         const root = new THREE.Group(); root.add(pivot);
         const gg = new THREE.Group(); gg.add(root); scene.add(gg);
         const ax = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, (Math.random() * 2 - 1) * 0.4).normalize();

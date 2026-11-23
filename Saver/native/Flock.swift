@@ -952,7 +952,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         car.removeFromParentNode()
         let b = car.deepBounds() ?? (SIMD3(0, 0, 0), SIMD3(0, 1, 0))
         car.simdPosition -= (b.min + b.max) / 2                  // tumble about its middle
-        let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: 1.25); pivot.addChildNode(car)
+        let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: 1.6); pivot.addChildNode(car)
         let c = Craft()
         let root = SCNNode(); root.addChildNode(pivot)
         c.g.addChildNode(root)

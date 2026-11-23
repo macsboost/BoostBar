@@ -223,13 +223,14 @@ def smooth(a, b, x):
 
 
 # ---------------------------------------------------------------- materials
-PAINT = material('paint', (0.42, 0.012, 0.018), 0.55, 0.26)
+PAINT = material('paint', (0.46, 0.012, 0.02), 0.45, 0.17)
 INTERIOR = material('interior', (0.035, 0.03, 0.03), 0.1, 0.7)
 SEAT = material('seat', (0.30, 0.02, 0.025), 0.05, 0.6)
 BLACK = material('trim', (0.02, 0.02, 0.022), 0.4, 0.35)
 GLASS = material('glass', (0.05, 0.07, 0.09), 0.9, 0.05, alpha=0.32)
-TIRE = material('tire', (0.025, 0.025, 0.025), 0.0, 0.8)
-RIM = material('rim', (0.10, 0.10, 0.11), 0.85, 0.3)
+TIRE = material('tire', (0.012, 0.012, 0.012), 0.0, 0.85)
+WELL = material('rimwell', (0.02, 0.02, 0.022), 0.3, 0.6)
+RIM = material('rim', (0.55, 0.56, 0.58), 0.9, 0.22)
 CHROME = material('chrome', (0.8, 0.8, 0.82), 1.0, 0.12)
 SUIT = material('suit', (0.86, 0.86, 0.84), 0.0, 0.55)
 SUITGREY = material('suitgrey', (0.18, 0.18, 0.19), 0.1, 0.6)
@@ -361,18 +362,19 @@ body = mesh('body', [(paint, PAINT), (inner, INTERIOR), (trim, BLACK), (glass, G
                      (suitg, SUITGREY), (visor, VISOR), (lamp, LAMP), (tail, TAIL)])
 kids = [node('body', body)]
 # wheels: tyre, five-spoke dark rim, chrome hub; one mesh, spun about its own axle (local x)
-tyre, rim, hub = Mesh(), Mesh(), Mesh()
+tyre, rim, hub, well = Mesh(), Mesh(), Mesh(), Mesh()
 tyre.add(Mesh().cyl(WHEEL_R, WHEEL_W, seg=32), rot('z', math.pi / 2), (WHEEL_W / 2, 0, 0))
 tyre.add(Mesh().cyl(WHEEL_R * 0.98, WHEEL_W * 1.02, seg=32), rot('z', math.pi / 2), (WHEEL_W * 0.51, 0, 0))
 for side in (-1, 1):
     x = side * (WHEEL_W / 2 + 0.004)
-    rim.add(Mesh().cyl(WHEEL_R * 0.66, 0.01, seg=32), rot('z', -side * math.pi / 2), (x - side * 0.01, 0, 0))
+    well.add(Mesh().cyl(WHEEL_R * 0.68, 0.01, seg=32), rot('z', -side * math.pi / 2), (x - side * 0.03, 0, 0))
+    torus(rim, np.array([x + side * 0.005, 0, 0]), WHEEL_R * 0.66, 0.018, rot('z', math.pi / 2), seg=32, tube=6)
     for k in range(5):
         a = 2 * math.pi * k / 5
-        spoke = Mesh(); spoke.box(0, WHEEL_R * 0.33, 0, 0.012, WHEEL_R * 0.62, 0.07)
-        rim.add(spoke, rot('x', a), (x + side * 0.008, 0, 0))
+        spoke = Mesh(); spoke.box(0, WHEEL_R * 0.34, 0, 0.035, WHEEL_R * 0.62, 0.085)
+        rim.add(spoke, rot('x', a), (x - side * 0.008, 0, 0))
     hub.add(Mesh().cyl(0.05, 0.02, seg=14), rot('z', -side * math.pi / 2), (x + side * 0.004, 0, 0))
-wm = mesh('wheel', [(tyre, TIRE), (rim, RIM), (hub, CHROME)])
+wm = mesh('wheel', [(tyre, TIRE), (well, WELL), (rim, RIM), (hub, CHROME)])
 for name, (sx, sz) in {'FL': (1, 1), 'FR': (-1, 1), 'RL': (1, -1), 'RR': (-1, -1)}.items():
     kids.append(node(f'wheel_{name}', wm, (sx * WHEEL_X, WHEEL_R, sz * WHEEL_Z), {'wheel': 1}))
 G['scenes'][0]['nodes'].append(node('roadster', None, (0, 0, 0), {'roadster': 1}, kids))
