@@ -91,6 +91,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             : NSColor(calibratedRed: 0.53, green: 1, blue: 0.4, alpha: 1)
         let r = SCNNode(); r.light = rim; r.simdPosition = SIMD3(40, -20, -30); r.simdLook(at: .zero)
         scene.rootNode.addChildNode(r)
+        if kind == .starships {
+            scene.lightingEnvironment.contents = studioEnvironment()
+            scene.lightingEnvironment.intensity = 1.6
+        }
 
         if cfg.stars {
             var pts: [Float] = []
@@ -166,8 +170,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 for mat in o.geometry?.materials ?? [] {
                     mat.isDoubleSided = true
                     if mat.name == "steel" {
-                        mat.metalness.contents = 0.5; mat.roughness.contents = 0.38
-                        mat.diffuse.contents = NSColor(srgbRed: 0.725, green: 0.745, blue: 0.77, alpha: 1)
+                        mat.metalness.contents = 0.92; mat.roughness.contents = 0.26
+                        mat.diffuse.contents = NSColor(srgbRed: 0.80, green: 0.81, blue: 0.83, alpha: 1)
                     }
                 }
             }
@@ -175,8 +179,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             for o in [ship] + ship.childNodes where o === ship || o.name?.hasPrefix("ship_") == true {
                 guard let g = o.geometry else { continue }
                 g.materials = g.materials.map { mat in
-                    guard mat.name == "tile", let own = mat.copy() as? SCNMaterial else { return mat }
-                    oxidise(own, y0: b.min.y, y1: b.max.y)
+                    guard mat.name == "tile" || mat.name == "steel", let own = mat.copy() as? SCNMaterial else { return mat }
+                    if mat.name == "tile" { oxidise(own, y0: b.min.y, y1: b.max.y) } else { stainless(own, y0: b.min.y, y1: b.max.y) }
                     return own
                 }
             }
@@ -196,10 +200,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                     guard let name = o.name, let e = m.extras[name], let kind = e["flap"] as? String else { return }
                     c.flaps.append((o, o.simdOrientation, Float(e["s"] as? Double ?? 1), kind == "fwd"))
                 }
-                let plume = glow(inner: NSColor.white, outer: NSColor(srgbRed: 1, green: 0.59, blue: 0.24, alpha: 0.5), size: 1.9)
-                plume.simdPosition = SIMD3(0, 0, tail - 0.4)
-                let core = glow(inner: NSColor(srgbRed: 0.86, green: 0.92, blue: 1, alpha: 1), outer: NSColor(srgbRed: 0.47, green: 0.63, blue: 1, alpha: 0.6), size: 0.9)
-                core.simdPosition = SIMD3(0, 0, tail - 0.15)
+                let plume = exhaust(length: plumeLength, width: 1.25)
+                plume.simdPosition = SIMD3(0, 0, tail + 0.05)
+                let core = glow(inner: NSColor(srgbRed: 0.9, green: 0.94, blue: 1, alpha: 0.9), outer: NSColor(srgbRed: 0.47, green: 0.63, blue: 1, alpha: 0.35), size: 1.0)
+                core.simdPosition = SIMD3(0, 0, tail - 0.1)
                 root.addChildNode(plume); root.addChildNode(core)
                 c.plume = plume; c.core = core
                 c.flapRate = 5.2 + .random(in: 0...2.2)
@@ -239,6 +243,120 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         spawn(c, initial: true)
         scene.rootNode.addChildNode(c.g)
         craft.append(c)
+    }
+
+    private let plumeLength: Float = 5.4
+
+    /// The Raptor exhaust: a long, translucent plume behind the tail (local -z), drawn on four crossed planes so it
+    /// reads from any side — blue-white at the nozzles, shock diamonds, then a hot orange tail fading out.
+    private func exhaust(length: Float, width: Float) -> SCNNode {
+        let w = 256, h = 64
+        let cs = CGColorSpace(name: CGColorSpace.sRGB)!
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        func smooth(_ a: Float, _ b: Float, _ x: Float) -> Float { let t = max(0, min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+        for y in 0..<h {
+            let v = abs(Float(y) / Float(h - 1) * 2 - 1)           // 0 on the axis, 1 at the plane's edge
+            for x in 0..<w {
+                let u = Float(x) / Float(w - 1)                       // 0 at the nozzles, 1 at the far end
+                let radius = 0.42 + 0.5 * pow(u, 0.7)                 // the plume widens as it expands
+                let r = v / radius
+                if r >= 1 { continue }
+                let across = pow(1 - r * r, 1.6)
+                let coreW = max(0, 1 - r / max(0.05, 0.55 - 0.5 * u))
+                let diamonds = u < 0.45 ? 0.5 + 0.5 * cos(u * 52) : 0
+                let fade = (1 - smooth(0.55, 1, u)) * smooth(0, 0.02, u)
+                // colour: blue-white core → pale violet → orange tail
+                let hot = coreW * (1 - smooth(0.05, 0.5, u)) * (0.75 + 0.25 * Float(diamonds))
+                var R = 1.0 * hot + (0.55 + 0.45 * smooth(0.15, 0.6, u)) * (1 - hot)
+                var G = 1.0 * hot + (0.55 - 0.15 * smooth(0.15, 0.6, u)) * (1 - hot)
+                var B = 1.0 * hot + (0.95 - 0.8 * smooth(0.1, 0.5, u)) * (1 - hot)
+                let a = min(1, across * fade * (0.42 + 0.58 * hot) + 0.12 * Float(diamonds) * coreW * fade)
+                R *= a; G *= a; B *= a                                  // premultiplied
+                let i = ((h - 1 - y) * w + x) * 4
+                px[i] = UInt8(min(255, R * 255)); px[i + 1] = UInt8(min(255, G * 255))
+                px[i + 2] = UInt8(min(255, B * 255)); px[i + 3] = UInt8(min(255, a * 255))
+            }
+        }
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let img = ctx.makeImage()!
+        let m = SCNMaterial()
+        m.lightingModel = .constant
+        m.diffuse.contents = img
+        m.blendMode = .add
+        m.writesToDepthBuffer = false
+        m.isDoubleSided = true
+        let node = SCNNode()
+        for k in 0..<4 {
+            let p = SCNPlane(width: CGFloat(length), height: CGFloat(width))
+            p.materials = [m]
+            let n = SCNNode(geometry: p)
+            // plane x → -z (nozzles at the tail, the image's left edge), spun around the plume's axis
+            n.simdOrientation = simd_quatf(angle: Float(k) * .pi / 4, axis: SIMD3(0, 0, 1)) * simd_quatf(angle: .pi / 2, axis: SIMD3(0, 1, 0))
+            n.simdPosition = SIMD3(0, 0, -length / 2)
+            n.renderingOrder = 10
+            node.addChildNode(n)
+        }
+        return node
+    }
+
+    /// Stainless hull: ring welds every ~1.8 m, slight panel-to-panel tint, brushed streaks around the barrel.
+    private func stainless(_ m: SCNMaterial, y0: Float, y1: Float) {
+        m.shaderModifiers = [
+            .geometry: """
+            #pragma varyings
+            float3 stPos;
+            #pragma body
+            out.stPos = _geometry.position.xyz;
+            """,
+            .surface: """
+            float stH(float2 p) { return fract(sin(dot(p, float2(41.7, 289.3))) * 23758.5453); }
+            float stN(float2 p) {
+              float2 i = floor(p);
+              float2 f = fract(p);
+              float2 u = f * f * (3.0 - 2.0 * f);
+              return mix(mix(stH(i), stH(i + float2(1, 0)), u.x), mix(stH(i + float2(0, 1)), stH(i + float2(1, 1)), u.x), u.y);
+            }
+            #pragma arguments
+            float uY0;
+            float uY1;
+            #pragma varyings
+            float3 stPos;
+            #pragma body
+            float t = clamp((in.stPos.y - uY0) / (uY1 - uY0), 0.0, 1.0);
+            float r = t * 27.0;
+            float id = floor(r);
+            float f = fract(r);
+            float seam = smoothstep(0.0, 0.025, f) * smoothstep(1.0, 0.975, f);
+            float ang = atan2(in.stPos.z, in.stPos.x);
+            float brush = stN(float2(ang * 90.0, r * 1.5)) * 0.6 + stN(float2(ang * 260.0, r * 4.0)) * 0.4;
+            float tint = 0.94 + 0.09 * stH(float2(id, 3.0));
+            _surface.diffuse.rgb *= tint * mix(0.6, 1.0, seam) * (0.94 + 0.1 * brush);
+            _surface.metalness = 0.95;
+            _surface.roughness = 0.17 + 0.16 * brush + 0.3 * (1.0 - seam);
+            """,
+        ]
+        m.setValue(NSNumber(value: y0), forKey: "uY0")
+        m.setValue(NSNumber(value: y1), forKey: "uY1")
+    }
+
+    /// Studio-style reflection environment so the stainless steel has something to mirror.
+    private func studioEnvironment() -> CGImage {
+        let w = 512, h = 256
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let grad = CGGradient(colorsSpace: nil, colors: [
+            CGColor(srgbRed: 0.02, green: 0.025, blue: 0.035, alpha: 1),      // below
+            CGColor(srgbRed: 0.16, green: 0.17, blue: 0.19, alpha: 1),        // horizon
+            CGColor(srgbRed: 0.42, green: 0.45, blue: 0.5, alpha: 1),         // sky
+        ] as CFArray, locations: [0, 0.5, 1])!
+        ctx.drawLinearGradient(grad, start: .zero, end: CGPoint(x: 0, y: h), options: [])
+        // soft boxes: the sun side and a long top strip
+        for (x, y, bw, bh, k) in [(90, 175, 120, 50, 0.95), (330, 205, 160, 22, 0.7), (420, 120, 40, 40, 0.5)] as [(Int, Int, Int, Int, CGFloat)] {
+            ctx.setFillColor(CGColor(srgbRed: k, green: k, blue: k * 0.97, alpha: 1))
+            ctx.fill(CGRect(x: x, y: y, width: bw, height: bh))
+        }
+        return ctx.makeImage()!
     }
 
     /// A camera-facing additive glow (the Raptors).
@@ -470,8 +588,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                     f.node.simdOrientation = f.q0 * simd_quatf(angle: f.s * deg * .pi / 180, axis: SIMD3(0, 1, 0))
                 }
                 let fl = 0.85 + 0.15 * sin(tf * 37 + c.phase) + 0.08 * sin(tf * 61)
-                c.plume?.simdScale = SIMD3(repeating: fl)
-                c.core?.simdScale = SIMD3(repeating: fl)
+                c.plume?.simdScale = SIMD3(1 + 0.25 * (fl - 0.85), 1 + 0.25 * (fl - 0.85), fl)   // length flickers most
+                c.core?.simdScale = SIMD3(repeating: 0.9 + 0.3 * (fl - 0.85))
             }
             c.g.simdPosition = pos
             c.g.simdOrientation = q

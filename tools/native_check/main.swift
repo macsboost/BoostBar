@@ -37,6 +37,8 @@ var c1 = SaverConfig(); c1.count = 3; c1.liveries = ["macsboost"]
 shoot(.cars, c1, "close_car", seconds: 1.3, closeup: 14)
 var c2 = SaverConfig(); c2.count = 1; c2.oxidation = 0.6; c2.tilt = 30; c2.stunts = false
 shoot(.starships, c2, "close_ship", seconds: 1.3, closeup: 22)
+var c4 = SaverConfig(); c4.count = 1; c4.oxidation = 0.0; c4.stunts = false
+shoot(.starships, c4, "close_ship2", seconds: 2.1, closeup: 22)
 var c3 = SaverConfig(); c3.count = 1; c3.liveries = ["v3"]; c3.stunts = false
 shoot(.starlink, c3, "close_sat", seconds: 1.3, closeup: 40)
 print("DONE")
