@@ -594,12 +594,17 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                     amp = Float(ease(Double((c.dep - 6.1) / 1.5)))
                 }
                 // a panel's angle up from flat: stowed they alternate 180°-d / d (a stack lying on the bus), then all 90°, then 0°
-                func fold(_ i: Int) -> Float { (.pi / 2 + (i % 2 == 0 ? 1 : -1) * (.pi / 2 - 0.044) * (1 - u)) * (1 - v) }
+                let swing: Float = (Float.pi / 2 - 0.044) * (1 - u)
+                func fold(_ i: Int) -> Float {
+                    let sign: Float = i % 2 == 0 ? 1 : -1
+                    return (Float.pi / 2 + sign * swing) * (1 - v)
+                }
                 for j in c.wings {
                     let ph = ph0 - Float(j.i) * 0.42
                     let beat = sin(ph) + 0.28 * sin(2 * ph)
-                    let flap = j.i == 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / Float(j.n)) * beat
-                    let a = (j.i == 0 ? fold(0) : fold(j.i) - fold(j.i - 1)) + amp * flap
+                    let flap: Float = j.i == 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / Float(j.n)) * beat
+                    let base: Float = j.i == 0 ? fold(0) : fold(j.i) - fold(j.i - 1)
+                    let a: Float = base + amp * flap
                     j.node.simdOrientation = j.q0 * simd_quatf(angle: j.s * a, axis: SIMD3(0, 0, 1))
                 }
                 pos.y -= 0.35 * cos(ph0) * amp
