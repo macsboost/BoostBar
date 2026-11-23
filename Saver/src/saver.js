@@ -47,8 +47,77 @@
   rim.position.set(40, -20, -30);
   scene.add(rim);
 
+  // Flying Cars with clouds: a blue daytime sky and soft cumulus clouds drifting by at many depths (After Dark style)
+  const CLOUDS = SCENE === 'cars' && !!CFG.clouds;
+  const clouds = [];
+  if (CLOUDS) {
+    const sky = document.createElement('canvas');
+    sky.width = 4; sky.height = 256;
+    const sg = sky.getContext('2d'), gr = sg.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, '#2a52a0'); gr.addColorStop(0.55, '#4a7ec4'); gr.addColorStop(1, '#86aedb');
+    sg.fillStyle = gr; sg.fillRect(0, 0, 4, 256);
+    const skyTex = new THREE.CanvasTexture(sky);
+    skyTex.encoding = THREE.sRGBEncoding;
+    scene.background = skyTex;
+    const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const cloudTex = () => {
+      // one puffy cumulus: overlapping soft puffs above a flat base, sunlit white on top, blue-grey underneath
+      const W = 256, H = 128, base = 34, n = 9 + Math.floor(Math.random() * 7), puffs = [];
+      for (let k = 0; k < n; k++) {
+        const u = (k + Math.random() * 0.8) / n, mid = 1 - Math.abs(u - 0.5) * 2, r = 14 + 26 * mid + Math.random() * 10;
+        puffs.push({ x: 30 + u * 196, y: base + r * (0.35 + Math.random() * 0.45), r });
+      }
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const cx = cv.getContext('2d'), img = cx.createImageData(W, H);
+      for (let yy = 0; yy < H; yy++) {
+        const y = H - 1 - yy;
+        for (let x = 0; x < W; x++) {
+          let d = 0;
+          for (const p of puffs) { const dx = x - p.x, dy = y - p.y; d += Math.exp(-(dx * dx + dy * dy) / (p.r * p.r)); }
+          let a = smooth(0.32, 0.75, d) * smooth(base - 5, base + 7, y);
+          a *= smooth(0, 14, x) * smooth(0, 14, W - 1 - x) * smooth(0, 6, H - 1 - y);
+          if (a <= 0.002) continue;
+          const lit = smooth(base, base + 50, y) * 0.75 + smooth(0.5, 1.6, d) * 0.25, i = (yy * W + x) * 4;
+          img.data[i] = (0.7 + 0.3 * lit) * 255; img.data[i + 1] = (0.76 + 0.24 * lit) * 255; img.data[i + 2] = (0.86 + 0.14 * lit) * 255;
+          img.data[i + 3] = a * 255;
+        }
+      }
+      cx.putImageData(img, 0, 0);
+      const t = new THREE.CanvasTexture(cv);
+      t.encoding = THREE.sRGBEncoding;
+      return t;
+    };
+    const texs = [cloudTex(), cloudTex(), cloudTex(), cloudTex()];
+    const vh = (z) => { const h = Math.tan((28 * Math.PI) / 360) * (52 - z); return { w: h * (innerWidth / innerHeight), h }; };
+    for (let i = 0; i < 16; i++) {
+      const z = -95 + Math.random() * 109, w = (16 + Math.random() * 24) * (z > 0 ? 0.7 : 1), h = w * 0.5;
+      const m = new THREE.SpriteMaterial({ map: texs[i % 4], transparent: true, depthWrite: false, opacity: z > 0 ? 0.78 : 0.95, toneMapped: false });
+      const s = new THREE.Sprite(m);
+      s.scale.set(w, h, 1);
+      s.renderOrder = 1000 + Math.round((z + 100) * 10);
+      const v = vh(z);
+      const c = { s, x: (Math.random() * 2 - 1) * v.w * 1.2, y: (Math.random() * 2 - 1) * v.h * 1.1, z, w, h, v: 1 + Math.random() * 1.2, vh };
+      s.position.set(c.x, c.y, z);
+      scene.add(s);
+      clouds.push(c);
+    }
+  }
+  function driftClouds(dt) {
+    // clouds drift slowly down-left with the flock; one gone off the bottom or left comes back from the top or right
+    for (const c of clouds) {
+      c.x += -0.887 * c.v * CFG.speed * dt;
+      c.y += -0.461 * c.v * CFG.speed * dt;
+      const { w, h } = c.vh(c.z);
+      if (c.x < -w - c.w * 0.6 || c.y < -h - c.h * 0.7) {
+        if (Math.random() < 0.5) { c.x = w + c.w * 0.6; c.y = (Math.random() * 2 - 1) * h * 1.1; }
+        else { c.x = (Math.random() * 2 - 1) * w * 1.2; c.y = h + c.h * 0.7; }
+      }
+      c.s.position.set(c.x, c.y, c.z);
+    }
+  }
+
   // faint starfield
-  if (CFG.stars) {
+  if (CFG.stars && !CLOUDS) {
     const n = 500,
       p = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
@@ -1089,6 +1158,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     }
     bump(t);
     updateLasers(dt);
+    if (clouds.length) driftClouds(dt);
     renderer.render(scene, camera);
   }
   build()

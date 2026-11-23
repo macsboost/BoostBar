@@ -16,6 +16,7 @@ struct SaverOptions: Codable {
     var tilt: Double? = nil   // degrees; nil = the scene's own default
     var crossing: Bool? = nil // Starlink: crossing orbital lanes (X pattern)
     var lasers: Bool? = nil   // Starlink: laser links between nearby satellites
+    var clouds: Bool? = nil   // Flying Cars: daytime sky with clouds
     var savedAt: Double = 0
 }
 
@@ -59,7 +60,7 @@ enum SaverConfig {
     static func script(for scene: String) -> String {
         let o = options(for: scene)
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? false),lasers:\(o.lasers ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? false),lasers:\(o.lasers ?? false),clouds:\(o.clouds ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
     }
 }
 

@@ -10,6 +10,8 @@ struct SaverConfig {
     var flapSpeed = 1.0
     var stunts = true
     var stars = true
+    /// Flying Cars: a blue daytime sky with puffy clouds drifting by (after the classic After Dark look) instead of space.
+    var clouds = false
     var oxidation = 0.35
     var tilt: Double? = nil
     /// Starlink: fly in two crossing sets of orbital lanes (ascending and descending passes) — an X pattern.
@@ -101,7 +103,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             scene.lightingEnvironment.intensity = 1.6
         }
 
-        if cfg.stars {
+        if kind == .cars && cfg.clouds { makeSky() }
+        if cfg.stars && !(kind == .cars && cfg.clouds) {
             var pts: [Float] = []
             for _ in 0..<500 {
                 pts += [Float.random(in: -150...150), Float.random(in: -100...100), -120 - Float.random(in: 0...60)]
@@ -119,6 +122,107 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             m.diffuse.contents = NSColor(calibratedRed: 0.53, green: 0.6, blue: 0.67, alpha: 1)
             g.materials = [m]
             scene.rootNode.addChildNode(SCNNode(geometry: g))
+        }
+    }
+
+    // MARK: clouds
+
+    private struct Cloud { let node: SCNNode; var x: Float, y: Float, z: Float, w: Float, h: Float, v: Float }
+    private var clouds: [Cloud] = []
+
+    /// Sky gradient behind everything and a field of soft cumulus clouds at many depths, some in front of the cars.
+    private func makeSky() {
+        // the background is an equirectangular map; the camera's 28° view only sees a band around the horizon,
+        // so the gradient is packed into that band: deeper blue above, paler toward the bottom
+        let sw = 64, sh = 512
+        let sky = CGContext(data: nil, width: sw, height: sh, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        let grad = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [
+            CGColor(srgbRed: 0.46, green: 0.64, blue: 0.84, alpha: 1),
+            CGColor(srgbRed: 0.40, green: 0.60, blue: 0.84, alpha: 1),
+            CGColor(srgbRed: 0.22, green: 0.42, blue: 0.74, alpha: 1),
+            CGColor(srgbRed: 0.14, green: 0.30, blue: 0.62, alpha: 1),
+        ] as CFArray, locations: [0, 0.42, 0.58, 1])!
+        sky.drawLinearGradient(grad, start: .zero, end: CGPoint(x: 0, y: sh), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        scene.background.contents = sky.makeImage()
+        let tex = (0..<4).map { cloudImage(seed: $0) }
+        for i in 0..<16 {
+            let z = Float.random(in: -95...14)
+            let w = Float.random(in: 16...40) * (z > 0 ? 0.7 : 1), h = w * 0.5
+            let p = SCNPlane(width: CGFloat(w), height: CGFloat(h))
+            let m = SCNMaterial()
+            m.lightingModel = .constant
+            m.diffuse.contents = tex[i % tex.count]
+            m.writesToDepthBuffer = false
+            m.isDoubleSided = true
+            // nearer clouds are a touch more see-through so they don't blot out the cars passing behind
+            m.transparency = CGFloat(z > 0 ? 0.78 : 0.95)
+            p.materials = [m]
+            let n = SCNNode(geometry: p)
+            n.renderingOrder = 1000 + Int((z + 100) * 10)        // far ones first
+            n.castsShadow = false
+            scene.rootNode.addChildNode(n)
+            let (vw, vh) = viewHalf(z)
+            var c = Cloud(node: n, x: .random(in: -vw...vw) * 1.2, y: .random(in: -vh...vh) * 1.1, z: z, w: w, h: h,
+                          v: .random(in: 1.0...2.2))
+            n.simdPosition = SIMD3(c.x, c.y, c.z)
+            c.node.simdPosition = n.simdPosition
+            clouds.append(c)
+        }
+    }
+
+    /// One puffy cumulus: overlapping soft puffs above a flat base, sunlit white on top, blue-grey underneath.
+    private func cloudImage(seed: Int) -> CGImage {
+        let W = 256, H = 128
+        var rng = SystemRandomNumberGenerator()
+        _ = seed
+        var puffs: [(x: Float, y: Float, r: Float)] = []
+        let n = 9 + Int.random(in: 0...6, using: &rng)
+        let base: Float = 34
+        for k in 0..<n {
+            let u = (Float(k) + .random(in: 0...0.8)) / Float(n)
+            let x = 30 + u * 196
+            let mid = 1 - abs(u - 0.5) * 2                            // bigger in the middle
+            let r = 14 + 26 * mid + .random(in: 0...10)
+            puffs.append((x, base + r * .random(in: 0.35...0.8), r))
+        }
+        var px = [UInt8](repeating: 0, count: W * H * 4)
+        func smooth(_ a: Float, _ b: Float, _ x: Float) -> Float { let t = max(0, min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+        for yy in 0..<H {
+            let y = Float(H - 1 - yy)                                   // up
+            for x in 0..<W {
+                var d: Float = 0
+                for p in puffs {
+                    let dx = Float(x) - p.x, dy = y - p.y
+                    d += exp(-(dx * dx + dy * dy) / (p.r * p.r))
+                }
+                var a = smooth(0.32, 0.75, d) * smooth(base - 5, base + 7, y)
+                a *= smooth(0, 14, Float(x)) * smooth(0, 14, Float(W - 1 - x)) * smooth(0, 6, Float(H - 1) - y)
+                if a <= 0.002 { continue }
+                let lit = smooth(base, base + 50, y) * 0.75 + smooth(0.5, 1.6, d) * 0.25
+                let R = 0.70 + 0.30 * lit, G = 0.76 + 0.24 * lit, B = 0.86 + 0.14 * lit
+                let i = (yy * W + x) * 4
+                px[i] = UInt8(R * a * 255); px[i + 1] = UInt8(G * a * 255); px[i + 2] = UInt8(B * a * 255); px[i + 3] = UInt8(a * 255)
+            }
+        }
+        let ctx = CGContext(data: &px, width: W, height: H, bitsPerComponent: 8, bytesPerRow: W * 4,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        return ctx.makeImage()!
+    }
+
+    /// Clouds drift slowly down-left with the flock; one gone off the bottom or left comes back in from the top or right.
+    private func driftClouds(_ dt: Float) {
+        for k in clouds.indices {
+            var c = clouds[k]
+            c.x += dir.x * c.v * Float(cfg.speed) * dt
+            c.y += dir.y * c.v * Float(cfg.speed) * dt
+            let (w, h) = viewHalf(c.z)
+            if c.x < -w - c.w * 0.6 || c.y < -h - c.h * 0.7 {
+                if Bool.random() { c.x = w + c.w * 0.6; c.y = .random(in: -h...h) * 1.1 }
+                else { c.x = .random(in: -w...w) * 1.2; c.y = h + c.h * 0.7 }
+            }
+            c.node.simdPosition = SIMD3(c.x, c.y, c.z)
+            clouds[k] = c
         }
     }
 
@@ -959,6 +1063,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         }
         bump(t)
         updateLasers(dt)
+        if !clouds.isEmpty { driftClouds(dt) }
     }
 
     /// Craft that get too close bounce apart (and wobble) instead of flying through each other.

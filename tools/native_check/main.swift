@@ -29,6 +29,8 @@ func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Doub
 
 var cars = SaverConfig(); cars.count = 7
 shoot(.cars, cars, "native_cars", seconds: 4)
+cars.clouds = true
+shoot(.cars, cars, "cars_clouds", seconds: 6)
 var ships = SaverConfig(); ships.count = 5; ships.oxidation = 0.8; ships.tilt = 30
 shoot(.starships, ships, "native_ships", seconds: 4)
 var sats = SaverConfig(); sats.count = 5
