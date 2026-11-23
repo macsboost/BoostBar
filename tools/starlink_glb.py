@@ -379,6 +379,12 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
             parent = j
         G['nodes'][link]['children'] = [first]
         nodes.append(link)
+    # optical inter-satellite link terminals: anchors at the four corner pods' lenses, for the saver's laser beams
+    k = 0
+    for sx_ in (-1, 1):
+        for sz_ in (-1, 1):
+            nodes.append(node(f'{name}_lz{k}', None, (sx_ * (bx / 2 - 0.2), 0, sz_ * (bz / 2 + 0.24)), {'laser': k}))
+            k += 1
     root = node(name, None, (0, 0, 0), {'sat': name}, nodes)
     G['scenes'][0]['nodes'].append(root)
 

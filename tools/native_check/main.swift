@@ -48,4 +48,7 @@ shoot(.starlink, c3, "dep_a", seconds: 1.3, closeup: 22, deploy: -1)
 shoot(.starlink, c3, "dep_b", seconds: 1.3, closeup: 26, deploy: 1.7)
 shoot(.starlink, c3, "dep_c", seconds: 1.3, closeup: 40, deploy: 3.4)
 shoot(.starlink, c3, "dep_d", seconds: 1.3, closeup: 40, deploy: 5.0)
+var c5 = SaverConfig(); c5.count = 12; c5.liveries = ["v2", "v3"]; c5.crossing = true; c5.lasers = true
+shoot(.starlink, c5, "sats_x_a", seconds: 6)
+shoot(.starlink, c5, "sats_x_b", seconds: 14)
 print("DONE")

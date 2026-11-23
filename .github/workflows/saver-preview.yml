@@ -32,7 +32,7 @@ jobs:
           swiftc -O tools/native_check/main.swift Saver/native/GLB.swift Saver/native/Flock.swift -o build/native_check
           ./build/native_check build/native_res > build/native.txt 2>&1 || true
           grep -v "^[A-Za-z0-9+/=]\{200,\}" build/native.txt | head -40
-          for n in native_cars native_ships native_sats close_car close_ship close_ship2 close_sat close_v2 dep_a dep_b dep_c dep_d; do
+          for n in native_cars native_ships native_sats close_car close_ship close_ship2 close_sat close_v2 dep_a dep_b dep_c dep_d sats_x_a sats_x_b; do
             awk -v n="$n" '$0=="IMG_BEGIN "n".jpg"{getline; print; exit}' build/native.txt | base64 -d > "build/$n.jpg" || true
             sips --resampleWidth 720 "build/$n.jpg" --out "build/${n}_s.jpg" >/dev/null 2>&1 || true
             echo "IMG_BEGIN ${n}.jpg"; base64 -i "build/${n}_s.jpg" | tr -d '\n'; echo; echo "IMG_END"
@@ -46,7 +46,8 @@ jobs:
           npm install --no-save --silent puppeteer-core@23
           node tools/saver_shots.mjs "$PWD/out/starships.html" out oxhalf '{"count":4,"oxidation":0.5}'
           node tools/saver_shots.mjs "$PWD/out/starships.html" out oxfull '{"count":4,"oxidation":1}'
-          for f in out/oxhalf_1.png out/oxfull_1.png out/oxfull_2.png; do
+          node tools/saver_shots.mjs "$PWD/out/starlink.html" out webx '{"count":12,"liveries":["v2","v3"],"crossing":true,"lasers":true}' | grep -i "error\|loaded\|TIMEOUT" || true
+          for f in out/oxhalf_1.png out/webx_3.png; do
             sips -s format jpeg -s formatOptions 60 --resampleWidth 720 "$f" --out "${f%.png}.jpg" >/dev/null
             echo "IMG_BEGIN $(basename "$f")"; base64 -i "${f%.png}.jpg" | tr -d '\n'; echo; echo "IMG_END"
           done

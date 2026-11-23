@@ -76,13 +76,14 @@ private final class Pane: NSViewController {
     @discardableResult
     func check(_ title: String, indent: Bool = false,
                get: @escaping () -> Bool, set: @escaping (Bool) -> Void,
-               enabled: (() -> Bool)? = nil) -> NSButton {
+               enabled: (() -> Bool)? = nil, visible: (() -> Bool)? = nil) -> NSButton {
         let b = NSButton(checkboxWithTitle: title, target: nil, action: nil)
         let bx = box { [weak b] _ in if let b { set(b.state == .on) } }
         b.target = bx; b.action = #selector(ActionBox.run(_:))
         refreshers.append { [weak b] in
             b?.state = get() ? .on : .off
             if let enabled { b?.isEnabled = enabled() }
+            if let visible { b?.isHidden = !visible() }
         }
         add(b, indent: indent)
         return b
@@ -455,6 +456,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      set: { v in change { $0.tilt = (v / 2).rounded() * 2 } }, caption: "roll toward you")
             p.button("Default Angle") { change { $0.tilt = nil }; p.refresh() }
             p.check("Stunts (barrel rolls, veers, climbs and dives)", get: { o.stunts }, set: { v in change { $0.stunts = v } })
+            p.check("Crossing orbits — strings of satellites in an X pattern", get: { o.crossing ?? false },
+                    set: { v in change { $0.crossing = v } }, visible: { current.scene == "starlink" })
+            p.check("Laser links — red beams between nearby satellites (make before break)", get: { o.lasers ?? false },
+                    set: { v in change { $0.lasers = v } }, visible: { current.scene == "starlink" })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } })
             p.note("Changes apply the next time the screen saver starts (and in Preview). Not affiliated with SpaceX; the X1 SkyRacer, its liveries and the Starship come from the X1 SkyRacer Flying Car Race Sim.")
         })

@@ -12,6 +12,10 @@ struct SaverConfig {
     var stars = true
     var oxidation = 0.35
     var tilt: Double? = nil
+    /// Starlink: fly in two crossing sets of orbital lanes (ascending and descending passes) — an X pattern.
+    var crossing = false
+    /// Starlink: red laser links between nearby satellites, make-before-break, from the four corner terminals.
+    var lasers = false
 }
 
 /// BoostBar's flying-toasters screen savers, drawn natively with SceneKit (Metal): the same flock, stunts, bumping,
@@ -130,6 +134,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         /// Starlink "deploying": arrays start fan-folded on the bus, unfold straight up, lay flat, then flap.
         var deploys = false, dep: Float = 0, depStarted = false
         var x: Float = 0, y: Float = 0, z: Float = 0, speed: Float = 8, phase: Float = 0
+        /// Direction of travel (crossing mode gives each lane its own), lane index, and a counter bumped on respawn.
+        var d = simd_normalize(SIMD3<Float>(-1, -0.52, 0)), lane = -1, gen = 0
+        var terminals: [SCNNode] = []
         var kx: Float = 0, ky: Float = 0, kz: Float = 0, wob: Float = 0
         var spin: Float = .random(in: 0...10), flapRate: Float = 1
         var man: Stunt?
@@ -240,12 +247,188 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 root.enumerateHierarchy { o, _ in
                     guard let name = o.name, let e = m.extras[name] else { return }
                     if let l = e["link"] as? String { c.links.append((o, o.simdOrientation, l == "R" ? 1 : -1)); return }
+                    if e["laser"] != nil { c.terminals.append(o); return }
                     guard let w = e["wing"] as? String else { return }
                     c.wings.append((o, o.simdOrientation, w == "R" ? 1 : -1, e["i"] as? Int ?? 0, e["n"] as? Int ?? 1))
                 }
                 c.flapRate = 3.6 + .random(in: 0...1.6)
+                c.terminals.sort { ($0.name ?? "") < ($1.name ?? "") }
                 add(c)
             }
+            if cfg.crossing { makeLanes() }
+            if cfg.lasers { makeBeamParts() }
+        }
+    }
+
+    // MARK: crossing lanes
+
+    /// One orbital lane across the screen: a straight line (direction d, sideways offset `off` as a fraction of the
+    /// view) at depth z, all its satellites at one speed so they keep their spacing, like a string of Starlinks.
+    private struct Lane { var d: SIMD3<Float>; var off: Float; var z: Float; var speed: Float }
+    private var lanes: [Lane] = []
+
+    private func laneLength(_ l: Lane) -> Float {
+        let (w, h) = viewHalf(l.z)
+        return (w * w + h * h).squareRoot() + 24
+    }
+
+    private func lanePoint(_ l: Lane, _ s: Float) -> SIMD2<Float> {
+        let (_, h) = viewHalf(l.z)
+        let p = SIMD2(-l.d.y, l.d.x) * (l.off * h)
+        return p + SIMD2(l.d.x, l.d.y) * s
+    }
+
+    private func makeLanes() {
+        // ascending and descending passes cross on screen: half the lanes head down-left, half up-left
+        let a = simd_normalize(SIMD3<Float>(-1, -0.62, 0)), b = simd_normalize(SIMD3<Float>(-1, 0.62, 0))
+        let perDir = max(1, min(4, Int((Double(craft.count) / 4).rounded())))
+        for (k, d) in [a, b].enumerated() {
+            for i in 0..<perDir {
+                let off = perDir == 1 ? Float.random(in: -0.25...0.25) : (Float(i) / Float(perDir - 1) * 2 - 1) * 0.75 + .random(in: -0.1...0.1)
+                let z: Float = (k == 0 ? -6 : -20) + .random(in: -8...8)
+                lanes.append(Lane(d: d, off: off, z: z, speed: (6 + .random(in: 0...3)) * Float(cfg.speed)))
+            }
+        }
+        lanes.shuffle()
+        var members: [[Craft]] = Array(repeating: [], count: lanes.count)
+        for (i, c) in craft.enumerated() { members[i % lanes.count].append(c) }
+        for (li, group) in members.enumerated() {
+            let l = lanes[li], L = laneLength(l)
+            for (k, c) in group.enumerated() {
+                c.lane = li
+                c.d = l.d
+                c.z = l.z
+                c.speed = l.speed
+                let s = -L + 2 * L * (Float(k) + .random(in: 0...0.35)) / Float(group.count)
+                let p = lanePoint(l, s)
+                c.x = p.x; c.y = p.y
+            }
+        }
+    }
+
+    /// Back to the start of its lane, off the right-hand edge.
+    private func relane(_ c: Craft) {
+        let l = lanes[c.lane]
+        let p = lanePoint(l, -laneLength(l))
+        c.x = p.x; c.y = p.y; c.z = l.z
+        c.phase = .random(in: 0...(2 * .pi))
+        c.dep = 0; c.depStarted = false
+        c.man = nil
+        c.kx = 0; c.ky = 0; c.kz = 0; c.wob = 0
+        c.next = clock + 2 + .random(in: 0...9)
+        c.gen += 1
+    }
+
+    // MARK: laser links
+
+    /// A red optical link between two satellites' terminals. It grows from one terminal to the other when it's
+    /// made and fades when it's dropped; a link is only dropped once both ends hold another (make before break).
+    private final class Beam {
+        let a: Int, b: Int, ta: Int, tb: Int, ga: Int, gb: Int
+        let root = SCNNode(), line: SCNNode, endA: SCNNode, endB: SCNNode
+        var grow: Float = 0, fade: Float = 1, dying = false, flick: Float = .random(in: 0...10)
+        init(a: Int, b: Int, ta: Int, tb: Int, ga: Int, gb: Int, line: SCNNode, endA: SCNNode, endB: SCNNode) {
+            self.a = a; self.b = b; self.ta = ta; self.tb = tb; self.ga = ga; self.gb = gb
+            self.line = line; self.endA = endA; self.endB = endB
+            root.addChildNode(line); root.addChildNode(endA); root.addChildNode(endB)
+        }
+    }
+    private var beams: [Beam] = []
+    private var beamLine: SCNNode?, beamEnd: SCNNode?
+    private let makeR: Float = 30, breakR: Float = 40, hardR: Float = 56
+
+    private func makeBeamParts() {
+        func tube(_ r: CGFloat, _ color: NSColor) -> SCNNode {
+            let g = SCNCylinder(radius: r, height: 1)
+            g.radialSegmentCount = 10
+            let m = SCNMaterial()
+            m.lightingModel = .constant
+            m.diffuse.contents = color
+            m.blendMode = .add
+            m.writesToDepthBuffer = false
+            g.materials = [m]
+            let n = SCNNode(geometry: g)
+            n.simdPosition = SIMD3(0, 0.5, 0)       // the unit tube runs from 0 to 1 along y
+            n.renderingOrder = 20
+            return n
+        }
+        let line = SCNNode()
+        line.addChildNode(tube(0.045, NSColor(srgbRed: 1, green: 0.55, blue: 0.5, alpha: 1)))
+        line.addChildNode(tube(0.13, NSColor(srgbRed: 1, green: 0.08, blue: 0.05, alpha: 0.55)))
+        line.addChildNode(tube(0.32, NSColor(srgbRed: 1, green: 0.02, blue: 0.02, alpha: 0.16)))
+        beamLine = line
+        beamEnd = glow(inner: NSColor(srgbRed: 1, green: 0.75, blue: 0.7, alpha: 1), outer: NSColor(srgbRed: 1, green: 0.05, blue: 0.03, alpha: 0.5), size: 1.3)
+    }
+
+    private func ready(_ c: Craft) -> Bool { c.terminals.count == 4 && !(c.deploys && c.dep < 7.8) }
+
+    private func updateLasers(_ dt: Float) {
+        guard cfg.lasers, let lineT = beamLine, let endT = beamEnd else { return }
+        func dist(_ i: Int, _ j: Int) -> Float { simd_distance(craft[i].g.simdPosition, craft[j].g.simdPosition) }
+        func holdsOther(_ i: Int, _ except: Beam) -> Bool {
+            beams.contains { $0 !== except && !$0.dying && $0.grow >= 1 && ($0.a == i || $0.b == i) }
+        }
+        // keep, drop or retire existing links
+        for bm in beams {
+            let A = craft[bm.a], B = craft[bm.b]
+            if A.gen != bm.ga || B.gen != bm.gb { bm.fade = 0; bm.dying = true; continue }   // one went off screen
+            let d = dist(bm.a, bm.b)
+            if !bm.dying {
+                if !ready(A) || !ready(B) || d > hardR { bm.dying = true }
+                else if d > breakR, holdsOther(bm.a, bm), holdsOther(bm.b, bm) { bm.dying = true }
+            }
+            bm.grow = min(1, bm.grow + dt / 0.35)
+            if bm.dying { bm.fade -= dt / 0.45 }
+        }
+        beams.removeAll { b in
+            if b.fade <= 0 { b.root.removeFromParentNode(); return true }
+            return false
+        }
+        // make one new link per frame: the closest pair in range that isn't linked and has free terminals
+        func used(_ i: Int) -> Set<Int> {
+            var s = Set<Int>()
+            for b in beams where !(b.dying && b.fade < 0.5) {
+                if b.a == i { s.insert(b.ta) }
+                if b.b == i { s.insert(b.tb) }
+            }
+            return s
+        }
+        var best: (i: Int, j: Int, d: Float)?
+        for i in 0..<craft.count where ready(craft[i]) {
+            for j in (i + 1)..<max(i + 1, craft.count) where ready(craft[j]) {
+                let d = dist(i, j)
+                guard d < makeR, d < (best?.d ?? .infinity) else { continue }
+                if beams.contains(where: { !$0.dying && (($0.a == i && $0.b == j) || ($0.a == j && $0.b == i)) }) { continue }
+                if used(i).count >= 4 || used(j).count >= 4 { continue }
+                best = (i, j, d)
+            }
+        }
+        if let p = best {
+            let A = craft[p.i], B = craft[p.j]
+            func pick(_ c: Craft, _ ui: Set<Int>, toward: SIMD3<Float>) -> Int {
+                (0..<4).filter { !ui.contains($0) }.min { simd_distance(c.terminals[$0].simdWorldPosition, toward) < simd_distance(c.terminals[$1].simdWorldPosition, toward) }!
+            }
+            let ta = pick(A, used(p.i), toward: B.g.simdPosition), tb = pick(B, used(p.j), toward: A.g.simdPosition)
+            let bm = Beam(a: p.i, b: p.j, ta: ta, tb: tb, ga: A.gen, gb: B.gen,
+                          line: lineT.clone(), endA: endT.clone(), endB: endT.clone())
+            scene.rootNode.addChildNode(bm.root)
+            beams.append(bm)
+        }
+        // draw
+        let up = SIMD3<Float>(0, 1, 0)
+        for bm in beams {
+            let pa = craft[bm.a].terminals[bm.ta].simdWorldPosition, pb = craft[bm.b].terminals[bm.tb].simdWorldPosition
+            let v = (pb - pa) * bm.grow
+            let len = max(1e-3, simd_length(v))
+            bm.line.simdPosition = pa
+            bm.line.simdOrientation = simd_quatf(from: up, to: v / len)
+            bm.line.simdScale = SIMD3(1, len, 1)
+            bm.endA.simdPosition = pa
+            bm.endB.simdPosition = pa + v
+            bm.endB.isHidden = bm.grow < 1
+            bm.flick += dt
+            let shimmer = 0.88 + 0.12 * sin(bm.flick * 23) * sin(bm.flick * 7.3)
+            bm.root.opacity = CGFloat(max(0, bm.fade) * shimmer)
         }
     }
 
@@ -501,6 +684,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         c.man = nil
         c.kx = 0; c.ky = 0; c.kz = 0; c.wob = 0
         c.next = clock + 2 + .random(in: 0...9)
+        c.gen += 1
     }
 
     private func ease(_ x: Double) -> Double { x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x) }
@@ -565,13 +749,15 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for c in craft {
             // a deploying Starlink drifts at half speed until its arrays are out and flapping
             let pace: Float = c.deploys ? 0.5 + 0.5 * Float(ease(Double((c.dep - 7.8) / 1.5))) : 1
-            c.x += dir.x * c.speed * pace * dt + c.kx * dt
-            c.y += dir.y * c.speed * pace * dt + c.ky * dt
+            c.x += c.d.x * c.speed * pace * dt + c.kx * dt
+            c.y += c.d.y * c.speed * pace * dt + c.ky * dt
             c.z = max(-45, min(closeupZ ?? 8, c.z + c.kz * dt))
             c.kx *= damp; c.ky *= damp; c.kz *= damp
             c.wob *= exp(-1.6 * dt)
             let (w, h) = viewHalf(c.z)
-            if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
+            if c.lane >= 0 {
+                if simd_dot(SIMD2(c.x, c.y), SIMD2(c.d.x, c.d.y)) > laneLength(lanes[c.lane]) { relane(c) }
+            } else if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
             let tf = Float(t)
             let bob = sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
             let stowed = c.deploys && c.dep < 7.8
@@ -579,7 +765,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             let st = stowed ? nil : stunt(c, t)
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
             let wobble = c.wob * sin(tf * 11 + c.phase) * 0.35
-            var q = lookRotation(dir)
+            var q = lookRotation(c.d)
             if kind == .starlink { q = q * yRot }
             q = q * simd_quatf(angle: tilt + sin(tf * 0.9 + c.phase) * 0.05 + (st?.roll ?? 0) + wobble, axis: SIMD3(0, 0, 1))
             q = q * simd_quatf(angle: sin(tf * 1.3 + c.phase + 1) * 0.04 - (st?.pitch ?? 0) + wobble * 0.5, axis: SIMD3(1, 0, 0))
@@ -631,6 +817,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             c.g.simdOrientation = q
         }
         bump(t)
+        updateLasers(dt)
     }
 
     /// Craft that get too close bounce apart (and wobble) instead of flying through each other.
@@ -639,6 +826,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for i in 0..<craft.count {
             for j in (i + 1)..<max(i + 1, craft.count) {
                 let a = craft[i], b = craft[j]
+                if a.lane >= 0, b.lane >= 0, a.d != b.d { continue }   // crossing passes are at different altitudes
                 var n = a.g.simdPosition - b.g.simdPosition
                 let d = simd_length(n)
                 if d >= 2 * R || d < 1e-4 { continue }

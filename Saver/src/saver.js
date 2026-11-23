@@ -587,6 +587,126 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     const h = Math.tan((camera.fov * D2R) / 2) * (camera.position.z - z);
     return { w: h * camera.aspect, h };
   }
+  // ---------- Starlink: crossing orbital lanes ----------
+  // Two sets of lanes cross on screen (ascending and descending passes): each lane is a straight line at one depth,
+  // its satellites all at one speed so they keep their spacing, like the strings of Starlinks seen from the ground.
+  const lanes = [];
+  const laneLen = (l) => { const { w, h } = viewHalf(l.z); return Math.hypot(w, h) + 24; };
+  function lanePoint(l, s) {
+    const { h } = viewHalf(l.z);
+    return { x: -l.d.y * l.off * h + l.d.x * s, y: l.d.x * l.off * h + l.d.y * s };
+  }
+  function makeLanes() {
+    const dirs = [new THREE.Vector3(-1, -0.62, 0).normalize(), new THREE.Vector3(-1, 0.62, 0).normalize()];
+    const perDir = Math.max(1, Math.min(4, Math.round(craft.length / 4)));
+    dirs.forEach((d, k) => {
+      for (let i = 0; i < perDir; i++) {
+        const off = perDir === 1 ? (Math.random() - 0.5) * 0.5 : ((i / (perDir - 1)) * 2 - 1) * 0.75 + (Math.random() - 0.5) * 0.2;
+        lanes.push({ d, off, z: (k === 0 ? -6 : -20) + (Math.random() * 2 - 1) * 8, speed: (6 + Math.random() * 3) * CFG.speed });
+      }
+    });
+    lanes.sort(() => Math.random() - 0.5);
+    const members = lanes.map(() => []);
+    craft.forEach((c, i) => members[i % lanes.length].push(c));
+    members.forEach((group, li) => {
+      const l = lanes[li], L = laneLen(l);
+      group.forEach((c, k) => {
+        c.lane = li; c.d = l.d; c.z = l.z; c.speed = l.speed;
+        const p = lanePoint(l, -L + (2 * L * (k + Math.random() * 0.35)) / group.length);
+        c.x = p.x; c.y = p.y;
+      });
+    });
+  }
+  function relane(c) {
+    const l = lanes[c.lane], p = lanePoint(l, -laneLen(l));
+    c.x = p.x; c.y = p.y; c.z = l.z;
+    c.phase = Math.random() * Math.PI * 2;
+    c.dep = 0; c.depStarted = false;
+    c.man = null; c.kx = c.ky = c.kz = 0; c.wob = 0;
+    c.next = clock() + 2 + Math.random() * 9;
+    c.gen = (c.gen || 0) + 1;
+  }
+
+  // ---------- Starlink: laser links ----------
+  // Red optical links from the four corner terminals to nearby satellites. A new link grows across when two come in
+  // range; an old one is only dropped once both ends hold another link (make before break), or when far out of range.
+  const beams = [];
+  const MAKE_R = 30, BREAK_R = 40, HARD_R = 56;
+  const beamGeo = new THREE.CylinderGeometry(1, 1, 1, 10, 1, true).translate(0, 0.5, 0);
+  const beamMat = (color, opacity, r) => ({ r, m: new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }) });
+  const BEAM_LAYERS = [beamMat(0xff8c80, 1, 0.045), beamMat(0xff1408, 0.55, 0.13), beamMat(0xff0505, 0.16, 0.32)];
+  const upY = new THREE.Vector3(0, 1, 0), pa = new THREE.Vector3(), pb = new THREE.Vector3(), bv = new THREE.Vector3();
+  const readyFor = (c) => c.terminals && c.terminals.length === 4 && !(c.deploys && c.dep < 7.8);
+  function newBeam() {
+    const g = new THREE.Group();
+    for (const L of BEAM_LAYERS) {
+      const m = new THREE.Mesh(beamGeo, L.m.clone());
+      m.userData.r = L.r; m.userData.o = L.m.opacity; m.frustumCulled = false; m.renderOrder = 20;
+      g.add(m);
+    }
+    scene.add(g);
+    return g;
+  }
+  function updateLasers(dt) {
+    if (!CFG.lasers || !SATS) return;
+    const dist = (i, j) => craft[i].g.position.distanceTo(craft[j].g.position);
+    const holdsOther = (i, ex) => beams.some((b) => b !== ex && !b.dying && b.grow >= 1 && (b.a === i || b.b === i));
+    for (const b of beams) {
+      const A = craft[b.a], B = craft[b.b];
+      if ((A.gen || 0) !== b.ga || (B.gen || 0) !== b.gb) { b.fade = 0; continue; }
+      const d = dist(b.a, b.b);
+      if (!b.dying) {
+        if (!readyFor(A) || !readyFor(B) || d > HARD_R) b.dying = true;
+        else if (d > BREAK_R && holdsOther(b.a, b) && holdsOther(b.b, b)) b.dying = true;
+      }
+      b.grow = Math.min(1, b.grow + dt / 0.35);
+      if (b.dying) b.fade -= dt / 0.45;
+    }
+    for (let k = beams.length - 1; k >= 0; k--) if (beams[k].fade <= 0) { scene.remove(beams[k].g); beams.splice(k, 1); }
+    const used = (i) => {
+      const s = new Set();
+      for (const b of beams) if (!(b.dying && b.fade < 0.5)) { if (b.a === i) s.add(b.ta); if (b.b === i) s.add(b.tb); }
+      return s;
+    };
+    let best = null;
+    for (let i = 0; i < craft.length; i++) {
+      if (!readyFor(craft[i])) continue;
+      for (let j = i + 1; j < craft.length; j++) {
+        if (!readyFor(craft[j])) continue;
+        const d = dist(i, j);
+        if (d >= MAKE_R || (best && d >= best.d)) continue;
+        if (beams.some((b) => !b.dying && ((b.a === i && b.b === j) || (b.a === j && b.b === i)))) continue;
+        if (used(i).size >= 4 || used(j).size >= 4) continue;
+        best = { i, j, d };
+      }
+    }
+    if (best) {
+      const A = craft[best.i], B = craft[best.j];
+      const pick = (c, u, to) => {
+        let bi = -1, bd = Infinity;
+        for (let k = 0; k < 4; k++) {
+          if (u.has(k)) continue;
+          const d = c.terminals[k].getWorldPosition(pa).distanceTo(to);
+          if (d < bd) { bd = d; bi = k; }
+        }
+        return bi;
+      };
+      const ta = pick(A, used(best.i), B.g.position), tb = pick(B, used(best.j), A.g.position);
+      beams.push({ a: best.i, b: best.j, ta, tb, ga: A.gen || 0, gb: B.gen || 0, g: newBeam(), grow: 0, fade: 1, dying: false, flick: Math.random() * 10 });
+    }
+    for (const b of beams) {
+      craft[b.a].terminals[b.ta].getWorldPosition(pa);
+      craft[b.b].terminals[b.tb].getWorldPosition(pb);
+      bv.subVectors(pb, pa).multiplyScalar(b.grow);
+      const len = Math.max(1e-3, bv.length());
+      b.g.position.copy(pa);
+      b.g.quaternion.setFromUnitVectors(upY, bv.divideScalar(len));
+      b.flick += dt;
+      const k = Math.max(0, b.fade) * (0.88 + 0.12 * Math.sin(b.flick * 23) * Math.sin(b.flick * 7.3));
+      for (const m of b.g.children) { m.scale.set(m.userData.r, len, m.userData.r); m.material.opacity = m.userData.o * k; }
+    }
+  }
+
   function spawn(c, initial) {
     c.z = -40 + Math.random() * 45;
     const { w, h } = viewHalf(c.z);
@@ -610,6 +730,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     c.kx = c.ky = c.kz = 0; // knock-back velocity from bumping into another car
     c.wob = 0; // wobble left over from a bump
     c.next = clock() + 2 + Math.random() * 9;
+    c.gen = (c.gen || 0) + 1;
   }
 
   // ---------- stunts ----------
@@ -685,10 +806,14 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
           g = new THREE.Group();
         g.add(root);
         scene.add(g);
-        const c = { g, fans: [], wings: wingsOf(root), flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10, deploys: pick === 'DEPLOY' };
+        const terminals = [];
+        root.traverse((o) => { if (o.userData && o.userData.laser !== undefined) terminals.push(o); });
+        terminals.sort((p, q) => (p.name < q.name ? -1 : 1));
+        const c = { g, fans: [], wings: wingsOf(root), flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10, deploys: pick === 'DEPLOY', terminals };
         spawn(c, true);
         craft.push(c);
       }
+      if (CFG.crossing) makeLanes();
       $('loading') && $('loading').remove();
       return;
     }
@@ -748,6 +873,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     for (let i = 0; i < craft.length; i++) {
       for (let j = i + 1; j < craft.length; j++) {
         const a = craft[i], b = craft[j];
+        if (a.lane !== undefined && b.lane !== undefined && a.d !== b.d) continue; // crossing passes: different altitudes
         n.subVectors(a.g.position, b.g.position);
         const d = n.length();
         if (d >= 2 * R || d < 1e-4) continue;
@@ -783,13 +909,15 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     for (const c of craft) {
       // a deploying Starlink drifts at half speed until its arrays are out and flapping
       const pk = (c.dep - 7.8) / 1.5, pace = c.deploys ? 0.5 + 0.5 * (pk < 0 ? 0 : pk > 1 ? 1 : pk * pk * (3 - 2 * pk)) : 1;
-      c.x += DIR.x * c.speed * pace * dt + c.kx * dt;
-      c.y += DIR.y * c.speed * pace * dt + c.ky * dt;
+      const D = c.d || DIR;
+      c.x += D.x * c.speed * pace * dt + c.kx * dt;
+      c.y += D.y * c.speed * pace * dt + c.ky * dt;
       c.z = Math.max(-45, Math.min(8, c.z + c.kz * dt));
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
-      if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
+      if (c.lane !== undefined) { if (c.x * D.x + c.y * D.y > laneLen(lanes[c.lane])) relane(c); }
+      else if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const stowed = c.deploys && c.dep < 7.8; // no stunts until the arrays are out
@@ -798,7 +926,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.g.position.set(c.x, c.y + bob, c.z);
       if (st) c.g.position.add(st.off);
       // nose along the direction of travel, left flank toward the viewer, rolled a little to show the roof
-      tgt.copy(c.g.position).add(DIR);
+      tgt.copy(c.g.position).add(D);
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
@@ -848,6 +976,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       }
     }
     bump(t);
+    updateLasers(dt);
     renderer.render(scene, camera);
   }
   build()
