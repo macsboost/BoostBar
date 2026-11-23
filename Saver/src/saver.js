@@ -780,8 +780,10 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     const t = now / 1000;
     const damp = Math.exp(-2.2 * dt);
     for (const c of craft) {
-      c.x += DIR.x * c.speed * dt + c.kx * dt;
-      c.y += DIR.y * c.speed * dt + c.ky * dt;
+      // a deploying Starlink drifts at half speed until its arrays are out and flapping
+      const pk = (c.dep - 6.1) / 1.5, pace = c.deploys ? 0.5 + 0.5 * (pk < 0 ? 0 : pk > 1 ? 1 : pk * pk * (3 - 2 * pk)) : 1;
+      c.x += DIR.x * c.speed * pace * dt + c.kx * dt;
+      c.y += DIR.y * c.speed * pace * dt + c.ky * dt;
       c.z = Math.max(-45, Math.min(8, c.z + c.kz * dt));
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);

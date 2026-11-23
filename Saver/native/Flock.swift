@@ -560,8 +560,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         let marginY: Float = kind == .starlink ? 20 : kind == .starships ? 12 : 8
         let yRot = simd_quatf(angle: 0.45, axis: SIMD3(0, 1, 0))
         for c in craft {
-            c.x += dir.x * c.speed * dt + c.kx * dt
-            c.y += dir.y * c.speed * dt + c.ky * dt
+            // a deploying Starlink drifts at half speed until its arrays are out and flapping
+            let pace: Float = c.deploys ? 0.5 + 0.5 * Float(ease(Double((c.dep - 6.1) / 1.5))) : 1
+            c.x += dir.x * c.speed * pace * dt + c.kx * dt
+            c.y += dir.y * c.speed * pace * dt + c.ky * dt
             c.z = max(-45, min(closeupZ ?? 8, c.z + c.kz * dt))
             c.kx *= damp; c.ky *= damp; c.kz *= damp
             c.wob *= exp(-1.6 * dt)
