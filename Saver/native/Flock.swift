@@ -146,7 +146,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         sky.drawLinearGradient(grad, start: .zero, end: CGPoint(x: 0, y: sh), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
         scene.background.contents = sky.makeImage()
         let tex = (0..<4).map { cloudImage(seed: $0) }
-        for i in 0..<16 {
+        for i in 0..<12 {
             let z = Float.random(in: -95...14)
             let w = Float.random(in: 16...40) * (z > 0 ? 0.7 : 1), h = w * 0.5
             let p = SCNPlane(width: CGFloat(w), height: CGFloat(h))
@@ -156,7 +156,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             m.writesToDepthBuffer = false
             m.isDoubleSided = true
             // nearer clouds are a touch more see-through so they don't blot out the cars passing behind
-            m.transparency = CGFloat(z > 0 ? 0.78 : 0.95)
+            m.transparency = CGFloat(z > 0 ? 0.68 : 0.95)
             p.materials = [m]
             let n = SCNNode(geometry: p)
             n.renderingOrder = 1000 + Int((z + 100) * 10)        // far ones first
@@ -177,13 +177,13 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         var rng = SystemRandomNumberGenerator()
         _ = seed
         var puffs: [(x: Float, y: Float, r: Float)] = []
-        let n = 9 + Int.random(in: 0...6, using: &rng)
+        let n = 13 + Int.random(in: 0...6, using: &rng)
         let base: Float = 34
         for k in 0..<n {
             let u = (Float(k) + .random(in: 0...0.8)) / Float(n)
             let x = 30 + u * 196
             let mid = 1 - abs(u - 0.5) * 2                            // bigger in the middle
-            let r = 14 + 26 * mid + .random(in: 0...10)
+            let r = 10 + 22 * mid + .random(in: 0...9)
             puffs.append((x, base + r * .random(in: 0.35...0.8), r))
         }
         var px = [UInt8](repeating: 0, count: W * H * 4)

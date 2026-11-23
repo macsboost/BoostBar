@@ -76,7 +76,7 @@ The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so yo
   <br><sub><a href="docs/media/flying-cars.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic Flying Bread. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
+BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic Flying Bread. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.) Tick **Clouds** for a blue daytime sky with puffy clouds drifting by at different depths — some behind the cars, some in front — in the spirit of the old After Dark screen savers.
 
 ## Screen saver options
 

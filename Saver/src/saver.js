@@ -62,9 +62,9 @@
     const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     const cloudTex = () => {
       // one puffy cumulus: overlapping soft puffs above a flat base, sunlit white on top, blue-grey underneath
-      const W = 256, H = 128, base = 34, n = 9 + Math.floor(Math.random() * 7), puffs = [];
+      const W = 256, H = 128, base = 34, n = 13 + Math.floor(Math.random() * 7), puffs = [];
       for (let k = 0; k < n; k++) {
-        const u = (k + Math.random() * 0.8) / n, mid = 1 - Math.abs(u - 0.5) * 2, r = 14 + 26 * mid + Math.random() * 10;
+        const u = (k + Math.random() * 0.8) / n, mid = 1 - Math.abs(u - 0.5) * 2, r = 10 + 22 * mid + Math.random() * 9;
         puffs.push({ x: 30 + u * 196, y: base + r * (0.35 + Math.random() * 0.45), r });
       }
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -89,9 +89,9 @@
     };
     const texs = [cloudTex(), cloudTex(), cloudTex(), cloudTex()];
     const vh = (z) => { const h = Math.tan((28 * Math.PI) / 360) * (52 - z); return { w: h * (innerWidth / innerHeight), h }; };
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 12; i++) {
       const z = -95 + Math.random() * 109, w = (16 + Math.random() * 24) * (z > 0 ? 0.7 : 1), h = w * 0.5;
-      const m = new THREE.SpriteMaterial({ map: texs[i % 4], transparent: true, depthWrite: false, opacity: z > 0 ? 0.78 : 0.95, toneMapped: false });
+      const m = new THREE.SpriteMaterial({ map: texs[i % 4], transparent: true, depthWrite: false, opacity: z > 0 ? 0.68 : 0.95, toneMapped: false });
       const s = new THREE.Sprite(m);
       s.scale.set(w, h, 1);
       s.renderOrder = 1000 + Math.round((z + 100) * 10);
