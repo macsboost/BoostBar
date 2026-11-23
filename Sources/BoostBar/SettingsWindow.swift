@@ -460,6 +460,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     set: { v in change { $0.crossing = v } }, visible: { current.scene == "starlink" })
             p.check("Laser links — red beams between nearby satellites (make before break)", get: { o.lasers ?? false },
                     set: { v in change { $0.lasers = v } }, visible: { current.scene == "starlink" })
+            p.check("Roadster with Starman — a red roadster, wheels spinning, tumbling along with the ships", get: { o.roadster ?? false },
+                    set: { v in change { $0.roadster = v } }, visible: { current.scene == "starships" })
             p.check("Clouds — a blue daytime sky with drifting clouds, After Dark style", get: { o.clouds ?? false },
                     set: { v in change { $0.clouds = v } }, visible: { current.scene == "cars" })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } },

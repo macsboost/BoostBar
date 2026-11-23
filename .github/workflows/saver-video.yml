@@ -20,7 +20,7 @@ jobs:
       - name: Record
         run: |
           mkdir -p build/res
-          cp Saver/native/X1_*.glb Saver/src/Starship.glb Saver/src/Starlink.glb build/res/
+          cp Saver/native/X1_*.glb Saver/src/Starship.glb Saver/src/Roadster.glb Saver/src/Starlink.glb build/res/
           swiftc -O tools/native_video/main.swift Saver/native/GLB.swift Saver/native/Flock.swift -o build/native_video
           ./build/native_video build/res "build/${{ inputs.scene }}.mp4" "${{ inputs.scene }}" "${{ inputs.seconds }}" '${{ inputs.config }}'
           ls -la build/*.mp4

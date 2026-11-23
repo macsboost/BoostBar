@@ -105,6 +105,7 @@ class BoostBarSceneView: ScreenSaverView {
             c.crossing = o["crossing"] as? Bool ?? false
             c.lasers = o["lasers"] as? Bool ?? false
             c.clouds = o["clouds"] as? Bool ?? false
+            c.roadster = o["roadster"] as? Bool ?? false
         } else {
             let d = defaults
             c.liveries = (d.string(forKey: "liveries") ?? "").split(separator: ",").map(String.init)

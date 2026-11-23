@@ -12,6 +12,8 @@ struct SaverConfig {
     var stars = true
     /// Flying Cars: a blue daytime sky with puffy clouds drifting by (after the classic After Dark look) instead of space.
     var clouds = false
+    /// Starships: a red roadster with a spacesuited driver tumbling along among the ships, wheels spinning.
+    var roadster = false
     var oxidation = 0.35
     var tilt: Double? = nil
     /// Starlink: fly in two crossing sets of orbital lanes (ascending and descending passes) — an X pattern.
@@ -57,6 +59,15 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     private var closeupZ: Float?
 
     /// For the CI check: park the first craft in front of the camera and hide the rest.
+    /// For the CI check: show only the roadster, parked in front of the camera.
+    func roadsterCloseup(distance: Float) {
+        closeupZ = 52 - distance
+        for c in craft {
+            c.g.isHidden = !c.roadster
+            if c.roadster { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.tumbleRate = 0.25; c.tumbleAxis = SIMD3(0, 1, 0); c.phase = 0.9 }
+        }
+    }
+
     func closeup(distance: Float = 30, deploy: Float? = nil) {
         closeupZ = 52 - distance
         if let d = deploy, let c = craft.first { c.dep = d; c.depStarted = false }
@@ -243,6 +254,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         var terminals: [SCNNode] = []
         /// Starlink V1.5: its single array is a chain of segments that arches and stretches like an inchworm.
         var inch: [(node: SCNNode, q0: simd_quatf, i: Int, n: Int)] = [], inchPh: Float = 0, inchL: Float = -1
+        /// The roadster: wheels spinning about their axles, and a slow tumble about a random axis.
+        var wheels: [(node: SCNNode, q0: simd_quatf)] = [], roadster = false
+        var tumbleAxis = SIMD3<Float>(0, 1, 0), tumbleRate: Float = 0.3
         var kx: Float = 0, ky: Float = 0, kz: Float = 0, wob: Float = 0
         var spin: Float = .random(in: 0...10), flapRate: Float = 1
         var man: Stunt?
@@ -327,6 +341,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 _ = i
                 add(c)
             }
+            if cfg.roadster { try addRoadster(res) }
         case .starlink:
             let m = try GLB.load(res.appendingPathComponent("Starlink.glb"))
             var want = cfg.liveries.map { $0.uppercased() }.filter { $0 == "V2" || $0 == "V3" || $0 == "DEPLOY" || $0 == "V15" }
@@ -930,6 +945,27 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     static let inchScale: Float = 0.85
 
+    /// The red roadster with its spacesuited driver: one, drifting through with the Starships and tumbling slowly.
+    private func addRoadster(_ res: URL) throws {
+        let m = try GLB.load(res.appendingPathComponent("Roadster.glb"))
+        guard let car = m.root.childNode(withName: "roadster", recursively: true) else { throw GLBError.badFile("no roadster node") }
+        car.removeFromParentNode()
+        let b = car.deepBounds() ?? (SIMD3(0, 0, 0), SIMD3(0, 1, 0))
+        car.simdPosition -= (b.min + b.max) / 2                  // tumble about its middle
+        let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: 1.25); pivot.addChildNode(car)
+        let c = Craft()
+        let root = SCNNode(); root.addChildNode(pivot)
+        c.g.addChildNode(root)
+        car.enumerateHierarchy { o, _ in
+            o.geometry?.materials.forEach { $0.isDoubleSided = true }
+            if let name = o.name, m.extras[name]?["wheel"] != nil { c.wheels.append((o, o.simdOrientation)) }
+        }
+        c.roadster = true
+        c.tumbleAxis = simd_normalize(SIMD3(.random(in: -1...1), .random(in: -1...1), .random(in: -0.4...0.4)))
+        c.tumbleRate = .random(in: 0.22...0.4) * (Bool.random() ? 1 : -1)
+        add(c)
+    }
+
     /// Starlink shells: the V1.5s keep to their own altitude, a layer well behind the V2s and V3s, so the two never
     /// meet; everything else shares the nearer layer.
     /// With crossing orbits each leg of the X gets its own altitudes too, so nothing on one leg meets anything on the
@@ -999,7 +1035,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 if simd_dot(SIMD2(c.x, c.y), SIMD2(c.d.x, c.d.y)) > laneLength(lanes[c.lane]) { relane(c) }
             } else if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
             let tf = Float(t)
-            let straight = !c.inch.isEmpty                      // V1.5 keeps to a straight line: no bob, no stunts
+            let straight = !c.inch.isEmpty || c.roadster        // V1.5 and the roadster: no bob, no stunts
             let bob = straight ? 0 : sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
             let stowed = (c.deploys && c.dep < 7.8) || straight
             if stowed { c.man = nil; c.next = max(c.next, t + 2) }      // no stunts until the arrays are out
@@ -1007,7 +1043,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
             let wobble = c.wob * sin(tf * 11 + c.phase) * 0.35
             var q = lookRotation(c.d)
-            if straight {
+            if c.roadster {
+                q = q * simd_quatf(angle: tf * c.tumbleRate + c.phase, axis: c.tumbleAxis)   // a slow tumble, as in space
+                for w in c.wheels { w.node.simdOrientation = w.q0 * simd_quatf(angle: c.spin * 9, axis: SIMD3(1, 0, 0)) }
+            } else if straight {
                 q = q * simd_quatf(angle: tilt + wobble, axis: SIMD3(0, 0, 1))
             } else {
                 if kind == .starlink { q = q * yRot }

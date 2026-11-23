@@ -27,7 +27,7 @@ cp Saver/thumbs/"$SCENE"/thumbnail*.png "$OUT/Contents/Resources/" 2>/dev/null |
 # models for the native (SceneKit) renderer; the car liveries are pre-painted by tools/bake_liveries.py
 case "$SCENE" in
   cars)      cp Saver/native/X1_*.glb "$OUT/Contents/Resources/" ;;
-  starships) cp Saver/src/Starship.glb "$OUT/Contents/Resources/" ;;
+  starships) cp Saver/src/Starship.glb Saver/src/Roadster.glb "$OUT/Contents/Resources/" ;;
   starlink)  cp Saver/src/Starlink.glb "$OUT/Contents/Resources/" ;;
 esac
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__ID__/$ID/" -e "s/__NAME__/$NAME/g" \

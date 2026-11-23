@@ -1005,6 +1005,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         spawn(c, true);
         craft.push(c);
       }
+      if (CFG.roadster && $('glb2') && $('glb2').textContent.trim()) await addRoadster();
       $('loading') && $('loading').remove();
       return;
     }
@@ -1026,6 +1027,32 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       craft.push(c);
     }
     $('loading') && $('loading').remove();
+  }
+
+  // ---------- the roadster (Starships option) ----------
+  // A red roadster with a spacesuited driver, drifting through with the Starships, wheels spinning, tumbling slowly.
+  function addRoadster() {
+    const b2 = atob($('glb2').textContent.trim()), u8 = new Uint8Array(b2.length);
+    for (let i = 0; i < b2.length; i++) u8[i] = b2.charCodeAt(i);
+    return new Promise((res, rej) =>
+      new THREE.GLTFLoader().parse(u8.buffer, '', (g) => {
+        const car = g.scene.getObjectByName('roadster') || g.scene;
+        const mid = new THREE.Box3().setFromObject(car).getCenter(new THREE.Vector3());
+        car.position.sub(mid);
+        const wheels = [];
+        car.traverse((o) => {
+          if (o.isMesh) { o.frustumCulled = false; o.material.side = THREE.DoubleSide; }
+          if (o.userData && o.userData.wheel) wheels.push({ o, q0: o.quaternion.clone() });
+        });
+        const pivot = new THREE.Group(); pivot.scale.setScalar(1.25); pivot.add(car);
+        const root = new THREE.Group(); root.add(pivot);
+        const gg = new THREE.Group(); gg.add(root); scene.add(gg);
+        const ax = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, (Math.random() * 2 - 1) * 0.4).normalize();
+        const c = { g: gg, fans: [], roadster: true, wheels, tumbleAxis: ax, tumbleRate: (0.22 + Math.random() * 0.18) * (Math.random() < 0.5 ? -1 : 1), spin: 0 };
+        spawn(c, true);
+        craft.push(c);
+        res();
+      }, rej));
   }
 
   // ---------- animate ----------
@@ -1096,7 +1123,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       if (c.lane !== undefined) { if (c.x * D.x + c.y * D.y > laneLen(lanes[c.lane])) relane(c); }
       else if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
-      const straight = !!c.inch; // V1.5 keeps to a straight line: no bob, no stunts
+      const straight = !!c.inch || !!c.roadster; // V1.5 and the roadster: no bob, no stunts
       const bob = straight ? 0 : Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const stowed = (c.deploys && c.dep < 7.8) || straight; // no stunts until the arrays are out
       if (stowed) { c.man = null; c.next = Math.max(c.next, clock() + 2); }
@@ -1108,7 +1135,10 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
-      if (straight) c.g.rotateZ(TILT + wobble);
+      if (c.roadster) {
+        c.g.quaternion.multiply(tmpQ.setFromAxisAngle(c.tumbleAxis, t * c.tumbleRate + c.phase)); // a slow tumble, as in space
+        for (const w of c.wheels) w.o.quaternion.copy(w.q0).multiply(tmpQ.setFromAxisAngle(xAxis, c.spin * 9));
+      } else if (straight) c.g.rotateZ(TILT + wobble);
       else {
         if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
         c.g.rotateZ(TILT + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);

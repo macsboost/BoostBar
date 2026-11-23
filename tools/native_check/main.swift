@@ -33,6 +33,21 @@ cars.clouds = true
 shoot(.cars, cars, "cars_clouds", seconds: 6)
 var ships = SaverConfig(); ships.count = 5; ships.oxidation = 0.8; ships.tilt = 30
 shoot(.starships, ships, "native_ships", seconds: 4)
+var rc = SaverConfig(); rc.count = 1; rc.roadster = true
+for (name, t) in [("roadster_a", 1.0), ("roadster_b", 3.5), ("roadster_c", 6.0)] {
+    let f = Flock(kind: .starships, cfg: rc, resources: res)
+    if let e = f.error { print("SCENE ERROR roadster:", e) }
+    f.setAspect(size.width / size.height)
+    let r = SCNRenderer(device: device, options: nil); r.scene = f.scene; r.pointOfView = f.camera
+    var tt = 0.0; f.step(to: tt); f.roadsterCloseup(distance: 12)
+    while tt < t { tt += 1.0 / 30; f.step(to: tt) }
+    let img = r.snapshot(atTime: tt, with: size, antialiasingMode: .multisampling4X)
+    if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.75]) {
+        print("IMG_BEGIN \(name).jpg"); print(jpg.base64EncodedString()); print("IMG_END")
+    }
+}
+var rs = SaverConfig(); rs.count = 5; rs.roadster = true
+shoot(.starships, rs, "ships_roadster", seconds: 5)
 var sats = SaverConfig(); sats.count = 5
 shoot(.starlink, sats, "native_sats", seconds: 4)
 var c1 = SaverConfig(); c1.count = 3; c1.liveries = ["macsboost"]

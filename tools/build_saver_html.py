@@ -12,7 +12,7 @@ scene = sys.argv[4] if len(sys.argv) > 4 else "cars"
 SCENES = {
     "cars": dict(title="BoostBar Flying Cars", loading="⚡ BOOSTBAR FLYING CARS", glb="X1_SkyRacer.glb", liveries="liveries.json"),
     "starlink": dict(title="BoostBar Starlink", loading="🛰 BOOSTBAR STARLINK", glb="Starlink.glb", liveries=None),
-    "starships": dict(title="BoostBar Starships", loading="🚀 BOOSTBAR STARSHIPS", glb="Starship.glb", liveries=None),
+    "starships": dict(title="BoostBar Starships", loading="🚀 BOOSTBAR STARSHIPS", glb="Starship.glb", liveries=None, glb2="Roadster.glb"),
 }
 sc = SCENES[scene]
 html = open(os.path.join(S, "saver.html"), encoding="utf-8").read()
@@ -24,6 +24,7 @@ parts = {
     "/*SCENE*/": '"' + scene + '"',
     "/*LIVERIES*/": open(os.path.join(S, sc["liveries"]), encoding="utf-8").read() if sc["liveries"] else "[]",
     "/*GLB*/": base64.b64encode(open(os.path.join(S, sc["glb"]), "rb").read()).decode(),
+    "/*GLB2*/": base64.b64encode(open(os.path.join(S, sc["glb2"]), "rb").read()).decode() if sc.get("glb2") else "",
     "/*SAVER*/": open(os.path.join(S, "saver.js"), encoding="utf-8").read(),
 }
 for k, v in parts.items():
