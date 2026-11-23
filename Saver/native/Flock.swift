@@ -125,6 +125,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         var fans: [(node: SCNNode, q0: simd_quatf, sg: Float, rate: Float)] = []
         var flaps: [(node: SCNNode, q0: simd_quatf, s: Float, fwd: Bool)] = []
         var wings: [(node: SCNNode, q0: simd_quatf, s: Float, i: Int, n: Int)] = []
+        var links: [(node: SCNNode, q0: simd_quatf, s: Float)] = []
         var plume: SCNNode?, core: SCNNode?
         /// Starlink "deploying": arrays start fan-folded on the bus, unfold straight up, lay flat, then flap.
         var deploys = false, dep: Float = 0, depStarted = false
@@ -237,7 +238,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 let root = tpl[pick == "DEPLOY" ? "V3" : pick]!.clone()
                 c.g.addChildNode(root)
                 root.enumerateHierarchy { o, _ in
-                    guard let name = o.name, let e = m.extras[name], let w = e["wing"] as? String else { return }
+                    guard let name = o.name, let e = m.extras[name] else { return }
+                    if let l = e["link"] as? String { c.links.append((o, o.simdOrientation, l == "R" ? 1 : -1)); return }
+                    guard let w = e["wing"] as? String else { return }
                     c.wings.append((o, o.simdOrientation, w == "R" ? 1 : -1, e["i"] as? Int ?? 0, e["n"] as? Int ?? 1))
                 }
                 c.flapRate = 3.6 + .random(in: 0...1.6)
@@ -561,7 +564,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         let yRot = simd_quatf(angle: 0.45, axis: SIMD3(0, 1, 0))
         for c in craft {
             // a deploying Starlink drifts at half speed until its arrays are out and flapping
-            let pace: Float = c.deploys ? 0.5 + 0.5 * Float(ease(Double((c.dep - 6.1) / 1.5))) : 1
+            let pace: Float = c.deploys ? 0.5 + 0.5 * Float(ease(Double((c.dep - 7.8) / 1.5))) : 1
             c.x += dir.x * c.speed * pace * dt + c.kx * dt
             c.y += dir.y * c.speed * pace * dt + c.ky * dt
             c.z = max(-45, min(closeupZ ?? 8, c.z + c.kz * dt))
@@ -571,7 +574,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
             let tf = Float(t)
             let bob = sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
-            let stowed = c.deploys && c.dep < 6.1
+            let stowed = c.deploys && c.dep < 7.8
             if stowed { c.man = nil; c.next = max(c.next, t + 2) }      // no stunts until the arrays are out
             let st = stowed ? nil : stunt(c, t)
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
@@ -586,26 +589,29 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             }
             if !c.wings.isEmpty {
                 let ph0 = c.spin * c.flapRate + c.phase
-                // deployment: u unfolds the fan-fold stack straight up, v lays the arrays flat, amp fades the wingbeat in
-                var u: Float = 1, v: Float = 1, amp: Float = 1
+                // deployment: the linkage swings the stowed stack out from over the bus (link), u unfolds the
+                // fan-fold stack straight up, v lays the arrays flat, amp fades the wingbeat in
+                var u: Float = 1, v: Float = 1, amp: Float = 1, link: Float = 0
                 if c.deploys {
                     if !c.depStarted, abs(c.x) < w * 0.85, abs(c.y) < h * 0.85 { c.depStarted = true }
                     if c.depStarted { c.dep += dt }
-                    u = Float(ease(Double((c.dep - 0.8) / 3.5)))
-                    v = Float(ease(Double((c.dep - 4.3) / 1.8)))
-                    amp = Float(ease(Double((c.dep - 6.1) / 1.5)))
+                    link = .pi * (1 - Float(ease(Double((c.dep - 0.8) / 1.8))))
+                    u = Float(ease(Double((c.dep - 2.8) / 3.2)))
+                    v = Float(ease(Double((c.dep - 6.0) / 1.8)))
+                    amp = Float(ease(Double((c.dep - 7.8) / 1.5)))
                 }
-                // a panel's angle up from flat: stowed they alternate 180°-d / d (a stack lying on the bus), then all 90°, then 0°
+                for l in c.links { l.node.simdOrientation = l.q0 * simd_quatf(angle: l.s * link, axis: SIMD3(0, 0, 1)) }
+                // a panel's angle up from flat (world): stowed they alternate d / 180°-d (a level stack), then all 90°, then 0°
                 let swing: Float = (Float.pi / 2 - 0.044) * (1 - u)
                 func fold(_ i: Int) -> Float {
                     let sign: Float = i % 2 == 0 ? 1 : -1
-                    return (Float.pi / 2 + sign * swing) * (1 - v)
+                    return (Float.pi / 2 - sign * swing) * (1 - v)
                 }
                 for j in c.wings {
                     let ph = ph0 - Float(j.i) * 0.42
                     let beat = sin(ph) + 0.28 * sin(2 * ph)
                     let flap: Float = j.i == 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / Float(j.n)) * beat
-                    let base: Float = j.i == 0 ? fold(0) : fold(j.i) - fold(j.i - 1)
+                    let base: Float = j.i == 0 ? fold(0) - link : fold(j.i) - fold(j.i - 1)
                     let a: Float = base + amp * flap
                     j.node.simdOrientation = j.q0 * simd_quatf(angle: j.s * a, axis: SIMD3(0, 0, 1))
                 }

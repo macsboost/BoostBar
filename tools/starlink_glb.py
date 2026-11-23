@@ -8,8 +8,10 @@ The arrays are fan-fold blankets: many narrow panels (dark silicon cells one sid
 by piano hinges, each array as wide as the bus is long.
 
   scene nodes   V2, V3                      (roots; the saver clones one per satellite)
-    <name>_bus, booms                       (rigid)
-    wL0 -> wL1 -> ... ,  wR0 -> wR1 -> ...  joint nodes on the hinge lines; extras {wing: 'L'|'R', i, n}
+    <name>_bus                              (rigid)
+    lkL, lkR                                array linkage: a hinge at the bus edge carrying a strut frame out to
+                                            the array's root yoke (the gap between bus and array); extras {link}
+      wL0 -> wL1 -> ... ,  wR0 -> ...       joint nodes on the hinge lines; extras {wing: 'L'|'R', i, n}
        each joint carries one panel         (span along x, chord along z, cells face +y)
 
 Frame: metres, +y up (cells and antennas face up), +z forward (direction of flight, broadside like a bird), span
@@ -315,6 +317,11 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
         metal.box(x, 0, e * (bz / 2 + r * 0.38), 0.08, 0.06, r * 0.8)
         w, m = gimbal_dish(r, 'x', e * 0.45)
         dish.add(w, None, (x, 0, z)); metal.add(m, None, (x, 0, z))
+    mods, ml, chord, gap, cols, rows = wing
+    hy = by / 2 + 0.1
+    for k in (-1, 1):
+        for zz in (-bz * 0.16, bz * 0.16):                        # clevis posts carrying the array hinges
+            metal.box(k * bx / 2, (by / 2 + hy) / 2, zz, 0.09, hy - by / 2 + 0.06, 0.12)
     nodes.append(node(name + '_bus', mesh(name + '_bus', [(ch, CHASSIS), (top, DECK), (white, WHITE), (metal, SILVER),
                                                              (dish, DISH), (lens, LENS), (cu, COPPER)])))
 
@@ -324,12 +331,30 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
     hy = by / 2 + 0.1                                             # hinge line sits just above the antenna face
     th = 0.024
     for side, s in (('L', -1), ('R', 1)):
-        bm = Mesh()
         x0 = s * bx / 2
-        for zz in (-chord * 0.3, 0, chord * 0.3):                 # root brackets up to the hinge line
-            bm.box(x0 + s * boom / 2, hy / 2 + 0.02, zz, boom + 0.06, hy + 0.04, 0.07)
-        bm.box(x0 + s * boom, hy, 0, 0.06, 0.06, chord)           # root hinge tube
-        nodes.append(node(f'{name}_boom{side}', mesh(f'{name}_boom{side}', [(bm, SILVER)])))
+        zb = bz * 0.16
+        # the linkage: clevis posts on the bus edge, a hinge, then a strut frame across the gap to the root yoke
+        lk = Mesh()
+        lk.add(Mesh().cyl(0.035, zb * 2 + 0.2, seg=10), rot('x', math.pi / 2), (0, 0, -(zb + 0.1)))   # hinge pin
+        def rod(p, q, r):
+            p, q = np.array(p, 'f8'), np.array(q, 'f8')
+            d = q - p; L = float(np.linalg.norm(d)); d /= L
+            # rotate +y onto d
+            ax = np.cross([0, 1, 0], d); sn = float(np.linalg.norm(ax)); cs = float(d[1])
+            if sn < 1e-9: R = np.eye(3) if cs > 0 else rot('x', math.pi)
+            else:
+                ax /= sn; K = np.array([[0, -ax[2], ax[1]], [ax[2], 0, -ax[0]], [-ax[1], ax[0], 0]])
+                R = np.eye(3) + sn * K + (1 - cs) * (K @ K)
+            lk.add(Mesh().cyl(r, L, seg=8), R, tuple(p))
+        bx_, yo = s * boom, chord * 0.42
+        rod((0, 0, -zb), (bx_, 0, -yo), 0.03)                     # the two diverging struts
+        rod((0, 0, zb), (bx_, 0, yo), 0.03)
+        rod((0, 0, -zb), (bx_, 0, yo * 0.35), 0.018)              # cross bracing
+        rod((0, 0, zb), (bx_, 0, -yo * 0.35), 0.018)
+        rod((0, 0, 0), (bx_, 0, 0), 0.04)                         # central drive / harness tube
+        rod((bx_, 0, -chord / 2), (bx_, 0, chord / 2), 0.035)     # root yoke the array hangs from
+        lk.box(bx_ * 0.55, 0, 0, 0.16, 0.08, 0.16)                # harness box on the tube
+        link = node(f'{name}_lk{side}', mesh(f'{name}_lk{side}', [(lk, SILVER)]), (x0, hy, 0), {'link': side})
         # one panel: cells up, backing down, thin edge; the piano hinge sits in the gap at the joint
         cells, back, hinge = Mesh(), Mesh(), Mesh()
         xa, xb = s * gap, s * (gap + ml)
@@ -345,14 +370,15 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
         mi = mesh(f'{name}_{side}', [(cells, cell_mat), (back, back_mat), (hinge, SILVER)])
         parent, first = None, None
         for i in range(mods):
-            t = (x0 + s * boom, hy, 0) if i == 0 else (s * (gap + ml), 0, 0)
+            t = (s * boom, 0, 0) if i == 0 else (s * (gap + ml), 0, 0)
             j = node(f'{name}_w{side}{i}', mi, t, {'wing': side, 'i': i, 'n': mods})
             if parent is None:
                 first = j
             else:
                 G['nodes'][parent].setdefault('children', []).append(j)
             parent = j
-        nodes.append(first)
+        G['nodes'][link]['children'] = [first]
+        nodes.append(link)
     root = node(name, None, (0, 0, 0), {'sat': name}, nodes)
     G['scenes'][0]['nodes'].append(root)
 
@@ -363,7 +389,7 @@ satellite('V2', bus=(2.7, 0.24, 4.1),
                 ('dark', 0.72, -1.05, 1.0, 1.7), ('mirror', 0.72, 0.55, 1.0, 1.1), ('ku', 0.72, 1.5, 0.8, 0.6),
                 ('pad', -1.2, -1.9, 0.16, 0.16), ('pad', 1.2, -1.9, 0.16, 0.16), ('pad', -1.2, 1.9, 0.16, 0.16), ('pad', 1.2, 1.9, 0.16, 0.16)],
           dishes=[(-0.75, 1, 0.36), (0.75, 1, 0.36), (0.6, -1, 0.3)],
-          boom=0.3, wing=(10, 1.25, 4.0, 0.05, 24, 7), seed=2)
+          boom=1.3, wing=(10, 1.25, 4.0, 0.05, 24, 7), seed=2)
 # V3 (Starship-launched): a far larger bus and arrays, bigger phased arrays and more backhaul dishes
 satellite('V3', bus=(3.6, 0.34, 7.0),
           deck=[('ku', -0.85, -2.5, 1.6, 1.6), ('ku', -0.85, -0.83, 1.6, 1.6), ('ku', -0.85, 0.83, 1.6, 1.6), ('ku', -0.85, 2.5, 1.6, 1.6),
@@ -371,7 +397,7 @@ satellite('V3', bus=(3.6, 0.34, 7.0),
                 ('pad', -1.65, -3.3, 0.2, 0.2), ('pad', 1.65, -3.3, 0.2, 0.2), ('pad', -1.65, 3.3, 0.2, 0.2), ('pad', 1.65, 3.3, 0.2, 0.2),
                 ('pad', -1.65, 0, 0.2, 0.2), ('pad', 1.65, 0, 0.2, 0.2)],
           dishes=[(-1.1, 1, 0.55), (1.1, 1, 0.55), (-1.1, -1, 0.55), (1.1, -1, 0.55), (0, 1, 0.34)],
-          boom=0.3, wing=(12, 1.5, 6.8, 0.05, 40, 8), seed=3)
+          boom=1.75, wing=(12, 1.5, 6.8, 0.05, 40, 8), seed=3)
 
 js = json.dumps(G, separators=(',', ':')).encode()
 G['buffers'][0:] = [{'byteLength': len(BIN)}]

@@ -555,7 +555,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   function wingsOf(root) {
     const joints = [];
     root.traverse((o) => {
-      if (o.userData && o.userData.wing) joints.push({ o, q0: o.quaternion.clone(), s: o.userData.wing === 'R' ? 1 : -1, i: o.userData.i, n: o.userData.n });
+      if (o.userData && o.userData.link) joints.push({ o, q0: o.quaternion.clone(), s: o.userData.link === 'R' ? 1 : -1, link: true });
+      else if (o.userData && o.userData.wing) joints.push({ o, q0: o.quaternion.clone(), s: o.userData.wing === 'R' ? 1 : -1, i: o.userData.i, n: o.userData.n });
     });
     return joints;
   }
@@ -781,7 +782,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     const damp = Math.exp(-2.2 * dt);
     for (const c of craft) {
       // a deploying Starlink drifts at half speed until its arrays are out and flapping
-      const pk = (c.dep - 6.1) / 1.5, pace = c.deploys ? 0.5 + 0.5 * (pk < 0 ? 0 : pk > 1 ? 1 : pk * pk * (3 - 2 * pk)) : 1;
+      const pk = (c.dep - 7.8) / 1.5, pace = c.deploys ? 0.5 + 0.5 * (pk < 0 ? 0 : pk > 1 ? 1 : pk * pk * (3 - 2 * pk)) : 1;
       c.x += DIR.x * c.speed * pace * dt + c.kx * dt;
       c.y += DIR.y * c.speed * pace * dt + c.ky * dt;
       c.z = Math.max(-45, Math.min(8, c.z + c.kz * dt));
@@ -791,7 +792,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
-      const stowed = c.deploys && c.dep < 6.1; // no stunts until the arrays are out
+      const stowed = c.deploys && c.dep < 7.8; // no stunts until the arrays are out
       if (stowed) { c.man = null; c.next = Math.max(c.next, clock() + 2); }
       const st = stowed ? null : stunt(c, t);
       c.g.position.set(c.x, c.y + bob, c.z);
@@ -811,22 +812,24 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         // lags the one inside it and the tips whip; the body rises a little on each downstroke
         const ph0 = c.spin * c.flapRate + c.phase;
         // deploying: u unfolds the fan-fold stack straight up, v lays the arrays flat, amp fades the wingbeat in
-        let u = 1, v = 1, amp = 1;
+        let u = 1, v = 1, amp = 1, link = 0;
         if (c.deploys) {
           if (!c.depStarted && Math.abs(c.x) < w * 0.85 && Math.abs(c.y) < h * 0.85) c.depStarted = true;
           if (c.depStarted) c.dep += dt;
           const es = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
-          u = es((c.dep - 0.8) / 3.5);
-          v = es((c.dep - 4.3) / 1.8);
-          amp = es((c.dep - 6.1) / 1.5);
+          link = Math.PI * (1 - es((c.dep - 0.8) / 1.8)); // the linkage swings the stack out from over the bus
+          u = es((c.dep - 2.8) / 3.2);
+          v = es((c.dep - 6.0) / 1.8);
+          amp = es((c.dep - 7.8) / 1.5);
         }
         // a panel's angle up from flat: stowed they alternate 180°-d / d (a stack lying on the bus), then 90°, then 0°
-        const fold = (i) => (Math.PI / 2 + (i % 2 === 0 ? 1 : -1) * (Math.PI / 2 - 0.044) * (1 - u)) * (1 - v);
+        const fold = (i) => (Math.PI / 2 - (i % 2 === 0 ? 1 : -1) * (Math.PI / 2 - 0.044) * (1 - u)) * (1 - v);
         for (const j of c.wings) {
+          if (j.link) { j.o.quaternion.copy(j.q0).multiply(flapQ.setFromAxisAngle(zAxis, j.s * link)); continue; }
           const ph = ph0 - j.i * 0.42;
           const beat = Math.sin(ph) + 0.28 * Math.sin(2 * ph);
           const flap = j.i === 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / j.n) * beat;
-          const a = (j.i === 0 ? fold(0) : fold(j.i) - fold(j.i - 1)) + amp * flap;
+          const a = (j.i === 0 ? fold(0) - link : fold(j.i) - fold(j.i - 1)) + amp * flap;
           j.o.quaternion.copy(j.q0).multiply(flapQ.setFromAxisAngle(zAxis, j.s * a));
         }
         c.g.position.y -= 0.35 * Math.cos(ph0) * amp;

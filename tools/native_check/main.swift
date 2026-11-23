@@ -45,7 +45,7 @@ c3.liveries = ["v2"]
 shoot(.starlink, c3, "close_v2", seconds: 1.3, closeup: 26)
 c3.liveries = ["deploy"]
 shoot(.starlink, c3, "dep_a", seconds: 1.3, closeup: 22, deploy: -1)
-shoot(.starlink, c3, "dep_b", seconds: 1.3, closeup: 26, deploy: 1.3)
-shoot(.starlink, c3, "dep_c", seconds: 1.3, closeup: 40, deploy: 2.9)
-shoot(.starlink, c3, "dep_d", seconds: 1.3, closeup: 40, deploy: 3.9)
+shoot(.starlink, c3, "dep_b", seconds: 1.3, closeup: 26, deploy: 1.7)
+shoot(.starlink, c3, "dep_c", seconds: 1.3, closeup: 40, deploy: 3.4)
+shoot(.starlink, c3, "dep_d", seconds: 1.3, closeup: 40, deploy: 5.0)
 print("DONE")
