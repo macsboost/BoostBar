@@ -85,7 +85,15 @@ final class StatusGraphView: NSView {
     private static let pad: CGFloat = 3
     private static let dotWidth: CGFloat = 6
     private static let graphWidth: CGFloat = 30
-    private static let netTextWidth: CGFloat = 58
+    /// Room for the speed text: measured from the widest reading ("▲ 888 MB/s"), so no slack is left after it
+    /// (a fixed 58 pt left a visibly bigger gap before the next piece than between the others).
+    private static let netTextWidth: CGFloat = {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        let w = ["▲ 888 MB/s", "▼ 888 MB/s", "▲ 888 Mb/s", "▲ 88.8 GB/s"].map {
+            NSAttributedString(string: $0, attributes: [.font: font]).size().width
+        }.max() ?? 50
+        return ceil(w) + 1
+    }()
     private static let batteryWidth: CGFloat = 30
     private static let iconWidth: CGFloat = 20
     private static let ledDiameters: [CGFloat] = [7, 11, 15]

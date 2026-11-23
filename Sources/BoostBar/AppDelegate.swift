@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Prefs.registerDefaults()
+        if let i = CommandLine.arguments.firstIndex(of: "--snapshot-settings"), i + 1 < CommandLine.arguments.count {
+            settingsWindow.snapshot(to: CommandLine.arguments[i + 1])   // layout check: render every Settings tab, then quit
+            exit(0)
+        }
         #if !APPSTORE
         if MoveToApplications.offerIfNeeded() { return }
         #endif

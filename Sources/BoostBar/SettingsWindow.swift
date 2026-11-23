@@ -7,12 +7,41 @@ private final class ActionBox: NSObject {
     @objc func run(_ sender: Any?) { fire(sender) }
 }
 
-/// One settings tab: a vertical list of controls, each with a refresher that re-reads its state.
+/// The rounded, lightly tinted box a group of settings sits in (like System Settings).
+private final class CardView: NSView {
+    override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true }
+    required init?(coder: NSCoder) { fatalError() }
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.cornerRadius = 10
+        layer?.borderWidth = 1
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.035).cgColor
+            layer?.borderColor = NSColor.labelColor.withAlphaComponent(0.09).cgColor
+        }
+    }
+}
+
+private final class FlippedView: NSView { override var isFlipped: Bool { true } }
+/// A row indented under the control above it.
+private final class IndentRow: NSStackView {}
+
+/// One settings tab: titled cards of controls, each control with a refresher that re-reads its state.
 private final class Pane: NSViewController {
+    static let width: CGFloat = 660
+    private static let margin: CGFloat = 24
+    private static let cardPad: CGFloat = 14
+    private static let labelWidth: CGFloat = 124
+    /// Width available to a control inside a card.
+    static let innerWidth: CGFloat = width - 2 * margin - 2 * cardPad
+
     private let stack = NSStackView()
+    private var card: NSStackView?
     private var refreshers: [() -> Void] = []
     private var boxes: [ActionBox] = []
     private let build: (Pane) -> Void
+    /// Called after a refresh, when rows may have appeared or gone (the window refits itself).
+    var onLayout: (() -> Void)?
 
     init(title: String, symbol: String, build: @escaping (Pane) -> Void) {
         self.build = build
@@ -23,21 +52,29 @@ private final class Pane: NSViewController {
     required init?(coder: NSCoder) { fatalError() }
 
     override func loadView() {
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 720, height: 600))
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 9
-        stack.edgeInsets = NSEdgeInsets(top: 22, left: 28, bottom: 22, right: 28)
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 20, left: Self.margin, bottom: 22, right: Self.margin)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        v.addSubview(stack)
+        let doc = FlippedView()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(stack)
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: Self.width, height: 480))
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.documentView = doc
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: v.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: v.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: doc.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: doc.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
+            stack.widthAnchor.constraint(equalToConstant: Self.width),
+            doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
         ])
-        view = v
-        preferredContentSize = v.frame.size
+        view = scroll
         build(self)
         refresh()
     }
@@ -47,7 +84,17 @@ private final class Pane: NSViewController {
         refresh()
     }
 
-    func refresh() { refreshers.forEach { $0() } }
+    func refresh() {
+        refreshers.forEach { $0() }
+        onLayout?()
+    }
+
+    /// The height this tab needs to show everything.
+    var fittingHeight: CGFloat {
+        _ = view
+        stack.layoutSubtreeIfNeeded()
+        return ceil(stack.fittingSize.height)
+    }
 
     /// A retained action target for controls built by hand inside a pane.
     func actionBox(_ f: @escaping (Any?) -> Void) -> ActionBox { box(f) }
@@ -56,20 +103,82 @@ private final class Pane: NSViewController {
         let b = ActionBox(f); boxes.append(b); return b
     }
 
-    // MARK: Builders
+    // MARK: Structure
 
+    /// Starts a new card, under a title.
     func header(_ text: String) {
+        card = nil
         let t = NSTextField(labelWithString: text)
         t.font = .systemFont(ofSize: 13, weight: .semibold)
-        if !stack.arrangedSubviews.isEmpty { stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!) }
-        stack.addArrangedSubview(t)
+        if let last = stack.arrangedSubviews.last { stack.setCustomSpacing(18, after: last) }
+        let r = NSStackView(views: [t])
+        r.edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 0)
+        stack.addArrangedSubview(r)
+        stack.setCustomSpacing(6, after: r)
+    }
+
+    /// Small print under the cards.
+    func footnote(_ text: String) {
+        card = nil
+        let t = NSTextField(wrappingLabelWithString: text)
+        t.font = .systemFont(ofSize: 11)
+        t.textColor = .tertiaryLabelColor
+        t.preferredMaxLayoutWidth = Self.width - 2 * Self.margin - 8
+        let r = NSStackView(views: [t])
+        r.edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 4)
+        if let last = stack.arrangedSubviews.last { stack.setCustomSpacing(10, after: last) }
+        stack.addArrangedSubview(r)
+    }
+
+    /// The card being filled (a new one if the last was closed).
+    private var content: NSStackView {
+        if let card { return card }
+        let inner = NSStackView()
+        inner.orientation = .vertical
+        inner.alignment = .leading
+        inner.spacing = 8
+        inner.translatesAutoresizingMaskIntoConstraints = false
+        let box = CardView()
+        box.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(inner)
+        let p = Self.cardPad
+        NSLayoutConstraint.activate([
+            inner.topAnchor.constraint(equalTo: box.topAnchor, constant: 12),
+            inner.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -12),
+            inner.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: p),
+            inner.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -p),
+            box.widthAnchor.constraint(equalToConstant: Self.width - 2 * Self.margin),
+        ])
+        stack.addArrangedSubview(box)
+        card = inner
+        return inner
+    }
+
+    /// A thin line between groups inside one card.
+    func divider() {
+        let line = NSBox()
+        line.boxType = .separator
+        line.translatesAutoresizingMaskIntoConstraints = false
+        let c = content
+        if let last = c.arrangedSubviews.last { c.setCustomSpacing(10, after: last) }
+        c.addArrangedSubview(line)
+        line.widthAnchor.constraint(equalToConstant: Self.innerWidth).isActive = true
+        c.setCustomSpacing(10, after: line)
+    }
+
+    // MARK: Builders
+
+    private func fieldLabel(_ text: String) -> NSTextField {
+        let l = NSTextField(labelWithString: text)
+        l.widthAnchor.constraint(equalToConstant: Self.labelWidth).isActive = true
+        return l
     }
 
     func note(_ text: String, indent: Bool = false) {
         let t = NSTextField(wrappingLabelWithString: text)
         t.font = .systemFont(ofSize: 11)
         t.textColor = .secondaryLabelColor
-        t.preferredMaxLayoutWidth = 540
+        t.preferredMaxLayoutWidth = Self.innerWidth - (indent ? 20 : 0)
         add(t, indent: indent)
     }
 
@@ -80,10 +189,11 @@ private final class Pane: NSViewController {
         let b = NSButton(checkboxWithTitle: title, target: nil, action: nil)
         let bx = box { [weak b] _ in if let b { set(b.state == .on) } }
         b.target = bx; b.action = #selector(ActionBox.run(_:))
-        refreshers.append { [weak b] in
-            b?.state = get() ? .on : .off
-            if let enabled { b?.isEnabled = enabled() }
-            if let visible { b?.isHidden = !visible() }
+        refreshers.append { [weak self, weak b] in
+            guard let b else { return }
+            b.state = get() ? .on : .off
+            if let enabled { b.isEnabled = enabled() }
+            if let visible { self?.setHidden(b, !visible()) }
         }
         add(b, indent: indent)
         return b
@@ -92,7 +202,7 @@ private final class Pane: NSViewController {
     func popup(_ label: String, items: [String], indent: Bool = false,
                get: @escaping () -> Int, set: @escaping (Int) -> Void,
                trailing: NSView? = nil, enabled: (() -> Bool)? = nil) {
-        let l = NSTextField(labelWithString: label)
+        let l = fieldLabel(label)
         let p = NSPopUpButton(frame: .zero, pullsDown: false)
         p.addItems(withTitles: items)
         let bx = box { [weak p] _ in if let p { set(p.indexOfSelectedItem) } }
@@ -106,32 +216,43 @@ private final class Pane: NSViewController {
         add(row(views), indent: indent)
     }
 
+    /// A labelled slider with a live read-out of its value, an optional caption and trailing control.
     func slider(_ label: String, min: Double, max: Double, get: @escaping () -> Double, set: @escaping (Double) -> Void,
-                caption: String? = nil, enabled: (() -> Bool)? = nil, visible: (() -> Bool)? = nil) {
-        let l = NSTextField(labelWithString: label)
-        l.widthAnchor.constraint(equalToConstant: 110).isActive = true
+                value: ((Double) -> String)? = nil, caption: String? = nil, trailing: NSView? = nil,
+                enabled: (() -> Bool)? = nil, visible: (() -> Bool)? = nil) {
+        let l = fieldLabel(label)
         let s = NSSlider(value: get(), minValue: min, maxValue: max, target: nil, action: nil)
-        s.widthAnchor.constraint(equalToConstant: 260).isActive = true
-        let bx = box { [weak s] _ in if let s { set(s.doubleValue) } }
+        s.widthAnchor.constraint(equalToConstant: 230).isActive = true
+        let readout = NSTextField(labelWithString: "")
+        readout.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        readout.alignment = .right
+        readout.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        let bx = box { [weak s, weak readout] _ in
+            guard let s else { return }
+            set(s.doubleValue)
+            if let value { readout?.stringValue = value(get()) }
+        }
         s.target = bx; s.action = #selector(ActionBox.run(_:))
         var views: [NSView] = [l, s]
+        if value != nil { views.append(readout) }
         if let caption {
             let c = NSTextField(labelWithString: caption)
             c.font = .systemFont(ofSize: 11); c.textColor = .secondaryLabelColor
             views.append(c)
         }
-        refreshers.append { [weak s] in
-            s?.doubleValue = get()
-            if let enabled { s?.isEnabled = enabled() }
-        }
+        if let trailing { views.append(trailing) }
         let r = row(views)
-        if let visible { refreshers.append { [weak r] in r?.isHidden = !visible() } }
+        refreshers.append { [weak self, weak s, weak readout, weak r] in
+            s?.doubleValue = get()
+            if let value { readout?.stringValue = value(get()) }
+            if let enabled { s?.isEnabled = enabled() }
+            if let visible, let r { self?.setHidden(r, !visible()) }
+        }
         add(r, indent: false)
     }
 
     func color(_ label: String, get: @escaping () -> NSColor, set: @escaping (NSColor) -> Void) {
-        let l = NSTextField(labelWithString: label)
-        l.widthAnchor.constraint(equalToConstant: 120).isActive = true
+        let l = fieldLabel(label)
         let w = NSColorWell(frame: NSRect(x: 0, y: 0, width: 44, height: 24))
         w.widthAnchor.constraint(equalToConstant: 44).isActive = true
         let bx = box { [weak w] _ in if let w { set(w.color) } }
@@ -147,6 +268,11 @@ private final class Pane: NSViewController {
         return b
     }
 
+    /// A row of buttons (or other small views), optionally after a field label.
+    func buttons(_ views: [NSView], label: String? = nil) {
+        add(row((label.map { [fieldLabel($0)] } ?? []) + views), indent: false)
+    }
+
     func makeButton(_ title: String, action: @escaping () -> Void) -> NSButton {
         let bx = box { _ in action() }
         let b = NSButton(title: title, target: bx, action: #selector(ActionBox.run(_:)))
@@ -154,19 +280,33 @@ private final class Pane: NSViewController {
         return b
     }
 
+    /// Status text that follows the app's state; the row disappears while it's empty.
     func label(indent: Bool = false, get: @escaping () -> String) {
-        let t = NSTextField(labelWithString: "")
+        let t = NSTextField(wrappingLabelWithString: "")
         t.font = .systemFont(ofSize: 12)
         t.textColor = .secondaryLabelColor
-        refreshers.append { [weak t] in t?.stringValue = get() }
+        t.preferredMaxLayoutWidth = Self.innerWidth - (indent ? 20 : 0)
+        refreshers.append { [weak self, weak t] in
+            guard let t else { return }
+            let s = get()
+            t.stringValue = s
+            self?.setHidden(t, s.isEmpty)
+        }
         add(t, indent: indent)
     }
 
+    /// A full-width view of fixed height (a table, an editor).
     func custom(_ v: NSView, height: CGFloat, onRefresh: (() -> Void)? = nil) {
         v.translatesAutoresizingMaskIntoConstraints = false
-        stack.addArrangedSubview(v)
+        content.addArrangedSubview(v)
         v.heightAnchor.constraint(equalToConstant: height).isActive = true
-        v.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -56).isActive = true
+        v.widthAnchor.constraint(equalToConstant: Self.innerWidth).isActive = true
+        if let onRefresh { refreshers.append(onRefresh) }
+    }
+
+    /// Any hand-built row, with its own refresher.
+    func addRow(_ v: NSView, onRefresh: (() -> Void)? = nil) {
+        add(v, indent: false)
         if let onRefresh { refreshers.append(onRefresh) }
     }
 
@@ -178,14 +318,29 @@ private final class Pane: NSViewController {
         return r
     }
 
+    /// Hides a control (and the indent wrapper it may sit in) so its row closes up.
+    func setHidden(_ v: NSView, _ hidden: Bool) {
+        if let w = v.superview as? IndentRow { w.isHidden = hidden }
+        v.isHidden = hidden
+    }
+
     private func add(_ v: NSView, indent: Bool) {
         if indent {
-            let r = NSStackView(views: [v])
+            let r = IndentRow(views: [v])
             r.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 0)
-            stack.addArrangedSubview(r)
+            content.addArrangedSubview(r)
         } else {
-            stack.addArrangedSubview(v)
+            content.addArrangedSubview(v)
         }
+    }
+}
+
+/// Tabs that tell the window when the selection changes, so it can fit itself to the tab.
+private final class Tabs: NSTabViewController {
+    var onSelect: (() -> Void)?
+    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: tabViewItem)
+        onSelect?()
     }
 }
 
@@ -193,7 +348,9 @@ private final class Pane: NSViewController {
 final class SettingsWindow: NSObject, NSWindowDelegate {
     private unowned let app: AppDelegate
     private var window: NSWindow?
-    private var tabs: NSTabViewController?
+    private var tabs: Tabs?
+    /// Which saver the Screen Saver tab opens on (the settings snapshots set it).
+    static var initialSaver = 0
     private var panes: [Pane] = []
     private var drivesTable: DiskDrivesTable?
     private var observer: NSObjectProtocol?
@@ -214,7 +371,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         if let tab, let tabs, let i = panes.firstIndex(where: { $0.title == tab }) { tabs.selectedTabViewItemIndex = i }
         refresh()
         NSApp.activate(ignoringOtherApps: true)
-        if !w.isVisible { w.center() }
+        if !w.isVisible { fit(animated: false); w.center() }
         w.makeKeyAndOrderFront(nil)
     }
 
@@ -224,8 +381,56 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         panes.forEach { if $0.isViewLoaded { $0.refresh() } }
     }
 
+    /// Sizes the window to the selected tab (up to the screen's height; a taller tab scrolls), keeping its top edge put.
+    private var fitting = false
+    private func fit(animated: Bool) {
+        guard !fitting, let w = window, let tabs, panes.indices.contains(tabs.selectedTabViewItemIndex) else { return }
+        fitting = true; defer { fitting = false }
+        let pane = panes[tabs.selectedTabViewItemIndex]
+        let room = (w.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
+        let chrome = w.frame.height - w.contentLayoutRect.height
+        let h = min(pane.fittingHeight, max(320, room - chrome - 24))
+        var f = w.frameRect(forContentRect: NSRect(x: 0, y: 0, width: Pane.width, height: h))
+        f.origin = NSPoint(x: w.frame.minX, y: w.frame.maxY - f.height)
+        if f.size != w.frame.size { w.setFrame(f, display: true, animate: animated && w.isVisible) }
+    }
+
+    /// Renders every tab to PNGs in `dir` (run with --snapshot-settings; used to check the layout in CI).
+    func snapshot(to dir: String) {
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        func shoot(_ name: String) {
+            guard let w = window, let v = w.contentView else { return }
+            fit(animated: false)
+            v.layoutSubtreeIfNeeded(); w.displayIfNeeded()
+            guard let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
+            v.cacheDisplay(in: v.bounds, to: rep)
+            let img = NSImage(size: v.bounds.size)
+            img.lockFocus()
+            NSColor.windowBackgroundColor.setFill(); v.bounds.fill()
+            rep.draw(in: v.bounds)
+            img.unlockFocus()
+            if let t = img.tiffRepresentation, let r = NSBitmapImageRep(data: t), let png = r.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name + ".png"))
+                print("settings snapshot", name, Int(v.bounds.width), "x", Int(v.bounds.height))
+            }
+        }
+        for saver in BundledSaver.all.indices {
+            Self.initialSaver = saver
+            window = nil; tabs = nil
+            let w = makeWindow(); window = w
+            w.makeKeyAndOrderFront(nil)
+            for (i, p) in panes.enumerated() {
+                let screenSaver = p.title == "Screen Saver"
+                if saver > 0 && !screenSaver { continue }
+                tabs?.selectedTabViewItemIndex = i
+                shoot((p.title ?? "tab").replacingOccurrences(of: " ", with: "") + (screenSaver ? "_\(BundledSaver.all[saver].scene)" : ""))
+            }
+            w.orderOut(nil)
+        }
+    }
+
     private func makeWindow() -> NSWindow {
-        let tabs = NSTabViewController()
+        let tabs = Tabs()
         tabs.tabStyle = .toolbar
         tabs.transitionOptions = []
         self.tabs = tabs
@@ -235,7 +440,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             "General": "gearshape", "Sleep": "moon.zzz", "Network": "network", "Battery": "battery.75percent",
             "Disks": "internaldrive", "Eyes": "eyes", "Screen Saver": "airplane", "Scrolling": "computermouse",
         ]
+        tabs.onSelect = { [weak self] in self?.fit(animated: true) }
         for p in panes {
+            p.onLayout = { [weak self, weak p] in
+                guard let self, let p, let t = self.tabs, self.panes.indices.contains(t.selectedTabViewItemIndex),
+                      self.panes[t.selectedTabViewItemIndex] === p else { return }
+                self.fit(animated: false)
+            }
             let item = NSTabViewItem(viewController: p)
             item.label = p.title ?? ""
             item.image = NSImage(systemSymbolName: symbols[p.title ?? ""] ?? "circle", accessibilityDescription: p.title)
@@ -247,7 +458,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         w.styleMask = [.titled, .closable, .miniaturizable]
         w.isReleasedWhenClosed = false
         w.delegate = self
-        w.setContentSize(NSSize(width: 720, height: 600))
+        w.setContentSize(NSSize(width: Pane.width, height: 480))
         return w
     }
 
@@ -266,15 +477,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.header("Updates")
             p.check("Check for updates when BoostBar starts", get: { Prefs.checkOnLaunch }, set: { Prefs.checkOnLaunch = $0 })
             p.check("Install updates automatically", indent: true, get: { Prefs.autoUpdate }, set: { Prefs.autoUpdate = $0 })
-            p.note("When a newer version is found at startup, BoostBar downloads it, checks Apple's notarization and the MacsBoost signature, swaps it in and relaunches — no prompt.", indent: true)
-            let gh = p.makeButton("BoostBar on GitHub") { app.openGitHub() }
-            let row = p.row([p.makeButton("Check Now") { app.checkForUpdates() }, gh])
-            p.custom(row, height: 28)
+            p.note("A newer version found at startup is downloaded, checked against Apple's notarization and the MacsBoost signature, swapped in and relaunched — no prompt.", indent: true)
+            p.buttons([p.makeButton("Check Now") { app.checkForUpdates() }, p.makeButton("BoostBar on GitHub") { app.openGitHub() }])
             #endif
             p.header("Menu Bar Layout")
-            p.note("Order of BoostBar's pieces in the menu bar — top of the list is leftmost. Drag a row, or select it and use Left / Right. You can also drag a piece left or right right in the menu bar; a plain click there opens the menu.")
-            p.check("Label pieces with stacked text: NET, BAT, HDD (wider)", get: { Prefs.verticalLabels },
+            p.check("Label the pieces with stacked text: NET, BAT, HDD", get: { Prefs.verticalLabels },
                     set: { Prefs.verticalLabels = $0; app.applySettings() })
+            p.divider()
+            p.note("Order of the pieces — the top of the list is leftmost. Drag a row, or select it and use Left / Right. You can also drag a piece along the menu bar itself.")
             let editor = OrderEditor(order: { Prefs.segmentOrder }, isShown: { app.isSegmentShown($0) },
                                      onChange: { app.setOrder($0) })
             p.custom(editor, height: 134, onRefresh: { [weak editor] in editor?.reload() })
@@ -283,9 +493,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Share anonymous install count", get: { InstallPing.isEnabled }, set: { _ in app.toggleInstallPing() })
             p.note("Sends biz-cord.com a random ID, the BoostBar version, macOS version and CPU type, once per version. No personal info.", indent: true)
             p.header("About")
-            let about = p.row([p.makeButton("About BoostBar…") { app.showAbout() },
-                               p.makeButton("Buy Me an Energy Drink ⚡") { app.showAbout() }])
-            p.custom(about, height: 28)
+            p.buttons([p.makeButton("About BoostBar…") { app.showAbout() },
+                       p.makeButton("Buy Me an Energy Drink ⚡") { app.showAbout() }])
         })
 
         // Sleep
@@ -301,6 +510,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.popup("Keep awake for", items: AppDelegate.awakeDurations.map(\.label),
                     get: { forIndex }, set: { forIndex = $0 }, trailing: start)
             p.check("Keep the display on too", get: { app.sleep.keepDisplayAwake }, set: { app.setKeepDisplayAwake($0) })
+            p.note("Keep Awake is also in the BoostBar menu for one-click access.")
             #if !APPSTORE
             p.header("Lid Closed")
             p.check("Stay awake with the lid closed", get: { app.lidSleepDisabled }, set: { _ in app.toggleLidSleep() })
@@ -316,7 +526,6 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     set: { Prefs.cornerSleep = Corner(rawValue: $0) ?? .none; app.applySettings() })
             #endif
             p.note("Rest the pointer in the corner for a moment. If macOS has its own Hot Corner there (System Settings ▸ Desktop & Dock ▸ Hot Corners), both will run.")
-            p.note("Keep Awake is also in the BoostBar menu for one-click access.")
         })
 
         // Network
@@ -326,7 +535,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Show bits per second (Kb/s) instead of bytes (KB/s)", get: { Prefs.useBits }, set: { Prefs.useBits = $0; app.applySettings() })
             p.popup("Graphs", items: ["One combined graph (all connections)", "Separate graph per connection (LAN, Wi‑Fi, …)"],
                     get: { Prefs.netSplit ? 1 : 0 }, set: { Prefs.netSplit = $0 == 1; app.applySettings() })
-            p.label(indent: true) { app.networkSummary() }
+            p.label { app.networkSummary() }
+            p.note("Hover over the graph in the menu bar for a 5-minute chart.")
             p.header("Trace Colors")
             p.color("Upload", get: { Prefs.upColor }, set: { Prefs.upColor = $0; app.applySettings() })
             p.color("Download", get: { Prefs.downColor }, set: { Prefs.downColor = $0; app.applySettings() })
@@ -337,8 +547,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     NotificationCenter.default.post(name: .boostBarStateChanged, object: nil)
                 }
             }
-            p.custom(p.row([NSTextField(labelWithString: "Presets:")] + presets), height: 28)
-            p.note("Hover over the graph in the menu bar for a 5-minute chart.")
+            p.buttons(presets, label: "Presets")
         })
 
         // Battery
@@ -362,6 +571,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.popup("Blink duration", items: DiskLightSettings.durations.map { "\($0) ms" },
                     get: { DiskLightSettings.durations.firstIndex(of: app.diskSettings.durationMs) ?? 2 },
                     set: { app.diskSettings.durationMs = DiskLightSettings.durations[$0]; app.applySettings() })
+            p.header("Drives")
             let t = DiskDrivesTable(monitor: app.disk, settings: app.diskSettings) { app.applySettings() }
             self.drivesTable = t
             p.custom(t.makeScrollView(), height: 200) { t.reload() }
@@ -374,12 +584,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Show googly eyes that follow the mouse", get: { Prefs.showEyes }, set: { Prefs.showEyes = $0; app.applySettings() })
             p.popup("Size", items: Prefs.sizeNames, get: { Prefs.eyeSize }, set: { Prefs.eyeSize = $0; app.applySettings() })
             p.check("Single eye (cyclops)", get: { Prefs.singleEye }, set: { Prefs.singleEye = $0; app.applySettings() })
+            p.header("Behavior")
             p.check("Googly wobble", get: { Prefs.googly }, set: { Prefs.googly = $0; app.applySettings() })
             p.check("Blink now and then", get: { Prefs.eyeBlink }, set: { Prefs.eyeBlink = $0; app.applySettings() })
-            p.check("Bloodshot 🩸", get: { Prefs.bloodshot }, set: { Prefs.bloodshot = $0; app.applySettings() })
-            p.check("Bloodshot while keeping the Mac awake ☕", get: { Prefs.bloodshotAwake }, set: { Prefs.bloodshotAwake = $0; app.applySettings() })
+            p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
+                    set: { Prefs.allowCrossEye = $0; app.applySettings() },
+                    enabled: { !Prefs.singleEye })
             #if !APPSTORE
-            p.check("Shake the Mac to make them dizzy 😵‍💫", get: { Prefs.shakeEyes }, set: { Prefs.shakeEyes = $0; app.applySettings() })
+            p.check("Shake the Mac to make them dizzy", get: { Prefs.shakeEyes }, set: { Prefs.shakeEyes = $0; app.applySettings() })
             p.label(indent: true) {
                 switch app.shake.available {
                 case .some(false): return "This Mac has no motion sensor BoostBar can read (needs a MacBook with Apple silicon)."
@@ -388,41 +600,42 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 }
             }
             #endif
-            p.check("Pirate eyepatch 🏴‍☠️", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
+            p.header("Looks")
+            p.check("Bloodshot", get: { Prefs.bloodshot }, set: { Prefs.bloodshot = $0; app.applySettings() })
+            p.check("Bloodshot while keeping the Mac awake", get: { Prefs.bloodshotAwake }, set: { Prefs.bloodshotAwake = $0; app.applySettings() })
+            p.check("Pirate eyepatch", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
-            p.check("Allow cross-eyed (each eye follows the pointer on its own)", get: { Prefs.allowCrossEye },
-                    set: { Prefs.allowCrossEye = $0; app.applySettings() },
-                    enabled: { !Prefs.singleEye })
-            p.note("Click the eyes to open the About window. A tribute to the classic desktop toys that kept an eye on your cursor.")
+            p.footnote("Click the eyes to open the About window. Circle them twice with the pointer to spin them. A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 
         #if !APPSTORE
         // Screen saver
         list.append(Pane(title: "Screen Saver", symbol: "airplane") { p in
-            var current = BundledSaver.all[0]
+            var current = BundledSaver.all[min(SettingsWindow.initialSaver, BundledSaver.all.count - 1)]
             var o: SaverOptions { SaverConfig.options(for: current.scene) }
             func change(_ f: (inout SaverOptions) -> Void) {
                 var x = SaverConfig.options(for: current.scene); f(&x); SaverConfig.save(x, for: current.scene)
             }
+            p.header("Screen Saver")
             p.popup("Screen saver", items: BundledSaver.all.map(\.name), get: { BundledSaver.all.firstIndex { $0.scene == current.scene } ?? 0 },
                     set: { current = BundledSaver.all[$0]; p.refresh() })
             p.label { current.about }
-            let row = p.row([
+            p.buttons([
                 p.makeButton("Preview") { SaverPreviewWindow.shared.show(current) },
                 p.makeButton("Install & Show in System Settings") { current.install(); p.refresh() },
             ])
-            p.custom(row, height: 30)
-            p.label { current.isInstalled ? "✓ Installed. To use it: System Settings ▸ Wallpaper ▸ Screen Saver, then click it under Other (at the end)." : "Not installed yet." }
-
+            p.label { current.isInstalled ? "✓ Installed. To use it: System Settings ▸ Wallpaper ▸ Screen Saver, then pick it under Other (at the end)." : "Not installed yet." }
+            p.divider()
             p.popup("Hot corner", items: Corner.allCases.map(\.title), get: { Prefs.cornerSaver.rawValue },
                     set: { Prefs.cornerSaver = Corner(rawValue: $0) ?? .none; app.applySettings() })
-            p.note("Rest the pointer in that corner for a moment to start the screen saver (whichever one is chosen in System Settings). Pick a corner not already used by Keep Awake or Sleep now.", indent: true)
+            p.note("Rest the pointer there to start the screen saver chosen in System Settings. Pick a corner Keep Awake and Sleep now don't use.")
 
-            p.header("Options")
-            // the three choice boxes are liveries (Flying Cars) or satellites (Starlink); Starships has none
-            let boxes = (0..<3).map { _ in NSButton(checkboxWithTitle: "", target: nil, action: nil) }
+            p.header("Flight")
+            // the choice boxes are liveries (Flying Cars) or satellites (Starlink); Starships has none
+            let maxChoices = BundledSaver.all.map(\.choices.count).max() ?? 0
+            let boxes = (0..<maxChoices).map { _ in NSButton(checkboxWithTitle: "", target: nil, action: nil) }
             let choiceLabel = NSTextField(labelWithString: "")
-            choiceLabel.widthAnchor.constraint(equalToConstant: 110).isActive = true
+            choiceLabel.widthAnchor.constraint(equalToConstant: 124).isActive = true
             for (i, b) in boxes.enumerated() {
                 b.target = p.actionBox { _ in
                     let ids = current.choices.map(\.id)
@@ -437,39 +650,47 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 b.action = #selector(ActionBox.run(_:))
             }
             let choiceRow = p.row([choiceLabel] + boxes)
-            p.custom(choiceRow, height: 22, onRefresh: {
+            p.addRow(choiceRow, onRefresh: {
                 let ch = current.choices
                 choiceRow.isHidden = ch.isEmpty
                 choiceLabel.stringValue = current.scene == "starlink" ? "Satellites" : "Liveries"
                 for (i, b) in boxes.enumerated() {
                     b.isHidden = i >= ch.count
-                    if i < ch.count { b.title = ch[i].name; b.state = o.liveries.contains(ch[i].id) ? .on : .off }
+                    if i < ch.count {
+                        b.title = ch[i].name.replacingOccurrences(of: "Starlink ", with: "")
+                        b.state = o.liveries.contains(ch[i].id) ? .on : .off
+                    }
                 }
             })
-            p.slider("How many", min: 1, max: 16, get: { Double(o.count) }, set: { v in change { $0.count = Int(v.rounded()) } })
-            p.slider("Speed", min: 0.3, max: 3, get: { o.speed }, set: { v in change { $0.speed = v } }, caption: "across the screen")
+            let times: (Double) -> String = { String(format: "%.1f×", $0) }
+            p.slider("How many", min: 1, max: 16, get: { Double(o.count) }, set: { v in change { $0.count = Int(v.rounded()) } },
+                     value: { String(Int($0.rounded())) })
+            p.slider("Speed", min: 0.3, max: 3, get: { o.speed }, set: { v in change { $0.speed = v } }, value: times)
             p.slider("Flap speed", min: 0.2, max: 3, get: { o.flapSpeed }, set: { v in change { $0.flapSpeed = v } },
-                     caption: "flaps, wings — fans for the cars")
-            p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
-                     caption: "fresh tiles → post-re-entry", visible: { current.scene == "starships" })
+                     value: times, caption: "flaps, wings, fans, wheels")
             p.slider("Angle", min: -90, max: 90, get: { o.tilt ?? SaverConfig.defaultTilt(for: current.scene) },
-                     set: { v in change { $0.tilt = (v / 2).rounded() * 2 } }, caption: "roll toward you")
-            p.button("Default Angle") { change { $0.tilt = nil }; p.refresh() }
+                     set: { v in change { $0.tilt = (v / 2).rounded() * 2 } }, value: { String(format: "%.0f°", $0) },
+                     trailing: p.makeButton("Default") { change { $0.tilt = nil }; p.refresh() })
             p.check("Stunts (barrel rolls, veers, climbs and dives)", get: { o.stunts }, set: { v in change { $0.stunts = v } })
-            p.check("Crossing orbits — strings of satellites in an X pattern", get: { o.crossing ?? false },
+
+            p.header("Scene")
+            p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
+                     value: { String(format: "%.0f%%", $0 * 100) }, caption: "fresh tiles → after re-entry",
+                     visible: { current.scene == "starships" })
+            p.check("Crossing orbits (strings of satellites in an X pattern)", get: { o.crossing ?? false },
                     set: { v in change { $0.crossing = v } }, visible: { current.scene == "starlink" })
-            p.check("Laser links — red beams between nearby satellites (make before break)", get: { o.lasers ?? false },
+            p.check("Laser links between nearby satellites", get: { o.lasers ?? false },
                     set: { v in change { $0.lasers = v } }, visible: { current.scene == "starlink" })
-            p.check("Roadster with Starman — a red roadster, wheels spinning, tumbling along with the ships", get: { o.roadster ?? false },
+            p.check("Roadster with Starman", get: { o.roadster ?? false },
                     set: { v in change { $0.roadster = v }; p.refresh() }, visible: { current.scene == "starships" })
-            p.check("Stabilized — Starman flies along level with the ships instead of tumbling", indent: true,
+            p.check("Stabilized (flies level with the ships instead of tumbling)", indent: true,
                     get: { o.roadsterStable ?? false }, set: { v in change { $0.roadsterStable = v } },
                     enabled: { o.roadster ?? false }, visible: { current.scene == "starships" })
-            p.check("Clouds — a blue daytime sky with drifting clouds, After Dark style", get: { o.clouds ?? false },
-                    set: { v in change { $0.clouds = v } }, visible: { current.scene == "cars" })
+            p.check("Clouds (a blue daytime sky, After Dark style)", get: { o.clouds ?? false },
+                    set: { v in change { $0.clouds = v }; p.refresh() }, visible: { current.scene == "cars" })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } },
                     enabled: { !(current.scene == "cars" && (o.clouds ?? false)) })
-            p.note("Changes apply the next time the screen saver starts (and in Preview). Not affiliated with SpaceX; the X1 SkyRacer, its liveries and the Starship come from the X1 SkyRacer Flying Car Race Sim.")
+            p.footnote("Changes apply the next time the screen saver starts, and in Preview. Not affiliated with SpaceX; the X1 SkyRacer, its liveries and the Starship come from the X1 SkyRacer Flying Car Race Sim.")
         })
 
         // Scrolling
@@ -478,6 +699,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Reverse mouse scrolling", get: { Prefs.reverseScroll }, set: { app.setReverseScroll($0) })
             p.check("Include trackpad / Magic Mouse", indent: true, get: { Prefs.reverseTrackpad }, set: { app.setReverseTrackpad($0) })
             p.check("Include horizontal scrolling", indent: true, get: { Prefs.reverseHorizontal }, set: { app.setReverseHorizontal($0) })
+            p.header("Permission")
             p.label {
                 ScrollReverser.hasPermission ? "✓ Accessibility permission granted"
                                              : "Needs Accessibility permission (Privacy & Security ▸ Accessibility)"
