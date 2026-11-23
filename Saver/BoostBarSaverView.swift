@@ -25,11 +25,13 @@ class BoostBarSceneView: ScreenSaverView {
     static let allLiveries: [(id: String, name: String)] = [("v2", "Starlink V2"), ("v3", "Starlink V3")]
     static let liveriesTitle = "Satellites to fly"
     static let hasOxidation = false
+    static let flapTitle = "Flap speed"
     static let defaultCount = 5
     #elseif STARSHIPS
     static let moduleName = "com.macsboost.boostbar.starships"
     static let liveriesTitle = ""
     static let hasOxidation = true
+    static let flapTitle = "Flap speed"
     static let title = "BoostBar Starships"
     static let things = "Starships"
     static let allLiveries: [(id: String, name: String)] = []
@@ -41,6 +43,7 @@ class BoostBarSceneView: ScreenSaverView {
     static let allLiveries: [(id: String, name: String)] = [("macsboost", "MacsBoost"), ("yonder", "Yonder 01"), ("xxone", "XXONE 51")]
     static let liveriesTitle = "Liveries"
     static let hasOxidation = false
+    static let flapTitle = "Fan speed"
     static let defaultCount = 7
     #endif
 
@@ -51,10 +54,12 @@ class BoostBarSceneView: ScreenSaverView {
     private var speedSlider: NSSlider?
     private var starsCheck: NSButton?
     private var oxSlider: NSSlider?
+    private var flapSlider: NSSlider?
+    private var stuntsCheck: NSButton?
 
     private var defaults: UserDefaults {
         let d = ScreenSaverDefaults(forModuleWithName: Self.moduleName) ?? UserDefaults.standard
-        d.register(defaults: ["liveries": Self.allLiveries.map(\.id).joined(separator: ","), "count": Self.defaultCount, "speed": 1.0, "stars": true, "oxidation": 0.35])
+        d.register(defaults: ["liveries": Self.allLiveries.map(\.id).joined(separator: ","), "count": Self.defaultCount, "speed": 1.0, "flapSpeed": 1.0, "stunts": true, "stars": true, "oxidation": 0.35])
         return d
     }
 
@@ -75,7 +80,7 @@ class BoostBarSceneView: ScreenSaverView {
         let d = defaults
         let livs = (d.string(forKey: "liveries") ?? Self.allLiveries.map(\.id).joined(separator: ","))
             .split(separator: ",").map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(d.integer(forKey: "count")),speed:\(d.double(forKey: "speed")),stars:\(d.bool(forKey: "stars")),oxidation:\(d.double(forKey: "oxidation")),preview:\(isPreview)};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(d.integer(forKey: "count")),speed:\(d.double(forKey: "speed")),flapSpeed:\(d.double(forKey: "flapSpeed")),stunts:\(d.bool(forKey: "stunts")),stars:\(d.bool(forKey: "stars")),oxidation:\(d.double(forKey: "oxidation")),preview:\(isPreview)};"
     }
 
     private func loadScene() {
@@ -110,7 +115,7 @@ class BoostBarSceneView: ScreenSaverView {
 
     override var configureSheet: NSWindow? {
         let hasLiveries = !Self.allLiveries.isEmpty
-        let height: CGFloat = (hasLiveries ? 270 : 170) + (Self.hasOxidation ? 44 : 0)
+        let height: CGFloat = (hasLiveries ? 270 : 170) + (Self.hasOxidation ? 44 : 0) + 60
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: height), styleMask: [.titled], backing: .buffered, defer: false)
         w.title = Self.title
         let v = NSView(frame: w.contentRect(forFrameRect: w.frame))
@@ -140,6 +145,16 @@ class BoostBarSceneView: ScreenSaverView {
         let sl = NSTextField(labelWithString: "Speed"); sl.frame = NSRect(x: 20, y: y, width: 90, height: 20); v.addSubview(sl)
         let ss = NSSlider(value: defaults.double(forKey: "speed"), minValue: 0.3, maxValue: 3, target: nil, action: nil)
         ss.frame = NSRect(x: 120, y: y, width: 230, height: 20); v.addSubview(ss); speedSlider = ss
+        ss.toolTip = "How fast they fly across the screen"
+        y -= 30
+        let fl = NSTextField(labelWithString: Self.flapTitle); fl.frame = NSRect(x: 20, y: y, width: 95, height: 20); v.addSubview(fl)
+        let fs = NSSlider(value: defaults.double(forKey: "flapSpeed"), minValue: 0.2, maxValue: 3, target: nil, action: nil)
+        fs.frame = NSRect(x: 120, y: y, width: 230, height: 20); v.addSubview(fs); flapSlider = fs
+        fs.toolTip = Self.flapTitle == "Fan speed" ? "How fast the fans spin" : "How fast they flap"
+        y -= 30
+        let sc = NSButton(checkboxWithTitle: "Stunts (barrel rolls, veers, climbs and dives)", target: nil, action: nil)
+        sc.state = defaults.bool(forKey: "stunts") ? .on : .off
+        sc.frame = NSRect(x: 20, y: y, width: 340, height: 20); v.addSubview(sc); stuntsCheck = sc
         y -= 30
         if Self.hasOxidation {
             // re-entry burn on the heat shield: clean black tiles … streaky orange oxidised tiles
@@ -178,6 +193,8 @@ class BoostBarSceneView: ScreenSaverView {
             d.set(speedSlider?.doubleValue ?? 1, forKey: "speed")
             d.set(starsCheck?.state == .on, forKey: "stars")
             if let os = oxSlider { d.set(os.doubleValue, forKey: "oxidation") }
+            d.set(flapSlider?.doubleValue ?? 1, forKey: "flapSpeed")
+            d.set(stuntsCheck?.state == .on, forKey: "stunts")
             d.synchronize()
             loadScene()
         }

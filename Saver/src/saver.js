@@ -8,7 +8,7 @@
 (() => {
   'use strict';
   const CFG = Object.assign(
-    { scene: 'cars', liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, stars: true, oxidation: 0.35, preview: false },
+    { scene: 'cars', liveries: ['macsboost', 'yonder', 'xxone'], count: 7, speed: 1, flapSpeed: 1, stunts: true, stars: true, oxidation: 0.35, preview: false },
     window.SAVER_CONFIG || {},
   );
   const D2R = Math.PI / 180;
@@ -407,32 +407,53 @@ float oxN(vec2 p) {
 float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a * oxN(p); p *= 2.03; a *= 0.5; } return v; }`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 {
-  float th = atan(vOxPos.x, vOxPos.z);                    // 0 on the windward centre line
+  // Zones along the ship, like Starship after re-entry: frosty white-blue toward the nose, scorched dark tiles in
+  // the middle, rust-orange toward the rear. Streaks are swept: they start near the windward centre line up front
+  // and fan out toward the sides going aft, so they run diagonally across the belly.
+  float th = atan(vOxPos.x, vOxPos.z);                          // 0 on the windward centre line
+  float at = abs(th);
   float yn = clamp((vOxPos.y - uY.x) / (uY.y - uY.x), 0.0, 1.0); // 0 tail .. 1 nose
-  // streaks: noise stretched along the hull (fine across, long along)
-  float streak = oxF(vec2(th * 11.0, yn * 1.6));
+  float side = 1.0 - smoothstep(0.6, 1.5, at);                  // heating falls off round the sides
+  float sweep = mix(0.9, 1.7, smoothstep(0.5, 0.9, yn));       // steeper sweep on the nose
+  float u = at + sweep * yn;                                     // constant along each swept streak
+  float wob = 0.06 * (oxN(vec2(yn * 6.0, at * 4.0)) - 0.5);
+  float streak = oxF(vec2((u + wob) * 9.0, yn * 1.2));
+  float thin = oxN(vec2((u + wob) * 95.0, yn * 1.8)) * 0.7 + oxN(vec2((u + wob) * 36.0, yn * 0.9)) * 0.3;
   float fine = oxN(vec2(th * 70.0, yn * 6.0));
-  float side = 1.0 - smoothstep(0.55, 1.45, abs(th));     // heat is greatest on the centre line
-  float along = 1.0 - smoothstep(0.42, 0.8, yn);           // and lower on the hull
-  float thw = th + 0.05 * (oxN(vec2(yn * 7.0, th * 5.0)) - 0.5);   // wander a little, like real flow
-  float thin = oxN(vec2(thw * 130.0, yn * 2.6)) * 0.7 + oxN(vec2(thw * 47.0, yn * 1.3)) * 0.3; // long, thin flow lines
-  float m = side * along * (0.45 + 0.75 * streak) + 0.18 * (fine - 0.5);
-  float cover = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
-  // patchy at first (dark tiles between the streaks), filling in as it gets hotter
+  float on = step(0.001, uOx);
+
+  float rearW = 1.0 - smoothstep(0.38, 0.6, yn);
+  float midW = smoothstep(0.38, 0.58, yn) * (1.0 - smoothstep(0.64, 0.78, yn));
+  float frontW = smoothstep(0.62, 0.8, yn) * (1.0 - smoothstep(0.95, 1.0, yn));
+
+  // rear: rust-orange, patchy at first, filling in as it gets hotter
+  float m = side * (0.45 + 0.75 * streak) + 0.16 * (fine - 0.5);
+  float cover = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * on;
   float patchy = smoothstep(0.32, 0.62, streak * 0.75 + thin * 0.35 + fine * 0.15);
-  oxK = cover * mix(patchy, 1.0, smoothstep(0.55, 1.0, uOx) * 0.75);
+  float keep = smoothstep(0.64, 0.82, oxN(vec2(th * 24.0, yn * 9.0))) * (1.0 - 0.6 * uOx);  // clumps that stayed black
+  float rustK = rearW * cover * mix(patchy, 1.0, smoothstep(0.55, 1.0, uOx) * 0.75) * (1.0 - keep);
   float glow = clamp(streak * 1.2 + thin * 0.4 - 0.3, 0.0, 1.0);
-  vec3 rust = mix(vec3(0.30, 0.06, 0.012), vec3(0.98, 0.40, 0.07), glow);       // deep rust .. hot copper-orange
-  rust = mix(rust, vec3(0.10, 0.04, 0.02), smoothstep(0.8, 0.97, 1.0 - thin) * 0.55);  // scorched dark streaks
-  // clumps of tiles that stayed black
-  float keep = smoothstep(0.62, 0.8, oxN(vec2(th * 24.0, yn * 9.0))) * (1.0 - 0.6 * uOx);
-  diffuseColor.rgb = mix(diffuseColor.rgb, rust, oxK * (1.0 - keep));
-  // white flecks: insulation where tiles came off (more of them the hotter it got)
-  float fleck = step(0.993 - 0.02 * uOx, oxH(floor(vec2(th * 90.0, yn * 260.0)))) * smoothstep(0.2, 0.6, oxK + 0.3 * uOx * side);
+  vec3 rust = mix(vec3(0.30, 0.06, 0.012), vec3(0.98, 0.42, 0.08), glow);
+  rust = mix(rust, vec3(0.10, 0.04, 0.02), smoothstep(0.8, 0.97, 1.0 - thin) * 0.5);
+  // the orange reaches up into the middle in a few thin swept tongues
+  float tongue = midW * side * on * smoothstep(0.62, 0.8, thin) * smoothstep(0.35, 0.8, uOx) * 0.8;
+  rustK = max(rustK, tongue);
+
+  // middle: scorched, slightly blue-black tiles
+  float scorch = midW * side * uOx * (0.5 + 0.5 * streak);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.08), scorch * 0.6);
+
+  // front: frosty white to steel-blue streaks swept back from the nose
+  float frostK = frontW * side * on * smoothstep(1.0 - 0.95 * uOx, 1.25 - 0.95 * uOx, 0.35 + 0.8 * streak + 0.25 * (thin - 0.5));
+  vec3 frost = mix(vec3(0.36, 0.45, 0.58), vec3(0.88, 0.91, 0.95), clamp(thin * 1.3 - 0.15, 0.0, 1.0));
+
+  diffuseColor.rgb = mix(diffuseColor.rgb, rust, rustK);
+  diffuseColor.rgb = mix(diffuseColor.rgb, frost, frostK);
+  oxK = max(rustK, frostK * 0.6);
+
+  // white flecks: insulation where tiles came off, mostly toward the rear
+  float fleck = step(0.993 - 0.02 * uOx, oxH(floor(vec2(th * 90.0, yn * 260.0)))) * on * side * (rearW + 0.4 * midW) * smoothstep(0.1, 0.5, uOx);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.9, 0.88), fleck);
-  // frosty white-blue streaks high on the windward nose when well cooked
-  float frost = uOx * smoothstep(0.62, 0.8, yn) * (1.0 - smoothstep(0.92, 1.0, yn)) * side * smoothstep(0.55, 0.8, oxF(vec2(th * 14.0, yn * 3.0)));
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.84, 0.9), frost * 0.8);
 }`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.5, oxK);')
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.22, oxK);');
@@ -587,6 +608,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
   function stunt(c, t) {
     // returns { off: Vector3 offset, roll: extra roll (rad) }
+    if (!c.man && t >= c.next && CFG.stunts === false) { c.next = t + 5; return null; } // stunts switched off
     if (!c.man && t >= c.next) {
       const r = Math.random();
       if (r < 0.3) {
@@ -766,7 +788,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
       c.g.rotateZ((SATS ? -1.15 : SHIPS ? 0.55 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
-      c.spin += dt;
+      c.spin += dt * Math.max(0.05, +CFG.flapSpeed || 1); // fans, flaps and wings all run on this clock
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
       if (c.wings) {
         // bird-like wingbeat: a quick downstroke and a slower upstroke, travelling out along the wing so each module
