@@ -390,17 +390,18 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
 
 
 def satellite15(name='V15', seed=4):
-    """V1.5: a small flat bus (~2.8 x 1.3 m) with a single long array (~8 x 2.6 m) trailing from its rear edge on a
+    """V1.5: a small flat bus (~2.8 x 1.3 m, its long side across the array) with a single long array (~8 x 2.6 m)
+    trailing from its rear edge on a
     short boom, two bright white laser terminals on diagonally opposite corners and a pair of small dishes.
     The array is a chain of eight hinged segments (extras {inch: i, n}) so the saver can arch it like an inchworm:
     joints turn about local x, a positive angle lifting everything behind it."""
-    bx, by, bz = 1.3, 0.18, 2.8
+    bx, by, bz = 2.8, 0.18, 1.3          # long side across (x), at 90° to the array's length (z)
     nodes = []
     ch, top, white, metal, dish, lens = Mesh(), Mesh(), Mesh(), Mesh(), Mesh(), Mesh()
     ch.box(0, 0, 0, bx, by, bz)
     DECK = material(name + '_deck', (0.72, 0.72, 0.72), 0.3, 0.5, deck_texture(bx, bz, [
-        ('ku', -0.3, -0.75, 0.55, 0.55), ('ku', 0.3, -0.75, 0.55, 0.55), ('ku', -0.3, 0.0, 0.55, 0.55), ('ku', 0.3, 0.0, 0.55, 0.55),
-        ('dark', 0, 0.85, 1.1, 0.7)]))
+        ('ku', -0.75, -0.3, 0.55, 0.55), ('ku', -0.75, 0.3, 0.55, 0.55), ('ku', 0.0, -0.3, 0.55, 0.55), ('ku', 0.0, 0.3, 0.55, 0.55),
+        ('dark', 0.85, 0, 0.7, 1.1)]))
     top.box(0, by / 2 + 0.012, 0, bx * 0.97, 0.024, bz * 0.98, top_uv=((0, 1), (1, 1), (1, 0), (0, 0)), bottom=False)
     metal.box(0, -by / 2 - 0.012, 0, bx * 0.85, 0.024, bz * 0.85)
     for k in (-1, 1):
@@ -408,16 +409,16 @@ def satellite15(name='V15', seed=4):
     # the two bright white laser terminals, on diagonally opposite corners: a squat drum with a domed cap
     term = []
     for sx_, sz_ in ((1, 1), (-1, -1)):
-        x, z = sx_ * (bx / 2 + 0.06), sz_ * (bz / 2 - 0.12)
+        x, z = sx_ * (bx / 2 - 0.12), sz_ * (bz / 2 + 0.06)
         white.add(Mesh().cyl(0.17, 0.2, seg=18), None, (x, by / 2, z))
         white.add(Mesh().cyl(0.17, 0.09, seg=18, r2=0.07), None, (x, by / 2 + 0.2, z))
-        lens.add(Mesh().cyl(0.06, 0.03, seg=12), rot('z', -sx_ * math.pi / 2), (x + sx_ * 0.16, by / 2 + 0.12, z))
-        term.append((x + sx_ * 0.2, by / 2 + 0.14, z))
+        lens.add(Mesh().cyl(0.06, 0.03, seg=12), rot('x', sz_ * math.pi / 2), (x, by / 2 + 0.12, z + sz_ * 0.16))
+        term.append((x, by / 2 + 0.14, z + sz_ * 0.2))
     # small gimballed dishes at the other two corners
     for sx_, sz_ in ((-1, 1), (1, -1)):
-        w, m = gimbal_dish(0.2, 'x', sz_ * 0.4)
-        dish.add(w, None, (sx_ * (bx / 2 - 0.18), by / 2, sz_ * (bz / 2 + 0.12)))
-        metal.add(m, None, (sx_ * (bx / 2 - 0.18), by / 2, sz_ * (bz / 2 + 0.12)))
+        w, m = gimbal_dish(0.2, 'z', -sx_ * 0.4)
+        dish.add(w, None, (sx_ * (bx / 2 + 0.12), by / 2, sz_ * (bz / 2 - 0.18)))
+        metal.add(m, None, (sx_ * (bx / 2 + 0.12), by / 2, sz_ * (bz / 2 - 0.18)))
     # the boom off the rear edge to the array's root hinge
     hy, hz = by / 2 + 0.08, -bz / 2 - 0.45
     for zz in (-bz / 2 - 0.05, hz):
