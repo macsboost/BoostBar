@@ -173,7 +173,7 @@ def satellite(name, bus, dishes, boom, wing):
     nodes.append(node(name + '_bus', mesh(name + '_bus', [(b, SILVER), (top, BUS_TOP), (under, DARK), (d, SILVER)])))
 
     mods, ml, chord, gap, cols, rows = wing
-    cell_mat = material(name + '_cells', (1, 1, 1), 0.35, 0.35, cells_texture(cols, rows))
+    cell_mat = material(name + '_cells', (0.85, 0.88, 0.95), 0.6, 0.28, cells_texture(cols, rows))
     for side, s in (('L', -1), ('R', 1)):
         # boom from the bus edge to the first hinge
         bm = Mesh()

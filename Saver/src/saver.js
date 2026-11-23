@@ -23,7 +23,7 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = SHIPS ? 0.85 : SATS ? 1.0 : 1.35;
+  renderer.toneMappingExposure = SHIPS ? 0.85 : SATS ? 0.9 : 1.35;
   renderer.setClearColor(0x000000, 1);
   document.body.appendChild(renderer.domElement);
 
@@ -428,7 +428,7 @@
     );
   }
   // ---------- Starlink ----------
-  const SAT_SCALE = 0.25; // V3 spans ~68 m -> 17 scene units, V2 ~35 m -> 9
+  const SAT_SCALE = 0.3; // V3 spans ~68 m -> 20 scene units, V2 ~35 m -> 10
   function loadStarlink(names) {
     return new Promise((res, rej) =>
       new THREE.GLTFLoader().parse(
@@ -502,10 +502,10 @@
     } else if (Math.random() < w / (w + h)) {
       // enter along the top edge
       c.x = (Math.random() * 2 - 0.6) * w;
-      c.y = h + (SATS ? 14 : SHIPS ? 10 : 6);
+      c.y = h + (SATS ? 17 : SHIPS ? 10 : 6);
     } else {
       // enter along the right edge
-      c.x = w + (SATS ? 16 : SHIPS ? 13 : 8);
+      c.x = w + (SATS ? 19 : SHIPS ? 13 : 8);
       c.y = (Math.random() * 2 - 0.6) * h;
     }
     c.phase = Math.random() * Math.PI * 2;
@@ -687,7 +687,7 @@
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
-      if (c.x < -w - (SATS ? 18 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 16 : SHIPS ? 12 : 8)) spawn(c, false);
+      if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const st = stunt(c, t);
@@ -698,7 +698,8 @@
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
-      c.g.rotateZ((SATS ? -0.8 : SHIPS ? -0.2 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
+      if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
+      c.g.rotateZ((SATS ? -1.15 : SHIPS ? -0.2 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
