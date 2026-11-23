@@ -603,12 +603,18 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     dirs.forEach((d, k) => {
       for (let i = 0; i < perDir; i++) {
         const off = perDir === 1 ? (Math.random() - 0.5) * 0.5 : ((i / (perDir - 1)) * 2 - 1) * 0.75 + (Math.random() - 0.5) * 0.2;
-        lanes.push({ d, off, z: (k === 0 ? -6 : -20) + (Math.random() * 2 - 1) * 8, speed: (6 + Math.random() * 3) * CFG.speed });
+        lanes.push({ d, off, z: (k === 0 ? -2 : -22) + (Math.random() * 2 - 1) * 4, // each leg at its own altitude speed: (6 + Math.random() * 3) * CFG.speed });
       }
     });
     lanes.sort(() => Math.random() - 0.5);
     const members = lanes.map(() => []);
-    craft.forEach((c, i) => members[i % lanes.length].push(c));
+    // V2s and V3s round-robin over all the lanes; V1.5s alternate between the two legs of the X
+    const legLanes = [lanes.map((l, i) => (l.d.y < 0 ? i : -1)).filter((i) => i >= 0), lanes.map((l, i) => (l.d.y >= 0 ? i : -1)).filter((i) => i >= 0)];
+    let others = 0, v15 = 0;
+    for (const c of craft) {
+      if (!c.inch) members[others++ % lanes.length].push(c);
+      else { const lg = legLanes[v15 % 2]; members[lg[Math.floor(v15 / 2) % lg.length]].push(c); v15++; }
+    }
     members.forEach((group, li) => {
       const l = lanes[li], L = laneLen(l);
       group.forEach((c, k) => {
@@ -786,8 +792,20 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
 
   // Starlink shells: the V1.5s keep to their own altitude, a layer well behind the V2s and V3s, so the two never
   // meet; everything else shares the nearer layer.
-  const layer = (c) => (!SATS ? [-45, 8] : c.inch ? [-47, -39] : [-28, 8]);
-  const layerZ = (c, z) => (!SATS ? z : c.inch ? -46 + Math.random() * 6 : Math.max(-28, Math.min(5, z)));
+  // With crossing orbits each leg of the X gets its own altitudes too, so nothing on one leg meets anything on the other.
+  const legOf = (c) => (c.lane === undefined ? null : lanes[c.lane].d.y < 0 ? 0 : 1);
+  function layer(c) {
+    if (!SATS) return [-45, 8];
+    const g = legOf(c);
+    if (!c.inch) return g === 0 ? [-7, 3] : g === 1 ? [-27, -17] : [-28, 8];
+    return g === 0 ? [-41.5, -38.5] : g === 1 ? [-48.5, -45.5] : [-47, -39];
+  }
+  function layerZ(c, z) {
+    if (!SATS) return z;
+    const [lo, hi] = layer(c);
+    if (c.inch) return lo + 0.5 + Math.random() * (hi - lo - 1);
+    return Math.max(lo, Math.min(Math.min(hi, 5), z));
+  }
 
   function spawn(c, initial) {
     c.z = layerZ(c, -40 + Math.random() * 45);

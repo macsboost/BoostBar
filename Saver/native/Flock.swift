@@ -290,13 +290,19 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for (k, d) in [a, b].enumerated() {
             for i in 0..<perDir {
                 let off = perDir == 1 ? Float.random(in: -0.25...0.25) : (Float(i) / Float(perDir - 1) * 2 - 1) * 0.75 + .random(in: -0.1...0.1)
-                let z: Float = (k == 0 ? -6 : -20) + .random(in: -8...8)
+                let z: Float = (k == 0 ? -2 : -22) + .random(in: -4...4)     // each leg at its own altitude
                 lanes.append(Lane(d: d, off: off, z: z, speed: (6 + .random(in: 0...3)) * Float(cfg.speed)))
             }
         }
         lanes.shuffle()
         var members: [[Craft]] = Array(repeating: [], count: lanes.count)
-        for (i, c) in craft.enumerated() { members[i % lanes.count].append(c) }
+        // V2s and V3s round-robin over all the lanes; V1.5s alternate between the two legs of the X
+        let legLanes = [lanes.indices.filter { lanes[$0].d.y < 0 }, lanes.indices.filter { lanes[$0].d.y >= 0 }]
+        var others = 0, v15 = 0
+        for c in craft {
+            if c.inch.isEmpty { members[others % lanes.count].append(c); others += 1 }
+            else { let leg = legLanes[v15 % 2]; members[leg[(v15 / 2) % leg.count]].append(c); v15 += 1 }
+        }
         for (li, group) in members.enumerated() {
             let l = lanes[li], L = laneLength(l)
             for (k, c) in group.enumerated() {
@@ -822,14 +828,25 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     /// Starlink shells: the V1.5s keep to their own altitude, a layer well behind the V2s and V3s, so the two never
     /// meet; everything else shares the nearer layer.
+    /// With crossing orbits each leg of the X gets its own altitudes too, so nothing on one leg meets anything on the
+    /// other: down-left leg V2/V3 −6…+2, up-left leg V2/V3 −26…−18, V1.5s −41…−39 and −48…−46.
+    private func leg(_ c: Craft) -> Int? { c.lane >= 0 ? (lanes[c.lane].d.y < 0 ? 0 : 1) : nil }
     private func layer(_ c: Craft) -> (Float, Float) {
         guard kind == .starlink else { return (-45, 8) }
-        return c.inch.isEmpty ? (-28, 8) : (-47, -39)
+        switch (c.inch.isEmpty, leg(c)) {
+        case (true, 0?): return (-7, 3)
+        case (true, 1?): return (-27, -17)
+        case (true, nil): return (-28, 8)
+        case (false, 0?): return (-41.5, -38.5)
+        case (false, 1?): return (-48.5, -45.5)
+        default: return (-47, -39)
+        }
     }
     private func layerZ(_ c: Craft, _ z: Float) -> Float {
         guard kind == .starlink else { return z }
-        if !c.inch.isEmpty { return .random(in: -46 ... -40) }
-        return max(-28, min(5, z))
+        let (lo, hi) = layer(c)
+        if !c.inch.isEmpty { return .random(in: (lo + 0.5)...(hi - 0.5)) }
+        return max(lo, min(min(hi, 5), z))
     }
 
     /// The V1.5 gait: the array arches up in the middle (its tail end drawing in toward the bus, which holds still),

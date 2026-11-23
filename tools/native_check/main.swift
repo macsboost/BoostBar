@@ -53,7 +53,7 @@ shoot(.starlink, c6, "close_v15a", seconds: 1.0, closeup: 18)
 shoot(.starlink, c6, "close_v15b", seconds: 1.55, closeup: 18)
 c6.count = 8; c6.liveries = ["v15", "v2", "v3"]; c6.lasers = true
 shoot(.starlink, c6, "sats_v15", seconds: 8)
-var c5 = SaverConfig(); c5.count = 12; c5.liveries = ["v2", "v3"]; c5.crossing = true; c5.lasers = true
+var c5 = SaverConfig(); c5.count = 12; c5.liveries = ["v15", "v2", "v3"]; c5.crossing = true; c5.lasers = true
 shoot(.starlink, c5, "sats_x_a", seconds: 6)
 shoot(.starlink, c5, "sats_x_b", seconds: 14)
 print("DONE")
