@@ -522,7 +522,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     );
   }
   // ---------- Starlink ----------
-  const SAT_SCALE = 0.3; // V3 spans ~68 m -> 20 scene units, V2 ~35 m -> 10
+  const SAT_SCALE = 0.4; // V3 spans ~41 m -> 16 scene units, V2 ~29 m -> 12
   function loadStarlink(names) {
     return new Promise((res, rej) =>
       new THREE.GLTFLoader().parse(

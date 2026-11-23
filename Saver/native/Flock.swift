@@ -224,7 +224,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 guard let sat = m.root.childNode(withName: name, recursively: true) else { continue }
                 sat.removeFromParentNode()
                 sat.enumerateHierarchy { o, _ in o.geometry?.materials.forEach { $0.isDoubleSided = true } }
-                let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: 0.3); pivot.addChildNode(sat)
+                let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: 0.4); pivot.addChildNode(sat)
                 let root = SCNNode(); root.addChildNode(pivot)
                 tpl[name] = root
             }

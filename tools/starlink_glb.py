@@ -285,7 +285,7 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
     nodes = []
     ch, top, white, metal, dish, lens, cu = Mesh(), Mesh(), Mesh(), Mesh(), Mesh(), Mesh(), Mesh()
     ch.box(0, 0, 0, bx, by, bz)
-    DECK = material(name + '_deck', (1, 1, 1), 0.3, 0.5, deck_texture(bx, bz, deck))
+    DECK = material(name + '_deck', (0.72, 0.72, 0.72), 0.3, 0.5, deck_texture(bx, bz, deck))
     top.box(0, by / 2 + 0.012, 0, bx * 0.985, 0.024, bz * 0.985, top_uv=((0, 1), (1, 1), (1, 0), (0, 0)), bottom=False)
     # the other face: mirror-film radiator plates and four stacking feet
     for k in (-1, 1):
@@ -319,8 +319,8 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
                                                              (dish, DISH), (lens, LENS), (cu, COPPER)])))
 
     mods, ml, chord, gap, cols, rows = wing
-    cell_mat = material(name + '_cells', (1, 1, 1), 0.05, 0.16, cells_texture(cols, rows, seed=seed))
-    back_mat = material(name + '_back', (1, 1, 1), 0.0, 0.55, back_texture(cols, rows))
+    cell_mat = material(name + '_cells', (0.5, 0.53, 0.62), 0.05, 0.16, cells_texture(cols, rows, seed=seed))
+    back_mat = material(name + '_back', (0.8, 0.8, 0.8), 0.0, 0.55, back_texture(cols, rows))
     hy = by / 2 + 0.1                                             # hinge line sits just above the antenna face
     th = 0.024
     for side, s in (('L', -1), ('R', 1)):
