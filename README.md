@@ -110,7 +110,7 @@ Circle the pointer around the googly eyes two and a half times and the pupils ho
 
 ## Dizzy eyes
 
-On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) only while this is turned on — **Settings ▸ Eyes ▸ Shake the Mac to make them dizzy**. Direct download only.
+On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) whenever the eyes are shown; there's no setting to turn on. Direct download only.
 
 ## Hot corners
 
