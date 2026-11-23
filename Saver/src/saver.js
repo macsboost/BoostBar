@@ -603,7 +603,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     dirs.forEach((d, k) => {
       for (let i = 0; i < perDir; i++) {
         const off = perDir === 1 ? (Math.random() - 0.5) * 0.5 : ((i / (perDir - 1)) * 2 - 1) * 0.75 + (Math.random() - 0.5) * 0.2;
-        lanes.push({ d, off, z: (k === 0 ? -2 : -22) + (Math.random() * 2 - 1) * 4, // each leg at its own altitude speed: (6 + Math.random() * 3) * CFG.speed });
+        lanes.push({ d, off, z: (k === 0 ? -2 : -22) + (Math.random() * 2 - 1) * 4, speed: (6 + Math.random() * 3) * CFG.speed }); // each leg at its own altitude
       }
     });
     lanes.sort(() => Math.random() - 0.5);
