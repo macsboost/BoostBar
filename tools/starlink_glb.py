@@ -402,7 +402,7 @@ def satellite15(name='V15', seed=4):
         ('ku', -0.3, -0.75, 0.55, 0.55), ('ku', 0.3, -0.75, 0.55, 0.55), ('ku', -0.3, 0.0, 0.55, 0.55), ('ku', 0.3, 0.0, 0.55, 0.55),
         ('dark', 0, 0.85, 1.1, 0.7)]))
     top.box(0, by / 2 + 0.012, 0, bx * 0.97, 0.024, bz * 0.98, top_uv=((0, 1), (1, 1), (1, 0), (0, 0)), bottom=False)
-    white.box(0, -by / 2 - 0.012, 0, bx * 0.85, 0.024, bz * 0.85)
+    metal.box(0, -by / 2 - 0.012, 0, bx * 0.85, 0.024, bz * 0.85)
     for k in (-1, 1):
         metal.box(k * bx / 2, 0, 0, 0.05, by + 0.04, bz + 0.03)
     # the two bright white laser terminals, on diagonally opposite corners: a squat drum with a domed cap
@@ -424,8 +424,10 @@ def satellite15(name='V15', seed=4):
         metal.box(0, (by / 2 + hy) / 2 if zz > hz else hy, zz, 0.12, (hy - by / 2 + 0.06) if zz > hz else 0.07, 0.1)
     metal.box(0, hy, (-bz / 2 + hz) / 2, 0.07, 0.06, abs(hz + bz / 2))
     metal.box(0, hy, hz, 2.6, 0.05, 0.05)                                  # root yoke
-    nodes.append(node(name + '_bus', mesh(name + '_bus', [(ch, CHASSIS), (top, DECK), (white, WHITE), (metal, SILVER),
-                                                             (dish, DISH), (lens, LENS)])))
+    GREY = material(name + '_dish', (0.36, 0.37, 0.39), 0.6, 0.4)          # dull, so the white terminals stand out
+    BRIGHT = material(name + '_term', (0.97, 0.97, 0.97), 0.1, 0.25)
+    nodes.append(node(name + '_bus', mesh(name + '_bus', [(ch, CHASSIS), (top, DECK), (white, BRIGHT), (metal, SILVER),
+                                                             (dish, GREY), (lens, LENS)])))
     for k, p in enumerate(term):
         nodes.append(node(f'{name}_lz{k}', None, p, {'laser': k}))
     # the array: eight segments, each 1.0 m long (along -z) by 2.6 m wide, cells up
