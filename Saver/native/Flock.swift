@@ -48,8 +48,11 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     func setAspect(_ a: CGFloat) { if a > 0 { aspect = Float(a) } }
 
+    private var closeupZ: Float?
+
     /// For the CI check: park the first craft in front of the camera and hide the rest.
     func closeup(distance: Float = 30) {
+        closeupZ = 52 - distance
         for (i, c) in craft.enumerated() {
             c.g.isHidden = i > 0
             if i == 0 { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.man = nil; c.next = .greatestFiniteMagnitude }
@@ -282,6 +285,15 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     /// Frosty white-blue toward the nose, scorched dark tiles in the middle, rust-orange toward the rear, with streaks
     /// swept back from the windward centre line — the same recipe as the web version's GLSL.
     static let oxSurface = """
+    float oxH(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+    float oxN(float2 p) {
+      float2 i = floor(p);
+      float2 f = fract(p);
+      float2 u = f * f * (3.0 - 2.0 * f);
+      return mix(mix(oxH(i), oxH(i + float2(1, 0)), u.x), mix(oxH(i + float2(0, 1)), oxH(i + float2(1, 1)), u.x), u.y);
+    }
+    float oxF(float2 p) { float v = 0.0; float a = 0.5; for (int k = 0; k < 4; k++) { v += a * oxN(p); p *= 2.03; a *= 0.5; } return v; }
+
     #pragma arguments
     float uOx;
     float uY0;
@@ -289,15 +301,6 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     #pragma varyings
     float3 oxPos;
     float4 vcol;
-
-    float oxH(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
-    float oxN(float2 p) {
-      float2 i = floor(p), f = fract(p);
-      float2 u = f * f * (3.0 - 2.0 * f);
-      return mix(mix(oxH(i), oxH(i + float2(1, 0)), u.x), mix(oxH(i + float2(0, 1)), oxH(i + float2(1, 1)), u.x), u.y);
-    }
-    float oxF(float2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a * oxN(p); p *= 2.03; a *= 0.5; } return v; }
-
     #pragma body
     {
       float3 P = in.oxPos;
@@ -432,7 +435,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for c in craft {
             c.x += dir.x * c.speed * dt + c.kx * dt
             c.y += dir.y * c.speed * dt + c.ky * dt
-            c.z = max(-45, min(8, c.z + c.kz * dt))
+            c.z = max(-45, min(closeupZ ?? 8, c.z + c.kz * dt))
             c.kx *= damp; c.ky *= damp; c.kz *= damp
             c.wob *= exp(-1.6 * dt)
             let (w, h) = viewHalf(c.z)
