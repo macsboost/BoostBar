@@ -384,13 +384,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             }
             saverSection(.flyingCars, "X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries drift across your screen, fans spinning, like the classic flying-toasters screen saver.")
             saverSection(.starships, "A fleet of Starships glides across the screen, flapping their flaps like the toasters' wings, Raptors glowing.")
+            saverSection(.starlink, "Starlink V2 and V3 satellites beat their long solar wings like birds, the panels bending between modules. Pick V2, V3 or both in its Options.")
             p.header("")
             let row = p.row([
                 p.makeButton("Open Screen Saver Settings…") { BundledSaver.openSettings() },
                 p.makeButton("Start Now") { BundledSaver.startNow() },
             ])
             p.custom(row, height: 30)
-            p.note("Start Now runs whichever screen saver is chosen in System Settings. Each saver's Options button there sets how many fly, how fast, and stars; Flying Cars also lets you pick liveries. The X1 SkyRacer, its liveries and the Starship model come from the X1 SkyRacer Flying Car Race Sim. Not affiliated with SpaceX.")
+            p.note("Start Now runs whichever screen saver is chosen in System Settings. Each saver's Options button there sets how many fly, how fast, and stars; Flying Cars also lets you pick liveries, Starlink which satellites. The X1 SkyRacer, its liveries and the Starship model come from the X1 SkyRacer Flying Car Race Sim. Not affiliated with SpaceX.")
         })
 
         // Scrolling

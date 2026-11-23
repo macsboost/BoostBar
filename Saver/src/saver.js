@@ -1,6 +1,8 @@
 /* BoostBar screen savers, flying-toasters style.
    scene 'cars'      BoostBar Flying Cars: X1 SkyRacers; liveries use the same format and paint logic as the
                      X1 SkyRacer Flying Car Race Sim (src/game/30_livery.js), applied per craft.
+   scene 'starlink'  BoostBar Starlink: stylised Starlink V2 / V3 satellites (tools/starlink_glb.py), solar wings
+                     built from hinged modules that bend like a bird's wings as they flap.
    scene 'starships' BoostBar Starships: Starship (Ship 42, from the sim's Starbase world, built from code by
                      X1_sim/tools/starship/ship42.py) with its four flaps flapping like the toasters' wings. */
 (() => {
@@ -10,7 +12,9 @@
     window.SAVER_CONFIG || {},
   );
   const D2R = Math.PI / 180;
-  const SHIPS = (window.SAVER_SCENE || CFG.scene) === 'starships';
+  const SCENE = window.SAVER_SCENE || CFG.scene;
+  const SHIPS = SCENE === 'starships';
+  const SATS = SCENE === 'starlink';
   const $ = (id) => document.getElementById(id);
 
   // ---------- renderer / scene ----------
@@ -19,7 +23,7 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = SHIPS ? 0.85 : 1.35;
+  renderer.toneMappingExposure = SHIPS ? 0.85 : SATS ? 1.0 : 1.35;
   renderer.setClearColor(0x000000, 1);
   document.body.appendChild(renderer.domElement);
 
@@ -31,7 +35,7 @@
   const sun = new THREE.DirectionalLight(0xffffff, 2.6);
   sun.position.set(-30, 40, 60);
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(SHIPS ? 0xffb070 : 0x88ff66, SHIPS ? 0.7 : 0.5);
+  const rim = new THREE.DirectionalLight(SHIPS ? 0xffb070 : SATS ? 0x88aaff : 0x88ff66, SHIPS || SATS ? 0.7 : 0.5);
   rim.position.set(40, -20, -30);
   scene.add(rim);
 
@@ -423,6 +427,46 @@
       ),
     );
   }
+  // ---------- Starlink ----------
+  const SAT_SCALE = 0.25; // V3 spans ~68 m -> 17 scene units, V2 ~35 m -> 9
+  function loadStarlink(names) {
+    return new Promise((res, rej) =>
+      new THREE.GLTFLoader().parse(
+        buf.buffer.slice(0),
+        '',
+        (g) => {
+          const out = {};
+          for (const n of names) {
+            const sat = g.scene.getObjectByName(n);
+            if (!sat) continue;
+            sat.parent && sat.parent.remove(sat);
+            sat.traverse((o) => {
+              if (!o.isMesh) return;
+              o.frustumCulled = false;
+              o.material.side = THREE.DoubleSide;
+            });
+            const pivot = new THREE.Group();
+            pivot.scale.setScalar(SAT_SCALE);
+            pivot.add(sat);
+            const root = new THREE.Group();
+            root.add(pivot);
+            out[n] = root;
+          }
+          res(out);
+        },
+        rej,
+      ),
+    );
+  }
+  function wingsOf(root) {
+    const joints = [];
+    root.traverse((o) => {
+      if (o.userData && o.userData.wing) joints.push({ o, q0: o.quaternion.clone(), s: o.userData.wing === 'R' ? 1 : -1, i: o.userData.i, n: o.userData.n });
+    });
+    return joints;
+  }
+  const zAxis = new THREE.Vector3(0, 0, 1);
+
   function flapsOf(root) {
     const flaps = [];
     root.traverse((o) => {
@@ -458,10 +502,10 @@
     } else if (Math.random() < w / (w + h)) {
       // enter along the top edge
       c.x = (Math.random() * 2 - 0.6) * w;
-      c.y = h + (SHIPS ? 10 : 6);
+      c.y = h + (SATS ? 14 : SHIPS ? 10 : 6);
     } else {
       // enter along the right edge
-      c.x = w + (SHIPS ? 13 : 8);
+      c.x = w + (SATS ? 16 : SHIPS ? 13 : 8);
       c.y = (Math.random() * 2 - 0.6) * h;
     }
     c.phase = Math.random() * Math.PI * 2;
@@ -530,6 +574,24 @@
   }
 
   async function build() {
+    if (SATS) {
+      const want = (CFG.liveries || []).map((x) => String(x).toUpperCase()).filter((x) => x === 'V2' || x === 'V3');
+      const names = want.length ? want : ['V2', 'V3'];
+      const tpls = await loadStarlink(names);
+      const have = names.filter((n) => tpls[n]);
+      const n = Math.max(1, Math.min(20, CFG.count | 0));
+      for (let i = 0; i < n; i++) {
+        const root = tpls[have[i % have.length]].clone(true),
+          g = new THREE.Group();
+        g.add(root);
+        scene.add(g);
+        const c = { g, fans: [], wings: wingsOf(root), flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10 };
+        spawn(c, true);
+        craft.push(c);
+      }
+      $('loading') && $('loading').remove();
+      return;
+    }
     if (SHIPS) {
       const tpl = await loadStarship();
       const n = Math.max(1, Math.min(20, CFG.count | 0));
@@ -579,7 +641,7 @@
   };
   // ---------- bumping ----------
   // Cars that get too close bounce apart (and wobble a bit) instead of flying through each other.
-  const R = SHIPS ? 2.8 : 1.7; // rough radius of a SkyRacer / a Starship in scene units
+  const R = SATS ? 3.2 : SHIPS ? 2.8 : 1.7; // rough radius of a SkyRacer / a Starship in scene units
   const lastHit = new Map();
   const n = new THREE.Vector3();
   function bump(t) {
@@ -625,7 +687,7 @@
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
-      if (c.x < -w - (SHIPS ? 15 : 10) || c.y < -h - (SHIPS ? 12 : 8)) spawn(c, false);
+      if (c.x < -w - (SATS ? 18 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 16 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const st = stunt(c, t);
@@ -636,10 +698,22 @@
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
-      c.g.rotateZ((SHIPS ? -0.2 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
+      c.g.rotateZ((SATS ? -0.8 : SHIPS ? -0.2 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
+      if (c.wings) {
+        // bird-like wingbeat: a quick downstroke and a slower upstroke, travelling out along the wing so each module
+        // lags the one inside it and the tips whip; the body rises a little on each downstroke
+        const ph0 = c.spin * c.flapRate + c.phase;
+        for (const j of c.wings) {
+          const ph = ph0 - j.i * 0.42;
+          const beat = Math.sin(ph) + 0.28 * Math.sin(2 * ph);
+          const a = j.i === 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / j.n) * beat;
+          j.o.quaternion.copy(j.q0).multiply(flapQ.setFromAxisAngle(zAxis, j.s * a));
+        }
+        c.g.position.y -= 0.35 * Math.cos(ph0);
+      }
       if (c.flaps) {
         // flap like the toasters' wings: each flap swings about its hinge, the forward pair a beat behind the aft
         for (const f of c.flaps) {

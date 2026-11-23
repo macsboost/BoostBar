@@ -8,6 +8,7 @@ struct BundledSaver {
     let scene: String         // "cars" | "starships"
     static let flyingCars = BundledSaver(name: "BoostBar Flying Cars", scene: "cars")
     static let starships = BundledSaver(name: "BoostBar Starships", scene: "starships")
+    static let starlink = BundledSaver(name: "BoostBar Starlink", scene: "starlink")
 
     var bundleURL: URL? {
         let u = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/Screen Savers/\(name).saver")
@@ -44,14 +45,15 @@ final class SaverPreviewWindow: NSObject, NSWindowDelegate {
     static let shared = SaverPreviewWindow()
     private var window: NSWindow?
 
-    func show(_ which: BundledSaver = .flyingCars, liveries: [String] = ["macsboost", "yonder", "xxone"]) {
+    func show(_ which: BundledSaver = .flyingCars, liveries: [String]? = nil) {
+        let liveries = liveries ?? (which.scene == "starlink" ? ["v2", "v3"] : ["macsboost", "yonder", "xxone"])
         guard let saver = which.bundleURL else { which.install(); return }
         let html = saver.appendingPathComponent("Contents/Resources/saver.html")
         window?.close()
         let conf = WKWebViewConfiguration()
         let list = liveries.map { "\"\($0)\"" }.joined(separator: ",")
         conf.userContentController.addUserScript(WKUserScript(
-            source: "window.SAVER_CONFIG={liveries:[\(list)],count:\(which.scene == "starships" ? 6 : 7),speed:1,stars:true,preview:false};",
+            source: "window.SAVER_CONFIG={liveries:[\(list)],count:\(which.scene == "starships" ? 6 : which.scene == "starlink" ? 5 : 7),speed:1,stars:true,preview:false};",
             injectionTime: .atDocumentStart, forMainFrameOnly: true))
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 600),
                          styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)

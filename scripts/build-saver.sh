@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds one of BoostBar's macOS screen savers at the path given.
-#   ./scripts/build-saver.sh "<App>/Contents/Library/Screen Savers/BoostBar Flying Cars.saver" [version] [build] [cars|starships]
+#   ./scripts/build-saver.sh "<App>/Contents/Library/Screen Savers/BoostBar Flying Cars.saver" [version] [build] [cars|starships|starlink]
 # Downloads three.js r147 (and its GLTFLoader) once into build/saver/ — the savers run offline after that.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +15,8 @@ case "$SCENE" in
              MODULE=BoostBarSaver;     FLAGS=();             CREDIT="X1 SkyRacer model © X1 Racing." ;;
   starships) ID=com.macsboost.boostbar.starships; NAME="BoostBar Starships";   EXEC=BoostBarStarships; CLASS=BoostBarStarshipsView
              MODULE=BoostBarStarships; FLAGS=(-D STARSHIPS); CREDIT="Starship model from the X1 SkyRacer sim (Ship 42, built from code). Not affiliated with SpaceX." ;;
+  starlink)  ID=com.macsboost.boostbar.starlink;  NAME="BoostBar Starlink";    EXEC=BoostBarStarlink;  CLASS=BoostBarStarlinkView
+             MODULE=BoostBarStarlink;  FLAGS=(-D STARLINK);  CREDIT="Stylised Starlink V2 and V3 models by MacsBoost. Not affiliated with SpaceX." ;;
   *) echo "unknown scene $SCENE"; exit 1 ;;
 esac
 

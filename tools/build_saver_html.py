@@ -2,7 +2,7 @@
 """Assemble a screensaver page: one self-contained HTML (three.js r147, GLTFLoader, the model GLB as base64,
 the liveries and saver.js) so it runs offline inside the .saver bundle.
 
-  python3 tools/build_saver_html.py <three.min.js> <GLTFLoader.js> <out.html> [cars|starships]
+  python3 tools/build_saver_html.py <three.min.js> <GLTFLoader.js> <out.html> [cars|starships|starlink]
 """
 import base64, os, sys
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +11,7 @@ three, gltf, out = sys.argv[1:4]
 scene = sys.argv[4] if len(sys.argv) > 4 else "cars"
 SCENES = {
     "cars": dict(title="BoostBar Flying Cars", loading="⚡ BOOSTBAR FLYING CARS", glb="X1_SkyRacer.glb", liveries="liveries.json"),
+    "starlink": dict(title="BoostBar Starlink", loading="🛰 BOOSTBAR STARLINK", glb="Starlink.glb", liveries=None),
     "starships": dict(title="BoostBar Starships", loading="🚀 BOOSTBAR STARSHIPS", glb="Starship.glb", liveries=None),
 }
 sc = SCENES[scene]

@@ -4,8 +4,12 @@ import WebKit
 /// BoostBar's screen savers, flying-toasters style. One source, two bundles (scripts/build-saver.sh):
 ///   BoostBar Flying Cars  X1 SkyRacers in MacsBoost, Yonder and XXONE liveries
 ///   BoostBar Starships    Starships flapping their flaps like the toasters' wings (built with -D STARSHIPS)
+///   BoostBar Starlink     Starlink V2 / V3 satellites beating their solar wings like birds (built with -D STARLINK)
 /// Each scene is a self-contained three.js page (saver.html) in its bundle.
-#if STARSHIPS
+#if STARLINK
+@objc(BoostBarStarlinkView)
+final class BoostBarStarlinkView: BoostBarSceneView {}
+#elseif STARSHIPS
 @objc(BoostBarStarshipsView)
 final class BoostBarStarshipsView: BoostBarSceneView {}
 #else
@@ -14,8 +18,16 @@ final class BoostBarSaverView: BoostBarSceneView {}
 #endif
 
 class BoostBarSceneView: ScreenSaverView {
-    #if STARSHIPS
+    #if STARLINK
+    static let moduleName = "com.macsboost.boostbar.starlink"
+    static let title = "BoostBar Starlink"
+    static let things = "Satellites"
+    static let allLiveries: [(id: String, name: String)] = [("v2", "Starlink V2"), ("v3", "Starlink V3")]
+    static let liveriesTitle = "Satellites to fly"
+    static let defaultCount = 5
+    #elseif STARSHIPS
     static let moduleName = "com.macsboost.boostbar.starships"
+    static let liveriesTitle = ""
     static let title = "BoostBar Starships"
     static let things = "Starships"
     static let allLiveries: [(id: String, name: String)] = []
@@ -25,6 +37,7 @@ class BoostBarSceneView: ScreenSaverView {
     static let title = "BoostBar Flying Cars"
     static let things = "Flying cars"
     static let allLiveries: [(id: String, name: String)] = [("macsboost", "MacsBoost"), ("yonder", "Yonder 01"), ("xxone", "XXONE 51")]
+    static let liveriesTitle = "Liveries"
     static let defaultCount = 7
     #endif
 
@@ -37,7 +50,7 @@ class BoostBarSceneView: ScreenSaverView {
 
     private var defaults: UserDefaults {
         let d = ScreenSaverDefaults(forModuleWithName: Self.moduleName) ?? UserDefaults.standard
-        d.register(defaults: ["liveries": "macsboost,yonder,xxone", "count": Self.defaultCount, "speed": 1.0, "stars": true])
+        d.register(defaults: ["liveries": Self.allLiveries.map(\.id).joined(separator: ","), "count": Self.defaultCount, "speed": 1.0, "stars": true])
         return d
     }
 
@@ -56,7 +69,7 @@ class BoostBarSceneView: ScreenSaverView {
 
     private func configJS() -> String {
         let d = defaults
-        let livs = (d.string(forKey: "liveries") ?? "macsboost,yonder,xxone")
+        let livs = (d.string(forKey: "liveries") ?? Self.allLiveries.map(\.id).joined(separator: ","))
             .split(separator: ",").map { "\"\($0)\"" }.joined(separator: ",")
         return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(d.integer(forKey: "count")),speed:\(d.double(forKey: "speed")),stars:\(d.bool(forKey: "stars")),preview:\(isPreview)};"
     }
@@ -99,7 +112,7 @@ class BoostBarSceneView: ScreenSaverView {
         let v = NSView(frame: w.contentRect(forFrameRect: w.frame))
         var y: CGFloat = height - 40
         if hasLiveries {
-            let title = NSTextField(labelWithString: "Liveries")
+            let title = NSTextField(labelWithString: Self.liveriesTitle)
             title.font = .boldSystemFont(ofSize: 13)
             title.frame = NSRect(x: 20, y: y, width: 200, height: 18); v.addSubview(title)
         } else {
@@ -142,7 +155,7 @@ class BoostBarSceneView: ScreenSaverView {
         if sender.tag == 1 {
             let d = defaults
             var ids = checks.filter { $0.state == .on }.compactMap { $0.identifier?.rawValue }
-            if ids.isEmpty && !Self.allLiveries.isEmpty { ids = ["macsboost"] }
+            if ids.isEmpty, let first = Self.allLiveries.first { ids = [first.id] }
             if !Self.allLiveries.isEmpty { d.set(ids.joined(separator: ","), forKey: "liveries") }
             d.set(Int(countSlider?.doubleValue ?? Double(Self.defaultCount)), forKey: "count")
             d.set(speedSlider?.doubleValue ?? 1, forKey: "speed")
