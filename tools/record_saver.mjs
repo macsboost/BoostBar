@@ -1,5 +1,5 @@
 // Records the Flying Cars screen saver frame by frame (virtual clock, so it's smooth even with
-// software rendering). Usage: node tools/record_saver.mjs out/saver.html out/frames 30 14 [cars|starships]
+// software rendering). Usage: node tools/record_saver.mjs out/saver.html out/frames 30 14 [cars|starships|starlink]
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 const [html, dir, fpsArg, secsArg, scene = 'cars'] = process.argv.slice(2);
@@ -14,7 +14,7 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
 await page.evaluateOnNewDocument((scene) => {
-  window.SAVER_CONFIG = { liveries: ['macsboost', 'yonder', 'xxone'], count: scene === 'starships' ? 11 : 9, speed: 1, stars: true, manual: true };
+  window.SAVER_CONFIG = { liveries: scene === 'starlink' ? ['v2', 'v3'] : ['macsboost', 'yonder', 'xxone'], count: scene === 'starships' ? 11 : scene === 'starlink' ? 7 : 9, speed: 1, stars: true, manual: true };
   Math.random = (() => { let s = 20261122; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); })();
 }, scene);
 await page.goto('file://' + html);

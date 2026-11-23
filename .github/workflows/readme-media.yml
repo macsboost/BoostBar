@@ -24,16 +24,18 @@ jobs:
           curl -fsSL https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js -o build/saver/GLTFLoader.js
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/saver.html
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starships.html starships
+          python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starlink.html starlink
       - name: Record frames
         run: |
           npm install --no-save --silent puppeteer-core@23
           export CHROME=$(command -v google-chrome || command -v chromium)
           node tools/record_saver.mjs "$PWD/out/saver.html" out/frames 30 12 cars
           node tools/record_saver.mjs "$PWD/out/starships.html" out/ships 30 12 starships
+          node tools/record_saver.mjs "$PWD/out/starlink.html" out/sats 30 12 starlink
       - name: Encode
         run: |
           sudo apt-get install -y -qq ffmpeg >/dev/null || true
-          mkdir -p docs/media Saver/thumbs/starships
+          mkdir -p docs/media Saver/thumbs/starships Saver/thumbs/starlink
           pip install --quiet pillow
           enc() { # frames-dir name
             ffmpeg -y -loglevel error -framerate 30 -i "$1/f%04d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 -preset slow -movflags +faststart "docs/media/$2.mp4"
@@ -42,10 +44,14 @@ jobs:
           }
           enc out/frames flying-cars
           enc out/ships starships
-          # System Settings thumbnails for the Starships saver: centre crop of a frame at 90x58 / 180x116 / 300x194
-          for sz in "thumbnail:90:58" "thumbnail@2x:180:116" "thumbnail@3x:300:194"; do
-            IFS=: read n w h <<< "$sz"
-            ffmpeg -y -loglevel error -i "$(python3 tools/pick_frame.py out/ships 1.55)" -vf "crop=in_h*1.55:in_h:(in_w-in_h*1.55)/2:0,scale=$w:$h:flags=lanczos" "Saver/thumbs/starships/$n.png"
+          enc out/sats starlink
+          # System Settings thumbnails: centre crop of the busiest frame at 90x58 / 180x116 / 300x194
+          for pair in "ships:starships" "sats:starlink"; do
+            f=$(python3 tools/pick_frame.py "out/${pair%%:*}" 1.55)
+            for sz in "thumbnail:90:58" "thumbnail@2x:180:116" "thumbnail@3x:300:194"; do
+              IFS=: read n w h <<< "$sz"
+              ffmpeg -y -loglevel error -i "$f" -vf "crop=in_h*1.55:in_h:(in_w-in_h*1.55)/2:0,scale=$w:$h:flags=lanczos" "Saver/thumbs/${pair#*:}/$n.png"
+            done
           done
           ls -la docs/media
       - name: Commit media
