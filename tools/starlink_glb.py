@@ -389,6 +389,72 @@ def satellite(name, bus, deck, dishes, boom, wing, seed):
     G['scenes'][0]['nodes'].append(root)
 
 
+def satellite15(name='V15', seed=4):
+    """V1.5: a small flat bus (~2.8 x 1.3 m) with a single long array (~8 x 2.6 m) trailing from its rear edge on a
+    short boom, two bright white laser terminals on diagonally opposite corners and a pair of small dishes.
+    The array is a chain of eight hinged segments (extras {inch: i, n}) so the saver can arch it like an inchworm:
+    joints turn about local x, a positive angle lifting everything behind it."""
+    bx, by, bz = 1.3, 0.18, 2.8
+    nodes = []
+    ch, top, white, metal, dish, lens = Mesh(), Mesh(), Mesh(), Mesh(), Mesh(), Mesh()
+    ch.box(0, 0, 0, bx, by, bz)
+    DECK = material(name + '_deck', (0.72, 0.72, 0.72), 0.3, 0.5, deck_texture(bx, bz, [
+        ('ku', -0.3, -0.75, 0.55, 0.55), ('ku', 0.3, -0.75, 0.55, 0.55), ('ku', -0.3, 0.0, 0.55, 0.55), ('ku', 0.3, 0.0, 0.55, 0.55),
+        ('dark', 0, 0.85, 1.1, 0.7)]))
+    top.box(0, by / 2 + 0.012, 0, bx * 0.97, 0.024, bz * 0.98, top_uv=((0, 1), (1, 1), (1, 0), (0, 0)), bottom=False)
+    white.box(0, -by / 2 - 0.012, 0, bx * 0.85, 0.024, bz * 0.85)
+    for k in (-1, 1):
+        metal.box(k * bx / 2, 0, 0, 0.05, by + 0.04, bz + 0.03)
+    # the two bright white laser terminals, on diagonally opposite corners: a squat drum with a domed cap
+    term = []
+    for sx_, sz_ in ((1, 1), (-1, -1)):
+        x, z = sx_ * (bx / 2 + 0.06), sz_ * (bz / 2 - 0.12)
+        white.add(Mesh().cyl(0.17, 0.2, seg=18), None, (x, by / 2, z))
+        white.add(Mesh().cyl(0.17, 0.09, seg=18, r2=0.07), None, (x, by / 2 + 0.2, z))
+        lens.add(Mesh().cyl(0.06, 0.03, seg=12), rot('z', -sx_ * math.pi / 2), (x + sx_ * 0.16, by / 2 + 0.12, z))
+        term.append((x + sx_ * 0.2, by / 2 + 0.14, z))
+    # small gimballed dishes at the other two corners
+    for sx_, sz_ in ((-1, 1), (1, -1)):
+        w, m = gimbal_dish(0.2, 'x', sz_ * 0.4)
+        dish.add(w, None, (sx_ * (bx / 2 - 0.18), by / 2, sz_ * (bz / 2 + 0.12)))
+        metal.add(m, None, (sx_ * (bx / 2 - 0.18), by / 2, sz_ * (bz / 2 + 0.12)))
+    # the boom off the rear edge to the array's root hinge
+    hy, hz = by / 2 + 0.08, -bz / 2 - 0.45
+    for zz in (-bz / 2 - 0.05, hz):
+        metal.box(0, (by / 2 + hy) / 2 if zz > hz else hy, zz, 0.12, (hy - by / 2 + 0.06) if zz > hz else 0.07, 0.1)
+    metal.box(0, hy, (-bz / 2 + hz) / 2, 0.07, 0.06, abs(hz + bz / 2))
+    metal.box(0, hy, hz, 2.6, 0.05, 0.05)                                  # root yoke
+    nodes.append(node(name + '_bus', mesh(name + '_bus', [(ch, CHASSIS), (top, DECK), (white, WHITE), (metal, SILVER),
+                                                             (dish, DISH), (lens, LENS)])))
+    for k, p in enumerate(term):
+        nodes.append(node(f'{name}_lz{k}', None, p, {'laser': k}))
+    # the array: eight segments, each 1.0 m long (along -z) by 2.6 m wide, cells up
+    n, L, gap, chord = 8, 1.0, 0.04, 2.6
+    cell_mat = material(name + '_cells', (0.5, 0.53, 0.62), 0.05, 0.16, cells_texture(13, 5, seed=seed))
+    back_mat = material(name + '_back', (0.8, 0.8, 0.8), 0.0, 0.55, back_texture(13, 5))
+    th = 0.02
+    cells, back, hinge = Mesh(), Mesh(), Mesh()
+    x0, x1, zA, zB = -chord / 2, chord / 2, -gap, -gap - L
+    cells.quad((x0, th / 2, zA), (x1, th / 2, zA), (x1, th / 2, zB), (x0, th / 2, zB), (0, 1, 0), ((0, 0), (1, 0), (1, 1), (0, 1)))
+    back.quad((x0, -th / 2, zB), (x1, -th / 2, zB), (x1, -th / 2, zA), (x0, -th / 2, zA), (0, -1, 0), ((0, 1), (1, 1), (1, 0), (0, 0)))
+    hinge.box(x0, 0, (zA + zB) / 2, 0.012, th, L); hinge.box(x1, 0, (zA + zB) / 2, 0.012, th, L)
+    hinge.box(0, 0, zB, chord, th, 0.012)
+    for q in range(7):
+        hinge.box(x0 + chord * (q + 0.5) / 7, 0, -gap / 2, chord / 7 * 0.55, 0.03, gap)
+    mi = mesh(f'{name}_seg', [(cells, cell_mat), (back, back_mat), (hinge, SILVER)])
+    parent, first = None, None
+    for i in range(n):
+        t = (0, hy, hz) if i == 0 else (0, 0, -(gap + L))
+        j = node(f'{name}_s{i}', mi, t, {'inch': i, 'n': n})
+        if parent is None: first = j
+        else: G['nodes'][parent].setdefault('children', []).append(j)
+        parent = j
+    nodes.append(first)
+    G['scenes'][0]['nodes'].append(node(name, None, (0, 0, 0), {'sat': name}, nodes))
+
+
+satellite15()
+
 # V2 (the "V2 Mini" class flown on Falcon 9): ~4.1 x 2.7 m flat bus, two ~12.8 x 4.1 m arrays
 satellite('V2', bus=(2.7, 0.24, 4.1),
           deck=[('ku', -0.62, -1.3, 1.2, 1.2), ('ku', -0.62, 0.0, 1.2, 1.2), ('ku', -0.62, 1.3, 1.2, 1.2),

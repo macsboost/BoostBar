@@ -94,7 +94,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
   <br><sub><a href="docs/media/starlink.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-**BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen flying-toasters style. The bus is the toaster; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
+**BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen flying-toasters style. The bus is the toaster; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V1.5** (which creeps along in straight lines like an inchworm), **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
 
 ## Updates
 

@@ -60,7 +60,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         if let d = deploy, let c = craft.first { c.dep = d; c.depStarted = false }
         for (i, c) in craft.enumerated() {
             c.g.isHidden = i > 0
-            if i == 0 { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.man = nil; c.next = .greatestFiniteMagnitude }
+            if i == 0 { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.man = nil; c.next = .greatestFiniteMagnitude; c.inchPh = 0 }
         }
     }
 
@@ -137,6 +137,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         /// Direction of travel (crossing mode gives each lane its own), lane index, and a counter bumped on respawn.
         var d = simd_normalize(SIMD3<Float>(-1, -0.52, 0)), lane = -1, gen = 0
         var terminals: [SCNNode] = []
+        /// Starlink V1.5: its single array is a chain of segments that arches and stretches like an inchworm.
+        var inch: [(node: SCNNode, q0: simd_quatf, i: Int, n: Int)] = [], inchPh: Float = 0, inchL: Float = -1
         var kx: Float = 0, ky: Float = 0, kz: Float = 0, wob: Float = 0
         var spin: Float = .random(in: 0...10), flapRate: Float = 1
         var man: Stunt?
@@ -223,7 +225,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             }
         case .starlink:
             let m = try GLB.load(res.appendingPathComponent("Starlink.glb"))
-            var want = cfg.liveries.map { $0.uppercased() }.filter { $0 == "V2" || $0 == "V3" || $0 == "DEPLOY" }
+            var want = cfg.liveries.map { $0.uppercased() }.filter { $0 == "V2" || $0 == "V3" || $0 == "DEPLOY" || $0 == "V15" }
             if want.isEmpty { want = ["V2", "V3", "DEPLOY"] }
             var tpl: [String: SCNNode] = [:]
             for kindName in want {
@@ -232,7 +234,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 guard let sat = m.root.childNode(withName: name, recursively: true) else { continue }
                 sat.removeFromParentNode()
                 sat.enumerateHierarchy { o, _ in o.geometry?.materials.forEach { $0.isDoubleSided = true } }
-                let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: 0.4); pivot.addChildNode(sat)
+                let pivot = SCNNode(); pivot.simdScale = SIMD3(repeating: name == "V15" ? Self.inchScale : 0.4); pivot.addChildNode(sat)
                 let root = SCNNode(); root.addChildNode(pivot)
                 tpl[name] = root
             }
@@ -248,11 +250,13 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                     guard let name = o.name, let e = m.extras[name] else { return }
                     if let l = e["link"] as? String { c.links.append((o, o.simdOrientation, l == "R" ? 1 : -1)); return }
                     if e["laser"] != nil { c.terminals.append(o); return }
+                    if let k = e["inch"] as? Int { c.inch.append((o, o.simdOrientation, k, e["n"] as? Int ?? 8)); return }
                     guard let w = e["wing"] as? String else { return }
                     c.wings.append((o, o.simdOrientation, w == "R" ? 1 : -1, e["i"] as? Int ?? 0, e["n"] as? Int ?? 1))
                 }
                 c.flapRate = 3.6 + .random(in: 0...1.6)
                 c.terminals.sort { ($0.name ?? "") < ($1.name ?? "") }
+                c.inchPh = .random(in: 0...(2 * .pi))
                 add(c)
             }
             if cfg.crossing { makeLanes() }
@@ -418,7 +422,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         g.gen += 1
     }
 
-    private func ready(_ c: Craft) -> Bool { c.terminals.count == 4 && !(c.deploys && c.dep < 7.8) }
+    private func ready(_ c: Craft) -> Bool { !c.terminals.isEmpty && !(c.deploys && c.dep < 7.8) }
 
     private func updateLasers(_ dt: Float) {
         guard cfg.lasers, let lineT = beamLine, let endT = beamEnd else { return }
@@ -438,6 +442,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         func isReady(_ i: Int) -> Bool { i < n ? ready(craft[i]) : true }
         func end(_ i: Int, _ t: Int) -> SIMD3<Float> { i < n ? craft[i].terminals[t].simdWorldPosition : ghosts[i - n].p }
         let total = n + ghosts.count
+        func cap(_ i: Int) -> Int { i < n ? craft[i].terminals.count : 4 }
         func holdsOther(_ i: Int, _ except: Beam) -> Bool {
             beams.contains { $0 !== except && !$0.dying && $0.grow >= 1 && ($0.a == i || $0.b == i) }
         }
@@ -476,13 +481,13 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                     let d = simd_distance(center(i), center(j))
                     guard d < makeR, d < (best?.d ?? .infinity) else { continue }
                     if beams.contains(where: { !$0.dying && (($0.a == i && $0.b == j) || ($0.a == j && $0.b == i)) }) { continue }
-                    if used(i).count >= 4 || used(j).count >= 4 { continue }
+                    if used(i).count >= cap(i) || used(j).count >= cap(j) { continue }
                     best = (i, j, d)
                 }
             }
             guard let p = best else { break }
             func pick(_ i: Int, toward: SIMD3<Float>) -> Int {
-                let free = (0..<4).filter { !used(i).contains($0) }
+                let free = (0..<cap(i)).filter { !used(i).contains($0) }
                 if i >= n { return free[0] }
                 return free.min { simd_distance(end(i, $0), toward) < simd_distance(end(i, $1), toward) }!
             }
@@ -813,6 +818,27 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         step(to: time)
     }
 
+    static let inchScale: Float = 0.85
+
+    /// The V1.5 gait: the array arches up in the middle (its tail end drawing in toward the bus, which holds still),
+    /// then stretches flat again (the tail holding still, so the bus is pushed forward by the stretch). Sets the
+    /// segment joints and returns how far the bus moves this frame.
+    private func inchworm(_ c: Craft, _ dt: Float) -> Float {
+        let rate = 0.9 * Float(cfg.speed) * Float(max(0.3, cfg.flapSpeed).squareRoot())
+        c.inchPh += dt * 2 * .pi * rate
+        let A: Float = 1.15 * (1 - cos(c.inchPh)) / 2
+        var length: Float = 0, prev: Float = 0
+        for j in c.inch.sorted(by: { $0.i < $1.i }) {
+            let a = A * cos(.pi * (Float(j.i) + 0.5) / Float(j.n))     // up at the root, down at the tail: one hump
+            j.node.simdOrientation = j.q0 * simd_quatf(angle: a - prev, axis: SIMD3(1, 0, 0))
+            prev = a
+            length += cos(a)
+        }
+        defer { c.inchL = length }
+        guard c.inchL >= 0 else { return 0 }
+        return max(0, length - c.inchL) * 1.04 * Self.inchScale            // segment pitch 1.04 m
+    }
+
     /// Advances the flock to `time` (seconds, any clock).
     func step(to time: TimeInterval) {
         defer { lastTime = time }
@@ -827,8 +853,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for c in craft {
             // a deploying Starlink drifts at half speed until its arrays are out and flapping
             let pace: Float = c.deploys ? 0.5 + 0.5 * Float(ease(Double((c.dep - 7.8) / 1.5))) : 1
-            c.x += c.d.x * c.speed * pace * dt + c.kx * dt
-            c.y += c.d.y * c.speed * pace * dt + c.ky * dt
+            var adv = c.speed * pace * dt
+            if !c.inch.isEmpty { adv = inchworm(c, dt) }      // V1.5 only moves while it stretches out
+            c.x += c.d.x * adv + c.kx * dt
+            c.y += c.d.y * adv + c.ky * dt
             c.z = max(-45, min(closeupZ ?? 8, c.z + c.kz * dt))
             c.kx *= damp; c.ky *= damp; c.kz *= damp
             c.wob *= exp(-1.6 * dt)
@@ -837,16 +865,21 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 if simd_dot(SIMD2(c.x, c.y), SIMD2(c.d.x, c.d.y)) > laneLength(lanes[c.lane]) { relane(c) }
             } else if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
             let tf = Float(t)
-            let bob = sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
-            let stowed = c.deploys && c.dep < 7.8
+            let straight = !c.inch.isEmpty                      // V1.5 keeps to a straight line: no bob, no stunts
+            let bob = straight ? 0 : sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
+            let stowed = (c.deploys && c.dep < 7.8) || straight
             if stowed { c.man = nil; c.next = max(c.next, t + 2) }      // no stunts until the arrays are out
             let st = stowed ? nil : stunt(c, t)
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
             let wobble = c.wob * sin(tf * 11 + c.phase) * 0.35
             var q = lookRotation(c.d)
-            if kind == .starlink { q = q * yRot }
-            q = q * simd_quatf(angle: tilt + sin(tf * 0.9 + c.phase) * 0.05 + (st?.roll ?? 0) + wobble, axis: SIMD3(0, 0, 1))
-            q = q * simd_quatf(angle: sin(tf * 1.3 + c.phase + 1) * 0.04 - (st?.pitch ?? 0) + wobble * 0.5, axis: SIMD3(1, 0, 0))
+            if straight {
+                q = q * simd_quatf(angle: tilt + wobble, axis: SIMD3(0, 0, 1))
+            } else {
+                if kind == .starlink { q = q * yRot }
+                q = q * simd_quatf(angle: tilt + sin(tf * 0.9 + c.phase) * 0.05 + (st?.roll ?? 0) + wobble, axis: SIMD3(0, 0, 1))
+                q = q * simd_quatf(angle: sin(tf * 1.3 + c.phase + 1) * 0.04 - (st?.pitch ?? 0) + wobble * 0.5, axis: SIMD3(1, 0, 0))
+            }
             c.spin += dt * Float(max(0.05, cfg.flapSpeed))
             for f in c.fans {
                 f.node.simdOrientation = f.q0 * simd_quatf(angle: f.sg * f.rate * c.spin, axis: SIMD3(0, 1, 0))
@@ -905,6 +938,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             for j in (i + 1)..<max(i + 1, craft.count) {
                 let a = craft[i], b = craft[j]
                 if a.lane >= 0, b.lane >= 0, a.d != b.d { continue }   // crossing passes are at different altitudes
+                if a.inch.isEmpty != b.inch.isEmpty { continue }        // V1.5s fly in a lower shell
                 var n = a.g.simdPosition - b.g.simdPosition
                 let d = simd_length(n)
                 if d >= 2 * R || d < 1e-4 { continue }

@@ -522,6 +522,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     );
   }
   // ---------- Starlink ----------
+  const INCH_SCALE = 0.85; // the little V1.5 drawn bigger so its inchworm gait reads
   const SAT_SCALE = 0.4; // V3 spans ~41 m -> 16 scene units, V2 ~29 m -> 12
   function loadStarlink(names) {
     return new Promise((res, rej) =>
@@ -540,7 +541,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
               o.material.side = THREE.DoubleSide;
             });
             const pivot = new THREE.Group();
-            pivot.scale.setScalar(SAT_SCALE);
+            pivot.scale.setScalar(n === 'V15' ? INCH_SCALE : SAT_SCALE);
             pivot.add(sat);
             const root = new THREE.Group();
             root.add(pivot);
@@ -653,7 +654,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     });
   const BEAM_LAYERS = [{ c: 0xff7366, o: 0.55, r: 0.04 }, { c: 0xff120a, o: 0.3, r: 0.12 }, { c: 0xff0505, o: 0.09, r: 0.3 }];
   const upY = new THREE.Vector3(0, 1, 0), pa = new THREE.Vector3(), pb = new THREE.Vector3(), bv = new THREE.Vector3();
-  const readyFor = (c) => c.terminals && c.terminals.length === 4 && !(c.deploys && c.dep < 7.8);
+  const readyFor = (c) => c.terminals && c.terminals.length > 0 && !(c.deploys && c.dep < 7.8);
   function newBeam() {
     const g = new THREE.Group();
     for (const L of BEAM_LAYERS) {
@@ -699,6 +700,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     const isReady = (i) => (i < n ? readyFor(craft[i]) : true);
     const endOf = (i, t, out) => (i < n ? craft[i].terminals[t].getWorldPosition(out) : out.copy(ghosts[i - n].p));
     const total = n + ghosts.length;
+    const cap = (i) => (i < n ? craft[i].terminals.length : 4);
     const holdsOther = (i, ex) => beams.some((b) => b !== ex && !b.dying && b.grow >= 1 && (b.a === i || b.b === i));
     for (const b of beams) {
       if (gen(b.a) !== b.ga || gen(b.b) !== b.gb) {
@@ -730,7 +732,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
           const d = center(i).distanceTo(center(j));
           if (d >= MAKE_R || (best && d >= best.d)) continue;
           if (beams.some((b) => !b.dying && ((b.a === i && b.b === j) || (b.a === j && b.b === i)))) continue;
-          if (used(i).size >= 4 || used(j).size >= 4) continue;
+          if (used(i).size >= cap(i) || used(j).size >= cap(j)) continue;
           best = { i, j, d };
         }
       }
@@ -738,7 +740,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       const pick = (i, to) => {
         const u = used(i);
         let bi = -1, bd = Infinity;
-        for (let k = 0; k < 4; k++) {
+        for (let k = 0; k < cap(i); k++) {
           if (u.has(k)) continue;
           if (i >= n) return k;
           const d = endOf(i, k, pa).distanceTo(to);
@@ -761,6 +763,25 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       const k = Math.max(0, b.fade);
       for (const m of b.g.children) { m.scale.set(m.userData.r, len, m.userData.r); m.material.uniforms.uOpacity.value = m.userData.o * k; }
     }
+  }
+
+  // V1.5 gait: the array arches up in the middle (its tail drawing in toward the bus, which holds still), then
+  // stretches flat again (the tail holding still, so the stretch pushes the bus forward). Returns the bus's advance.
+  const xAxis = new THREE.Vector3(1, 0, 0), inchQ = new THREE.Quaternion();
+  function inchworm(c, dt) {
+    const rate = 0.9 * CFG.speed * Math.sqrt(Math.max(0.3, +CFG.flapSpeed || 1));
+    c.inchPh += dt * 2 * Math.PI * rate;
+    const A = (1.15 * (1 - Math.cos(c.inchPh))) / 2;
+    let length = 0, prev = 0;
+    for (const j of c.inch) {
+      const a = A * Math.cos((Math.PI * (j.i + 0.5)) / j.n); // up at the root, down at the tail: one hump
+      j.o.quaternion.copy(j.q0).multiply(inchQ.setFromAxisAngle(xAxis, a - prev));
+      prev = a;
+      length += Math.cos(a);
+    }
+    const adv = c.inchL < 0 ? 0 : Math.max(0, length - c.inchL) * 1.04 * INCH_SCALE;
+    c.inchL = length;
+    return adv;
   }
 
   function spawn(c, initial) {
@@ -850,7 +871,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
 
   async function build() {
     if (SATS) {
-      const want = (CFG.liveries || []).map((x) => String(x).toUpperCase()).filter((x) => x === 'V2' || x === 'V3' || x === 'DEPLOY');
+      const want = (CFG.liveries || []).map((x) => String(x).toUpperCase()).filter((x) => x === 'V2' || x === 'V3' || x === 'DEPLOY' || x === 'V15');
       const names = want.length ? want : ['V2', 'V3', 'DEPLOY'];
       const model = (k) => (k === 'DEPLOY' ? 'V3' : k); // the deploying one is a V3, fresh off Starship
       const tpls = await loadStarlink([...new Set(names.map(model))]);
@@ -865,7 +886,12 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         const terminals = [];
         root.traverse((o) => { if (o.userData && o.userData.laser !== undefined) terminals.push(o); });
         terminals.sort((p, q) => (p.name < q.name ? -1 : 1));
-        const c = { g, fans: [], wings: wingsOf(root), flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10, deploys: pick === 'DEPLOY', terminals };
+        const inch = [];
+        root.traverse((o) => { if (o.userData && o.userData.inch !== undefined) inch.push({ o, q0: o.quaternion.clone(), i: o.userData.inch, n: o.userData.n }); });
+        inch.sort((p, q) => p.i - q.i);
+        const wings = wingsOf(root);
+        const c = { g, fans: [], wings: wings.length ? wings : null, inch: inch.length ? inch : null, inchPh: Math.random() * Math.PI * 2, inchL: -1,
+          flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10, deploys: pick === 'DEPLOY', terminals };
         spawn(c, true);
         craft.push(c);
       }
@@ -930,6 +956,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       for (let j = i + 1; j < craft.length; j++) {
         const a = craft[i], b = craft[j];
         if (a.lane !== undefined && b.lane !== undefined && a.d !== b.d) continue; // crossing passes: different altitudes
+        if (!a.inch !== !b.inch) continue; // V1.5s fly in a lower shell
         n.subVectors(a.g.position, b.g.position);
         const d = n.length();
         if (d >= 2 * R || d < 1e-4) continue;
@@ -966,8 +993,9 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       // a deploying Starlink drifts at half speed until its arrays are out and flapping
       const pk = (c.dep - 7.8) / 1.5, pace = c.deploys ? 0.5 + 0.5 * (pk < 0 ? 0 : pk > 1 ? 1 : pk * pk * (3 - 2 * pk)) : 1;
       const D = c.d || DIR;
-      c.x += D.x * c.speed * pace * dt + c.kx * dt;
-      c.y += D.y * c.speed * pace * dt + c.ky * dt;
+      const adv = c.inch ? inchworm(c, dt) : c.speed * pace * dt; // V1.5 only moves while it stretches out
+      c.x += D.x * adv + c.kx * dt;
+      c.y += D.y * adv + c.ky * dt;
       c.z = Math.max(-45, Math.min(8, c.z + c.kz * dt));
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
@@ -975,8 +1003,9 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       if (c.lane !== undefined) { if (c.x * D.x + c.y * D.y > laneLen(lanes[c.lane])) relane(c); }
       else if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
-      const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
-      const stowed = c.deploys && c.dep < 7.8; // no stunts until the arrays are out
+      const straight = !!c.inch; // V1.5 keeps to a straight line: no bob, no stunts
+      const bob = straight ? 0 : Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
+      const stowed = (c.deploys && c.dep < 7.8) || straight; // no stunts until the arrays are out
       if (stowed) { c.man = null; c.next = Math.max(c.next, clock() + 2); }
       const st = stowed ? null : stunt(c, t);
       c.g.position.set(c.x, c.y + bob, c.z);
@@ -986,9 +1015,12 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
-      if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
-      c.g.rotateZ(TILT + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
-      c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
+      if (straight) c.g.rotateZ(TILT + wobble);
+      else {
+        if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
+        c.g.rotateZ(TILT + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
+        c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
+      }
       c.spin += dt * Math.max(0.05, +CFG.flapSpeed || 1); // fans, flaps and wings all run on this clock
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
       if (c.wings) {
