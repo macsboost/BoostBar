@@ -28,6 +28,11 @@ jobs:
             sips -s format jpeg -s formatOptions 70 "$f" --out "snaps/$n.jpg" >/dev/null 2>&1 || true
             echo "IMG_BEGIN ${n}.jpg"; base64 -i "snaps/$n.jpg" | tr -d '\n'; echo; echo "IMG_END"
           done
+      - name: Menu bar samples (PNG)
+        run: |
+          for f in snaps/menubar_*.png; do
+            echo "PNG_BEGIN $(basename "$f")"; base64 -i "$f" | tr -d '\n'; echo; echo "PNG_END"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: settings

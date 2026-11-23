@@ -6,10 +6,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
     private let cpu = CPUMonitor()
-    /// The CPU meter runs on its own fast clock: load is sampled 5 times a second and the needle and bars glide
-    /// toward each reading at 20 frames a second, redrawing only the meter (and only while something moves).
+    /// The CPU meter runs on its own fast clock: load is sampled Prefs.cpuRate times a second and the needle and bars
+    /// glide toward each reading at 20 frames a second, redrawing only the meter (and only while something moves).
+    /// The damping is automatic: the glide's time constant follows the update rate (slow updates get a long, smooth
+    /// sweep; fast ones a quick one), with a floor so the kernel's coarse tick counts don't make the needle jitter.
     private var cpuTimer: Timer?
-    private var cpuFrame = 0
+    private var cpuSince = 1.0
     private var cpuShown = 0.0, cpuCoresShown: [Double] = []
 
     private func setCPUMeterRunning(_ on: Bool) {
@@ -22,14 +24,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func cpuStep() {
-        cpuFrame += 1
-        if cpuFrame % 4 == 0 { cpu.sample() }
+        let dt = 0.05, rate = Prefs.cpuRate
+        cpuSince += dt
+        if cpuSince >= 1 / rate - 0.001 { cpuSince = 0; cpu.sample() }
+        let k = 1 - exp(-dt / max(0.1, 0.65 / rate))
         var moved = abs(cpu.total - cpuShown) > 0.002
-        cpuShown += (cpu.total - cpuShown) * 0.3
+        cpuShown += (cpu.total - cpuShown) * k
         if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores; moved = true }
         for i in cpuCoresShown.indices {
             if abs(cpu.cores[i] - cpuCoresShown[i]) > 0.004 { moved = true }
-            cpuCoresShown[i] += (cpu.cores[i] - cpuCoresShown[i]) * 0.3
+            cpuCoresShown[i] += (cpu.cores[i] - cpuCoresShown[i]) * k
         }
         guard moved else { return }
         graphView.cpu = cpuShown

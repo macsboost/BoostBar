@@ -596,6 +596,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Show CPU meter", get: { Prefs.showCPU }, set: { Prefs.showCPU = $0; app.applySettings() })
             p.popup("Style", items: ["Boost gauge (half-round, with a needle)", "Bars (one per core)"],
                     get: { Prefs.cpuStyle }, set: { Prefs.cpuStyle = $0; app.applySettings() })
+            p.slider("Update rate", min: 1, max: 10, get: { Prefs.cpuRate }, set: { Prefs.cpuRate = $0.rounded() },
+                     value: { String(format: "%.0f/s", $0) }, caption: "readings per second")
+            p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates, so the meter never jumps or jitters.")
+            p.divider()
             p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It starts at the far right; move it in General ▸ Menu Bar Layout.")
         })
 
