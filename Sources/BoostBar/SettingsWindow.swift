@@ -49,6 +49,9 @@ private final class Pane: NSViewController {
 
     func refresh() { refreshers.forEach { $0() } }
 
+    /// A retained action target for controls built by hand inside a pane.
+    func actionBox(_ f: @escaping (Any?) -> Void) -> ActionBox { box(f) }
+
     private func box(_ f: @escaping (Any?) -> Void) -> ActionBox {
         let b = ActionBox(f); boxes.append(b); return b
     }
@@ -100,6 +103,27 @@ private final class Pane: NSViewController {
         var views: [NSView] = [l, p]
         if let trailing { views.append(trailing) }
         add(row(views), indent: indent)
+    }
+
+    func slider(_ label: String, min: Double, max: Double, get: @escaping () -> Double, set: @escaping (Double) -> Void,
+                caption: String? = nil, enabled: (() -> Bool)? = nil) {
+        let l = NSTextField(labelWithString: label)
+        l.widthAnchor.constraint(equalToConstant: 110).isActive = true
+        let s = NSSlider(value: get(), minValue: min, maxValue: max, target: nil, action: nil)
+        s.widthAnchor.constraint(equalToConstant: 260).isActive = true
+        let bx = box { [weak s] _ in if let s { set(s.doubleValue) } }
+        s.target = bx; s.action = #selector(ActionBox.run(_:))
+        var views: [NSView] = [l, s]
+        if let caption {
+            let c = NSTextField(labelWithString: caption)
+            c.font = .systemFont(ofSize: 11); c.textColor = .secondaryLabelColor
+            views.append(c)
+        }
+        refreshers.append { [weak s] in
+            s?.doubleValue = get()
+            if let enabled { s?.isEnabled = enabled() }
+        }
+        add(row(views), indent: false)
     }
 
     func color(_ label: String, get: @escaping () -> NSColor, set: @escaping (NSColor) -> Void) {
@@ -372,26 +396,58 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         #if !APPSTORE
         // Screen saver
         list.append(Pane(title: "Screen Saver", symbol: "airplane") { p in
-            func saverSection(_ sv: BundledSaver, _ about: String) {
-                p.header(sv.name)
-                p.note(about)
-                let row = p.row([
-                    p.makeButton("Preview") { SaverPreviewWindow.shared.show(sv) },
-                    p.makeButton(sv.isInstalled ? "Reinstall" : "Install") { sv.install() },
-                ])
-                p.custom(row, height: 30)
-                p.label { sv.isInstalled ? "✓ Installed — choose it in System Settings ▸ Screen Saver" : "Not installed yet" }
+            var current = BundledSaver.all[0]
+            var o: SaverOptions { SaverConfig.options(for: current.scene) }
+            func change(_ f: (inout SaverOptions) -> Void) {
+                var x = SaverConfig.options(for: current.scene); f(&x); SaverConfig.save(x, for: current.scene)
             }
-            saverSection(.flyingCars, "X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries drift across your screen, fans spinning, like the classic flying-toasters screen saver.")
-            saverSection(.starships, "A fleet of Starships glides across the screen, flapping their flaps like the toasters' wings, Raptors glowing.")
-            saverSection(.starlink, "Starlink V2 and V3 satellites beat their long solar wings like birds, the panels bending between modules. Pick V2, V3 or both in its Options.")
-            p.header("")
+            p.popup("Screen saver", items: BundledSaver.all.map(\.name), get: { BundledSaver.all.firstIndex { $0.scene == current.scene } ?? 0 },
+                    set: { current = BundledSaver.all[$0]; p.refresh() })
+            p.label { current.about }
             let row = p.row([
-                p.makeButton("Open Screen Saver Settings…") { BundledSaver.openSettings() },
-                p.makeButton("Start Now") { BundledSaver.startNow() },
+                p.makeButton("Preview") { SaverPreviewWindow.shared.show(current) },
+                p.makeButton("Install & Show in System Settings") { current.install(); p.refresh() },
             ])
             p.custom(row, height: 30)
-            p.note("Start Now runs whichever screen saver is chosen in System Settings. Each saver's Options button there sets how many fly, how fast, and stars; Flying Cars also lets you pick liveries, Starlink which satellites. The X1 SkyRacer, its liveries and the Starship model come from the X1 SkyRacer Flying Car Race Sim. Not affiliated with SpaceX.")
+            p.label { current.isInstalled ? "✓ Installed. To use it: System Settings ▸ Wallpaper ▸ Screen Saver, then click it under Other (at the end)." : "Not installed yet." }
+
+            p.header("Options")
+            // the three choice boxes are liveries (Flying Cars) or satellites (Starlink); Starships has none
+            let boxes = (0..<3).map { _ in NSButton(checkboxWithTitle: "", target: nil, action: nil) }
+            let choiceLabel = NSTextField(labelWithString: "")
+            choiceLabel.widthAnchor.constraint(equalToConstant: 110).isActive = true
+            for (i, b) in boxes.enumerated() {
+                b.target = p.actionBox { _ in
+                    let ids = current.choices.map(\.id)
+                    guard i < ids.count else { return }
+                    change { x in
+                        var on = Set(x.liveries)
+                        if boxes[i].state == .on { on.insert(ids[i]) } else { on.remove(ids[i]) }
+                        if on.isEmpty { on.insert(ids[i]); boxes[i].state = .on }   // keep at least one
+                        x.liveries = ids.filter(on.contains)
+                    }
+                }
+                b.action = #selector(ActionBox.run(_:))
+            }
+            let choiceRow = p.row([choiceLabel] + boxes)
+            p.custom(choiceRow, height: 22, onRefresh: {
+                let ch = current.choices
+                choiceRow.isHidden = ch.isEmpty
+                choiceLabel.stringValue = current.scene == "starlink" ? "Satellites" : "Liveries"
+                for (i, b) in boxes.enumerated() {
+                    b.isHidden = i >= ch.count
+                    if i < ch.count { b.title = ch[i].name; b.state = o.liveries.contains(ch[i].id) ? .on : .off }
+                }
+            })
+            p.slider("How many", min: 1, max: 16, get: { Double(o.count) }, set: { v in change { $0.count = Int(v.rounded()) } })
+            p.slider("Speed", min: 0.3, max: 3, get: { o.speed }, set: { v in change { $0.speed = v } }, caption: "across the screen")
+            p.slider("Flap speed", min: 0.2, max: 3, get: { o.flapSpeed }, set: { v in change { $0.flapSpeed = v } },
+                     caption: "flaps, wings — fans for the cars")
+            p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
+                     caption: "Starships: fresh tiles → post-re-entry", enabled: { current.scene == "starships" })
+            p.check("Stunts (barrel rolls, veers, climbs and dives)", get: { o.stunts }, set: { v in change { $0.stunts = v } })
+            p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } })
+            p.note("Changes apply the next time the screen saver starts (and in Preview). Not affiliated with SpaceX; the X1 SkyRacer, its liveries and the Starship come from the X1 SkyRacer Flying Car Race Sim.")
         })
 
         // Scrolling

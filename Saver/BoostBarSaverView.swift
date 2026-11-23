@@ -19,6 +19,7 @@ final class BoostBarSaverView: BoostBarSceneView {}
 
 class BoostBarSceneView: ScreenSaverView {
     #if STARLINK
+    static let scene = "starlink"
     static let moduleName = "com.macsboost.boostbar.starlink"
     static let title = "BoostBar Starlink"
     static let things = "Satellites"
@@ -28,6 +29,7 @@ class BoostBarSceneView: ScreenSaverView {
     static let flapTitle = "Flap speed"
     static let defaultCount = 5
     #elseif STARSHIPS
+    static let scene = "starships"
     static let moduleName = "com.macsboost.boostbar.starships"
     static let liveriesTitle = ""
     static let hasOxidation = true
@@ -37,6 +39,7 @@ class BoostBarSceneView: ScreenSaverView {
     static let allLiveries: [(id: String, name: String)] = []
     static let defaultCount = 6
     #else
+    static let scene = "cars"
     static let moduleName = "com.macsboost.boostbar.saver"
     static let title = "BoostBar Flying Cars"
     static let things = "Flying cars"
@@ -76,7 +79,24 @@ class BoostBarSceneView: ScreenSaverView {
         loadScene()
     }
 
+    /// Options saved by BoostBar ▸ Settings ▸ Screen Saver, beside the installed savers (the real home folder — this
+    /// runs inside the screen saver host's container). Used when newer than this saver's own Options sheet.
+    private func boostBarOptionsJS() -> String? {
+        guard let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir else { return nil }
+        let url = URL(fileURLWithPath: String(cString: dir)).appendingPathComponent("Library/Screen Savers/BoostBar Screen Savers.json")
+        guard let data = try? Data(contentsOf: url),
+              let all = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let o = all[Self.scene] as? [String: Any] else { return nil }
+        let savedAt = o["savedAt"] as? Double ?? 0
+        if defaults.double(forKey: "savedAt") > savedAt { return nil }   // the Options sheet was used more recently
+        var o2 = o
+        o2["preview"] = isPreview
+        guard let js = try? JSONSerialization.data(withJSONObject: o2), let str = String(data: js, encoding: .utf8) else { return nil }
+        return "window.SAVER_CONFIG=\(str);"
+    }
+
     private func configJS() -> String {
+        if let js = boostBarOptionsJS() { return js }
         let d = defaults
         let livs = (d.string(forKey: "liveries") ?? Self.allLiveries.map(\.id).joined(separator: ","))
             .split(separator: ",").map { "\"\($0)\"" }.joined(separator: ",")
@@ -195,6 +215,7 @@ class BoostBarSceneView: ScreenSaverView {
             if let os = oxSlider { d.set(os.doubleValue, forKey: "oxidation") }
             d.set(flapSlider?.doubleValue ?? 1, forKey: "flapSpeed")
             d.set(stuntsCheck?.state == .on, forKey: "stunts")
+            d.set(Date().timeIntervalSince1970, forKey: "savedAt")
             d.synchronize()
             loadScene()
         }
