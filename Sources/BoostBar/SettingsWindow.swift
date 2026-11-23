@@ -28,7 +28,7 @@ private final class IndentRow: NSStackView {}
 
 /// One settings tab: titled cards of controls, each control with a refresher that re-reads its state.
 private final class Pane: NSViewController {
-    static let width: CGFloat = 660
+    static let width: CGFloat = 700
     private static let margin: CGFloat = 24
     private static let cardPad: CGFloat = 14
     private static let labelWidth: CGFloat = 124
@@ -414,6 +414,35 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 print("settings snapshot", name, Int(v.bounds.width), "x", Int(v.bounds.height))
             }
         }
+        // the menu bar pieces too, on a light and a dark bar, at 4x so the tiny gauge can be judged
+        for (name, dark) in [("menubar_light", false), ("menubar_dark", true)] {
+            for (k, load) in [0.08, 0.45, 0.93].enumerated() {
+                for style in 0...1 {
+                    let v = StatusGraphView(frame: .zero)
+                    v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                    v.showNetwork = true; v.showBattery = false; v.showDisks = false; v.showEyes = true; v.eyeSize = 2
+                    v.showCPU = true; v.cpuStyle = style; v.cpu = load
+                    v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
+                    v.verticalLabels = k == 1
+                    v.up = (0..<30).map { 2000 + 9000 * abs(sin(Double($0) * 0.4)) }; v.down = (0..<30).map { 40000 * abs(cos(Double($0) * 0.3)) }
+                    v.upText = "12 KB/s"; v.downText = "340 KB/s"
+                    let w = v.layoutSegments(height: 22)
+                    v.frame = NSRect(x: 0, y: 0, width: w, height: 22)
+                    guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(w) * 4, pixelsHigh: 88, bitsPerSample: 8, samplesPerPixel: 4,
+                                                     hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { continue }
+                    rep.size = v.bounds.size
+                    if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+                        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ctx
+                        (dark ? NSColor(white: 0.13, alpha: 1) : NSColor(white: 0.93, alpha: 1)).setFill(); v.bounds.fill()
+                        NSGraphicsContext.restoreGraphicsState()
+                    }
+                    v.cacheDisplay(in: v.bounds, to: rep)
+                    if let png = rep.representation(using: .png, properties: [:]) {
+                        try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name)_\(k)_\(style).png"))
+                    }
+                }
+            }
+        }
         for saver in BundledSaver.all.indices {
             Self.initialSaver = saver
             window = nil; tabs = nil
@@ -437,7 +466,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
 
         panes = makePanes()
         let symbols: [String: String] = [
-            "General": "gearshape", "Sleep": "moon.zzz", "Network": "network", "Battery": "battery.75percent",
+            "General": "gearshape", "CPU": "gauge.with.needle", "Sleep": "moon.zzz", "Network": "network", "Battery": "battery.75percent",
             "Disks": "internaldrive", "Eyes": "eyes", "Screen Saver": "airplane", "Scrolling": "computermouse",
         ]
         tabs.onSelect = { [weak self] in self?.fit(animated: true) }
@@ -558,6 +587,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     set: { Prefs.showBattery = $0; app.applySettings() },
                     enabled: { BatteryMonitor.hasBattery })
             p.note("Green IN = charging, orange OUT = running on battery. Hover for time to full / empty and a 10-minute power chart.")
+        })
+
+        // CPU
+        list.append(Pane(title: "CPU", symbol: "gauge.with.needle") { p in
+            p.header("Menu Bar")
+            p.check("Show CPU meter", get: { Prefs.showCPU }, set: { Prefs.showCPU = $0; app.applySettings() })
+            p.popup("Style", items: ["Boost gauge (half-round, with a needle)", "Bars (one per core)"],
+                    get: { Prefs.cpuStyle }, set: { Prefs.cpuStyle = $0; app.applySettings() })
+            p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It starts at the far right; move it in General ▸ Menu Bar Layout.")
         })
 
         // Disks

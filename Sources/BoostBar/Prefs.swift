@@ -18,6 +18,8 @@ enum Prefs {
         static let upColor = "netUpColor"
         static let downColor = "netDownColor"
         static let showEyes = "showEyes"
+        static let showCPU = "showCPU"
+        static let cpuStyle = "cpuStyle"
         static let eyeSize = "eyeSize"
         static let singleEye = "singleEye"
         static let googly = "googlyEyes"
@@ -56,6 +58,8 @@ enum Prefs {
             K.upColor: "White",
             K.downColor: "White",
             K.showEyes: false,
+            K.showCPU: true,
+            K.cpuStyle: 0,
             K.eyeSize: 1,
             K.singleEye: false,
             K.googly: true,
@@ -99,6 +103,9 @@ enum Prefs {
 
     // Googly eyes
     static var showEyes: Bool { get { bool(K.showEyes) } set { set(newValue, K.showEyes) } }
+    static var showCPU: Bool { get { bool(K.showCPU) } set { set(newValue, K.showCPU) } }
+    /// 0 = half-round boost gauge, 1 = a vertical bar per core
+    static var cpuStyle: Int { get { d.integer(forKey: K.cpuStyle) } set { d.set(newValue, forKey: K.cpuStyle) } }
     /// 0 = small, 1 = medium, 2 = large
     static var eyeSize: Int { get { min(max(d.integer(forKey: K.eyeSize), 0), 2) } set { d.set(newValue, forKey: K.eyeSize) } }
     static var singleEye: Bool { get { bool(K.singleEye) } set { set(newValue, K.singleEye) } }

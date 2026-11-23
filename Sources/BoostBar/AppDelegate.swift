@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
+    private let cpu = CPUMonitor()
     private let eyes = EyesAnimator()
     #if !APPSTORE
     let shake = ShakeDetector()
@@ -206,6 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Once per second: sample battery history, redraw, and refresh an open hover panel.
     private func tick() {
+        if Prefs.showCPU { cpu.sample() }
         if BatteryMonitor.hasBattery, let b = BatteryMonitor.read() {
             batteryHistory.append(b.watts)
         }
@@ -224,6 +226,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showBattery = Prefs.showBattery
         graphView.showDisks = diskSettings.showDisks
         graphView.showEyes = Prefs.showEyes
+        graphView.showCPU = Prefs.showCPU
+        graphView.cpuStyle = Prefs.cpuStyle
+        graphView.cpu = cpu.total
+        graphView.cpuCores = cpu.cores
         graphView.eyeSize = Prefs.eyeSize
         graphView.singleEye = Prefs.singleEye
         graphView.bloodshot = Prefs.bloodshot || (Prefs.bloodshotAwake && (sleep.isPreventing || lidSleepDisabled))
@@ -250,7 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let h = statusItem.button?.bounds.height ?? NSStatusBar.system.thickness
         let width = graphView.layoutSegments(height: h)
-        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)"
+        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)|\(graphView.cpuRect)"
         if layoutKey != lastLayoutKey {
             lastLayoutKey = layoutKey
             statusItem.length = width
@@ -344,6 +350,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 bottom: .init(label: "Discharging", values: vals.map { max(-$0, 0) }, color: StatusGraphView.dischargeColor, format: watts),
                 timespan: "last 10 min")
 
+        case .cpu:
+            let pct: (Double) -> String = { String(format: "%.0f%%", $0 * 100) }
+            var lines = ["User \(pct(cpu.user))  ·  System \(pct(cpu.system))  ·  \(cpu.cores.count) cores"]
+            if !cpu.cores.isEmpty {
+                let busiest = cpu.cores.enumerated().max { $0.element < $1.element }!
+                lines.append("Busiest core: #\(busiest.offset + 1) at \(pct(busiest.element))")
+            }
+            return HoverContent(
+                title: "CPU — \(pct(cpu.total))",
+                lines: lines,
+                top: .init(label: "User", values: cpu.userHistory.values, color: .systemGreen, format: pct),
+                bottom: .init(label: "System", values: cpu.systemHistory.values, color: .systemOrange, format: pct),
+                timespan: "last 5 min")
+
         case .disk(let key):
             guard let d = disk.drives.first(where: { $0.key == key }) else { return nil }
             let r = disk.readHistory[key] ?? History(capacity: 60)
@@ -416,6 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .network: return Prefs.showNetwork
         case .battery: return Prefs.showBattery && BatteryMonitor.hasBattery
         case .disks: return diskSettings.showDisks
+        case .cpu: return Prefs.showCPU
         }
     }
 

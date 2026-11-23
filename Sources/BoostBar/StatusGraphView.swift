@@ -5,11 +5,11 @@ import AppKit
 ///                                ▼ 340 KB/s   OUT   ● ●   ← disk LEDs
 final class StatusGraphView: NSView {
     enum AwakeState { case normal, keepAwake, lidAwake }
-    enum Target: Equatable { case network(String?), battery, disk(String) }
+    enum Target: Equatable { case network(String?), battery, disk(String), cpu }
 
     /// The reorderable pieces of the status item.
-    enum Segment: String, CaseIterable { case eyes, network, battery, disks }
-    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .disks]
+    enum Segment: String, CaseIterable { case eyes, network, battery, disks, cpu }
+    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .disks, .cpu]
 
     /// Left-to-right order of the segments (drag one to change it).
     var order: [Segment] = StatusGraphView.defaultOrder
@@ -61,6 +61,13 @@ final class StatusGraphView: NSView {
     var showBattery = false
     var showDisks = true
     var showEyes = false
+    var showCPU = false
+    /// CPU load 0…1 (all cores together) and per core; style 0 = half-round boost gauge, 1 = a bar per core.
+    var cpu: Double = 0
+    var cpuCores: [Double] = []
+    var cpuStyle = 0
+    private(set) var cpuRect = NSRect.zero
+    private static let gaugeWidth: CGFloat = 27
 
     /// Disk LED size: 0 = small (two rows), 1 = medium, 2 = large
     var ledSize = 0
@@ -101,7 +108,7 @@ final class StatusGraphView: NSView {
 
     private var showsBattery: Bool { showBattery && battery != nil }
     private var showsDisks: Bool { showDisks && !leds.isEmpty }
-    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks || showEyes }
+    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks || showEyes || showCPU }
 
     /// Segment rects in this view's coordinates.
     private(set) var networkRect = NSRect.zero
@@ -136,6 +143,7 @@ final class StatusGraphView: NSView {
         netRowRects = []
         labelRects = []
         networkRect = .zero; batteryRect = .zero; diskRect = .zero; eyesRect = .zero; ledRects = []; eyeRects = []
+        cpuRect = .zero
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
         var first = true
@@ -185,6 +193,15 @@ final class StatusGraphView: NSView {
                     batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
                     x = batteryRect.maxX
                 }
+            case .cpu:
+                if showCPU {
+                    gap()
+                    label("CPU")
+                    let n = max(cpuCores.count, 1)
+                    let w = cpuStyle == 1 ? CGFloat(n) * Self.cpuBarPitch(n) + 1 : Self.gaugeWidth
+                    cpuRect = NSRect(x: x, y: 0, width: w, height: h)
+                    x = cpuRect.maxX
+                }
             case .disks:
                 if showsDisks {
                     gap()
@@ -214,6 +231,7 @@ final class StatusGraphView: NSView {
             return .network(nil)
         }
         if batteryRect.insetBy(dx: -2, dy: 0).contains(p) { return .battery }
+        if cpuRect.insetBy(dx: -2, dy: 0).contains(p) { return .cpu }
         if diskRect.insetBy(dx: -2, dy: 0).contains(p) {
             // nearest LED to the pointer
             return ledRects.min(by: { hypot($0.rect.midX - p.x, $0.rect.midY - p.y) < hypot($1.rect.midX - p.x, $1.rect.midY - p.y) })
@@ -228,6 +246,7 @@ final class StatusGraphView: NSView {
         switch t {
         case .network(let id): r = netRowRects.first(where: { $0.id == id })?.rect ?? networkRect
         case .battery: r = batteryRect
+        case .cpu: r = cpuRect
         case .disk(let k): r = ledRects.first(where: { $0.key == k })?.rect.insetBy(dx: -4, dy: -8) ?? diskRect
         }
         guard !r.isEmpty, let win = window else { return nil }
@@ -240,6 +259,7 @@ final class StatusGraphView: NSView {
         case .network: return networkRect
         case .battery: return batteryRect
         case .disks: return diskRect
+        case .cpu: return cpuRect
         }
     }
 
@@ -351,6 +371,9 @@ final class StatusGraphView: NSView {
 
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
         for (text, r) in labelRects { drawVerticalLabel(text, in: r, color: label) }
+        if showCPU, !cpuRect.isEmpty {
+            if cpuStyle == 1 { drawCPUBars(in: cpuRect, label: label) } else { drawCPUGauge(in: cpuRect, label: label) }
+        }
         if showNetwork {
             if netRowRects.isEmpty {
                 drawNetwork(in: networkRect, up: up, down: down, upText: upText, downText: downText, label: label, font: font)
@@ -510,6 +533,78 @@ final class StatusGraphView: NSView {
             return true
         }
         tinted.draw(in: NSRect(x: x + (Self.iconWidth - s.width) / 2, y: (h - s.height) / 2, width: s.width, height: s.height))
+    }
+
+    // MARK: CPU
+
+    private static func cpuBarPitch(_ cores: Int) -> CGFloat { cores > 12 ? 2 : cores > 8 ? 3 : 4 }
+
+    /// Is the menu bar light (dark text) right now? It follows the wallpaper, not just Light/Dark mode.
+    private var barIsLight: Bool { effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) != .darkAqua }
+
+    /// Boost-gauge colours: green, lime, yellow, orange, red — as on the X1 sim's loading gauge. On a light menu
+    /// bar they're deepened so the yellow and lime still read against white.
+    private func boostColor(_ x: Double) -> NSColor {
+        let stops: [(Double, [Double])] = [(0, [62, 220, 64]), (0.28, [196, 236, 34]), (0.45, [250, 214, 20]),
+                                           (0.66, [250, 128, 22]), (0.82, [236, 34, 40]), (1, [236, 30, 42])]
+        var i = 1
+        while i < stops.count - 1 && stops[i].0 < x { i += 1 }
+        let (a, ca) = stops[i - 1], (b, cb) = stops[i]
+        let k = min(1, max(0, (x - a) / (b - a)))
+        var c = (0..<3).map { (ca[$0] + (cb[$0] - ca[$0]) * k) / 255 }
+        if barIsLight { c = [c[0] * 0.80, c[1] * 0.66, c[2] * 0.62] }
+        return NSColor(srgbRed: c[0], green: c[1], blue: c[2], alpha: 1)
+    }
+
+    /// The tiny half-round boost gauge: a crescent that thickens toward full boost, cut by gaps, lit up to the
+    /// needle and dim beyond it; the needle and hub take the menu bar's text colour.
+    private func drawCPUGauge(in r: NSRect, label: NSColor) {
+        let x = min(1, max(0, cpu))
+        let c = NSPoint(x: r.midX, y: r.midY - 5.5)
+        let R = min(r.width / 2 - 0.5, r.height - 8)
+        // from 9 o'clock over the top to 3 o'clock
+        func ang(_ t: Double) -> CGFloat { CGFloat(180 - 180 * t) }
+        let gaps = [0.16, 0.36, 0.56, 0.74, 0.88]
+        let n = 60
+        for i in 0..<n {
+            let t0 = Double(i) / Double(n), t1 = Double(i + 1) / Double(n), tm = (t0 + t1) / 2
+            if gaps.contains(where: { abs(tm - $0) < 0.02 }) { continue }
+            let w = 1.6 + 3.4 * CGFloat(pow(tm, 1.35))
+            let p = NSBezierPath()
+            p.appendArc(withCenter: c, radius: R, startAngle: ang(t0), endAngle: ang(t1) - 0.6, clockwise: true)
+            p.appendArc(withCenter: c, radius: R - w, startAngle: ang(t1) - 0.6, endAngle: ang(t0), clockwise: false)
+            p.close()
+            if tm <= x + 0.002 { boostColor(tm).setFill() } else { label.withAlphaComponent(barIsLight ? 0.2 : 0.24).setFill() }
+            p.fill()
+        }
+        // needle
+        let a = ang(x) * .pi / 180
+        let len = R - 1.5
+        let tip = NSPoint(x: c.x + cos(a) * len, y: c.y + sin(a) * len)
+        let side = NSPoint(x: -sin(a) * 1.1, y: cos(a) * 1.1)
+        let needle = NSBezierPath()
+        needle.move(to: NSPoint(x: c.x + side.x, y: c.y + side.y))
+        needle.line(to: tip)
+        needle.line(to: NSPoint(x: c.x - side.x, y: c.y - side.y))
+        needle.close()
+        label.setFill()
+        needle.fill()
+        NSBezierPath(ovalIn: NSRect(x: c.x - 1.8, y: c.y - 1.8, width: 3.6, height: 3.6)).fill()
+    }
+
+    /// One slim vertical bar per core, like TMOG's CPU meter.
+    private func drawCPUBars(in r: NSRect, label: NSColor) {
+        let cores = cpuCores.isEmpty ? [cpu] : cpuCores
+        let pitch = Self.cpuBarPitch(cores.count)
+        let g = NSRect(x: r.minX, y: 3, width: r.width, height: r.height - 6)
+        for (i, v) in cores.enumerated() {
+            let slot = NSRect(x: g.minX + CGFloat(i) * pitch + 0.5, y: g.minY, width: pitch - 1, height: g.height)
+            label.withAlphaComponent(0.14).setFill()
+            NSBezierPath(rect: slot).fill()
+            let hgt = max(1, slot.height * CGFloat(min(1, max(0, v))))
+            boostColor(v).setFill()
+            NSBezierPath(rect: NSRect(x: slot.minX, y: slot.minY, width: slot.width, height: hgt)).fill()
+        }
     }
 
     /// Letters stacked top to bottom, centred in the column, like TMOG's "CPU".

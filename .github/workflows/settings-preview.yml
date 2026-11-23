@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["Sources/BoostBar/SettingsWindow.swift", ".github/workflows/settings-preview.yml"]
+    paths: ["Sources/BoostBar/SettingsWindow.swift", "Sources/BoostBar/StatusGraphView.swift", ".github/workflows/settings-preview.yml"]
 
 concurrency:
   group: settings-preview

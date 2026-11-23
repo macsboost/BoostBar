@@ -140,6 +140,7 @@ final class OrderEditor: NSView, NSTableViewDataSource, NSTableViewDelegate {
         case .network: return "Network graph"
         case .battery: return "Battery watts"
         case .disks: return "Disk lights"
+        case .cpu: return "CPU meter"
         }
     }
 
@@ -149,6 +150,7 @@ final class OrderEditor: NSView, NSTableViewDataSource, NSTableViewDelegate {
         case .network: return "chart.xyaxis.line"
         case .battery: return "bolt.fill"
         case .disks: return "internaldrive"
+        case .cpu: return "gauge.with.needle"
         }
     }
 }
