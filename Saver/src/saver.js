@@ -413,17 +413,19 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   float streak = oxF(vec2(th * 11.0, yn * 1.6));
   float fine = oxN(vec2(th * 70.0, yn * 6.0));
   float side = 1.0 - smoothstep(0.55, 1.45, abs(th));     // heat is greatest on the centre line
-  float along = 1.0 - smoothstep(0.5, 0.92, yn);           // and lower on the hull
+  float along = 1.0 - smoothstep(0.42, 0.8, yn);           // and lower on the hull
   float thin = oxN(vec2(th * 160.0, yn * 2.2));            // long, thin flow lines
   float m = side * along * (0.45 + 0.75 * streak) + 0.18 * (fine - 0.5);
   float cover = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
   // patchy at first (dark tiles between the streaks), filling in as it gets hotter
   float patchy = smoothstep(0.32, 0.62, streak * 0.75 + thin * 0.35 + fine * 0.15);
   oxK = cover * mix(patchy, 1.0, smoothstep(0.55, 1.0, uOx) * 0.75);
-  float glow = clamp(streak * 1.1 + thin * 0.55 - 0.35, 0.0, 1.0);
-  vec3 rust = mix(vec3(0.24, 0.07, 0.02), vec3(1.0, 0.56, 0.2), glow);
-  rust = mix(rust, vec3(0.12, 0.05, 0.03), smoothstep(0.75, 0.95, 1.0 - thin) * 0.5);  // scorched dark streaks
-  diffuseColor.rgb = mix(diffuseColor.rgb, rust, oxK);
+  float glow = clamp(streak * 1.2 + thin * 0.4 - 0.3, 0.0, 1.0);
+  vec3 rust = mix(vec3(0.30, 0.06, 0.012), vec3(0.98, 0.40, 0.07), glow);       // deep rust .. hot copper-orange
+  rust = mix(rust, vec3(0.10, 0.04, 0.02), smoothstep(0.8, 0.97, 1.0 - thin) * 0.55);  // scorched dark streaks
+  // clumps of tiles that stayed black
+  float keep = smoothstep(0.62, 0.8, oxN(vec2(th * 24.0, yn * 9.0))) * (1.0 - 0.6 * uOx);
+  diffuseColor.rgb = mix(diffuseColor.rgb, rust, oxK * (1.0 - keep));
   // white flecks: insulation where tiles came off (more of them the hotter it got)
   float fleck = step(0.993 - 0.02 * uOx, oxH(floor(vec2(th * 90.0, yn * 260.0)))) * smoothstep(0.2, 0.6, oxK + 0.3 * uOx * side);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.9, 0.88), fleck);
@@ -431,8 +433,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   float frost = uOx * smoothstep(0.62, 0.8, yn) * (1.0 - smoothstep(0.92, 1.0, yn)) * side * smoothstep(0.55, 0.8, oxF(vec2(th * 14.0, yn * 3.0)));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.84, 0.9), frost * 0.8);
 }`)
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.42, oxK);')
-        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.55, oxK);');
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.5, oxK);')
+        .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.22, oxK);');
     };
     mat.customProgramCacheKey = () => 'oxidised';
   }
