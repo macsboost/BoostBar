@@ -302,7 +302,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             for (k, c) in group.enumerated() {
                 c.lane = li
                 c.d = l.d
-                c.z = l.z
+                c.z = layerZ(c, l.z)
                 c.speed = l.speed
                 let s = -L + 2 * L * (Float(k) + .random(in: 0...0.35)) / Float(group.count)
                 let p = lanePoint(l, s)
@@ -315,7 +315,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     private func relane(_ c: Craft) {
         let l = lanes[c.lane]
         let p = lanePoint(l, -laneLength(l))
-        c.x = p.x; c.y = p.y; c.z = l.z
+        c.x = p.x; c.y = p.y; c.z = layerZ(c, l.z)
         c.phase = .random(in: 0...(2 * .pi))
         c.dep = 0; c.depStarted = false
         c.man = nil
@@ -746,7 +746,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     }
 
     private func spawn(_ c: Craft, initial: Bool) {
-        c.z = -40 + .random(in: 0...45)
+        c.z = layerZ(c, -40 + .random(in: 0...45))
         let (w, h) = viewHalf(c.z)
         c.speed = (6 + .random(in: 0...4)) * Float(cfg.speed)
         let mY: Float = kind == .starlink ? 17 : kind == .starships ? 10 : 6
@@ -820,6 +820,18 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     static let inchScale: Float = 0.85
 
+    /// Starlink shells: the V1.5s keep to their own altitude, a layer well behind the V2s and V3s, so the two never
+    /// meet; everything else shares the nearer layer.
+    private func layer(_ c: Craft) -> (Float, Float) {
+        guard kind == .starlink else { return (-45, 8) }
+        return c.inch.isEmpty ? (-28, 8) : (-47, -39)
+    }
+    private func layerZ(_ c: Craft, _ z: Float) -> Float {
+        guard kind == .starlink else { return z }
+        if !c.inch.isEmpty { return .random(in: -46 ... -40) }
+        return max(-28, min(5, z))
+    }
+
     /// The V1.5 gait: the array arches up in the middle (its tail end drawing in toward the bus, which holds still),
     /// then stretches flat again (the tail holding still, so the bus is pushed forward by the stretch). Sets the
     /// segment joints and returns how far the bus moves this frame.
@@ -857,7 +869,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             if !c.inch.isEmpty { adv = inchworm(c, dt) }      // V1.5 only moves while it stretches out
             c.x += c.d.x * adv + c.kx * dt
             c.y += c.d.y * adv + c.ky * dt
-            c.z = max(-45, min(closeupZ ?? 8, c.z + c.kz * dt))
+            let (zLo, zHi) = layer(c)
+            c.z = max(zLo, min(closeupZ ?? zHi, c.z + c.kz * dt))
             c.kx *= damp; c.ky *= damp; c.kz *= damp
             c.wob *= exp(-1.6 * dt)
             let (w, h) = viewHalf(c.z)

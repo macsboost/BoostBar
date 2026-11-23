@@ -612,7 +612,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     members.forEach((group, li) => {
       const l = lanes[li], L = laneLen(l);
       group.forEach((c, k) => {
-        c.lane = li; c.d = l.d; c.z = l.z; c.speed = l.speed;
+        c.lane = li; c.d = l.d; c.z = layerZ(c, l.z); c.speed = l.speed;
         const p = lanePoint(l, -L + (2 * L * (k + Math.random() * 0.35)) / group.length);
         c.x = p.x; c.y = p.y;
       });
@@ -620,7 +620,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   }
   function relane(c) {
     const l = lanes[c.lane], p = lanePoint(l, -laneLen(l));
-    c.x = p.x; c.y = p.y; c.z = l.z;
+    c.x = p.x; c.y = p.y; c.z = layerZ(c, l.z);
     c.phase = Math.random() * Math.PI * 2;
     c.dep = 0; c.depStarted = false;
     c.man = null; c.kx = c.ky = c.kz = 0; c.wob = 0;
@@ -784,8 +784,13 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     return adv;
   }
 
+  // Starlink shells: the V1.5s keep to their own altitude, a layer well behind the V2s and V3s, so the two never
+  // meet; everything else shares the nearer layer.
+  const layer = (c) => (!SATS ? [-45, 8] : c.inch ? [-47, -39] : [-28, 8]);
+  const layerZ = (c, z) => (!SATS ? z : c.inch ? -46 + Math.random() * 6 : Math.max(-28, Math.min(5, z)));
+
   function spawn(c, initial) {
-    c.z = -40 + Math.random() * 45;
+    c.z = layerZ(c, -40 + Math.random() * 45);
     const { w, h } = viewHalf(c.z);
     c.speed = (6 + Math.random() * 4) * CFG.speed;
     if (initial) {
@@ -996,7 +1001,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       const adv = c.inch ? inchworm(c, dt) : c.speed * pace * dt; // V1.5 only moves while it stretches out
       c.x += D.x * adv + c.kx * dt;
       c.y += D.y * adv + c.ky * dt;
-      c.z = Math.max(-45, Math.min(8, c.z + c.kz * dt));
+      const [zLo, zHi] = layer(c);
+      c.z = Math.max(zLo, Math.min(zHi, c.z + c.kz * dt));
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
