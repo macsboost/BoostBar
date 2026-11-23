@@ -94,13 +94,23 @@ final class StatusGraphView: NSView {
     private static let graphWidth: CGFloat = 30
     /// Room for the speed text: measured from the widest reading ("▲ 888 MB/s"), so no slack is left after it
     /// (a fixed 58 pt left a visibly bigger gap before the next piece than between the others).
-    private static let netTextWidth: CGFloat = {
+    var netUnit: NetworkMonitor.Unit = .auto
+    var netBits = false
+    /// Room for the speed text: measured from the widest typical reading in the chosen unit, so no slack is left.
+    private var netTextWidth: CGFloat {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-        let w = ["▲ 888 KB/s", "▼ 888 KB/s", "▲ 888 Kb/s"].map {
+        let u = netBits ? "b/s" : "B/s"
+        let samples: [String]
+        switch netUnit {
+        case .auto: samples = ["888 K\(u)"]
+        case .kilo: samples = ["8888 K\(u)"]
+        case .mega: samples = ["88.88 M\(u)", "888.8 M\(u)"]
+        }
+        let w = samples.flatMap { ["▲ " + $0, "▼ " + $0] }.map {
             NSAttributedString(string: $0, attributes: [.font: font]).size().width
         }.max() ?? 50
         return ceil(w)
-    }()
+    }
     /// Just wide enough for the widest watts reading, so no slack pads either side of it.
     private static let batteryWidth: CGFloat = {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
@@ -153,6 +163,7 @@ final class StatusGraphView: NSView {
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
         var first = true
+        var prev: Segment?
         func gap(_ w: CGFloat = 4) { if !first { x += w }; first = false }
         func label(_ text: String) {
             guard verticalLabels else { return }
@@ -161,6 +172,8 @@ final class StatusGraphView: NSView {
         }
 
         for seg in order {
+            let before = x
+            defer { if x != before { prev = seg } }
             switch seg {
             case .eyes:
                 if showEyes {
@@ -182,13 +195,13 @@ final class StatusGraphView: NSView {
                         let start = x
                         for (i, row) in netRows.enumerated() {
                             if i > 0 { x += 5 }
-                            let r = NSRect(x: x, y: 0, width: Self.linkIconWidth + Self.graphWidth + 4 + Self.netTextWidth, height: h)
+                            let r = NSRect(x: x, y: 0, width: Self.linkIconWidth + Self.graphWidth + 4 + netTextWidth, height: h)
                             netRowRects.append((row.id, r))
                             x = r.maxX
                         }
                         networkRect = NSRect(x: start, y: 0, width: x - start, height: h)
                     } else {
-                        networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + Self.netTextWidth, height: h)
+                        networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + netTextWidth, height: h)
                         x = networkRect.maxX
                     }
                 }
@@ -201,7 +214,7 @@ final class StatusGraphView: NSView {
                 }
             case .cpu:
                 if showCPU {
-                    gap()
+                    gap(prev == .disks ? 6 : 4)    // a little air between an LED and the gauge's rim
                     label("CPU")
                     let n = max(cpuCores.count, 1)
                     let w = cpuStyle == 1 ? CGFloat(n) * Self.cpuBarPitch(n) + 1 : Self.gaugeWidth
@@ -210,7 +223,7 @@ final class StatusGraphView: NSView {
                 }
             case .disks:
                 if showsDisks {
-                    gap(2)
+                    gap(prev == .cpu ? 6 : 2)
                     label("HDD")
                     // Small LEDs stack in two rows when there are several drives; medium/large use one row.
                     let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]

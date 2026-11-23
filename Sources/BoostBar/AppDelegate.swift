@@ -260,6 +260,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showDisks = diskSettings.showDisks
         graphView.showEyes = Prefs.showEyes
         graphView.showCPU = Prefs.showCPU
+        graphView.netUnit = Prefs.netUnit
+        graphView.netBits = Prefs.useBits
         graphView.cpuStyle = Prefs.cpuStyle
         if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores }
         graphView.cpu = cpuShown
@@ -277,12 +279,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.battery = battery
         graphView.up = net.upHistory
         graphView.down = net.downHistory
-        graphView.upText = NetworkMonitor.format(net.currentUp, bits: bits)
-        graphView.downText = NetworkMonitor.format(net.currentDown, bits: bits)
+        graphView.upText = NetworkMonitor.format(net.currentUp, bits: bits, unit: Prefs.netUnit)
+        graphView.downText = NetworkMonitor.format(net.currentDown, bits: bits, unit: Prefs.netUnit)
         let links = Prefs.netSplit ? net.activeLinks : []
         graphView.netRows = links.count >= 2 ? links.map {
             .init(id: $0.id, symbol: $0.symbol, up: $0.up, down: $0.down,
-                  upText: NetworkMonitor.format($0.currentUp, bits: bits), downText: NetworkMonitor.format($0.currentDown, bits: bits))
+                  upText: NetworkMonitor.format($0.currentUp, bits: bits, unit: Prefs.netUnit), downText: NetworkMonitor.format($0.currentDown, bits: bits, unit: Prefs.netUnit))
         } : []
         graphView.leds = disk.drives.filter { diskSettings.isEnabled($0) }
             .map { StatusGraphView.LED(key: $0.key, color: diskSettings.color($0)) }
@@ -291,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let h = statusItem.button?.bounds.height ?? NSStatusBar.system.thickness
         let width = graphView.layoutSegments(height: h)
-        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)|\(graphView.cpuRect)"
+        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)|\(graphView.cpuRect)|\(Prefs.netUnit.rawValue)"
         if layoutKey != lastLayoutKey {
             lastLayoutKey = layoutKey
             statusItem.length = width
@@ -492,7 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(item("About BoostBar \(Updater.currentVersion)…", #selector(showAbout), on: false))
         let bits = Prefs.useBits
-        let live = NSMenuItem(title: "▲ \(NetworkMonitor.format(net.currentUp, bits: bits))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits))", action: nil, keyEquivalent: "")
+        let live = NSMenuItem(title: "▲ \(NetworkMonitor.format(net.currentUp, bits: bits, unit: Prefs.netUnit))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits, unit: Prefs.netUnit))", action: nil, keyEquivalent: "")
         live.isEnabled = false
         menu.addItem(live)
         if let b = battery {

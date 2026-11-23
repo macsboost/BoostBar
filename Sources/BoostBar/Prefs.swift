@@ -10,6 +10,7 @@ enum Prefs {
         static let reverseHorizontal = "reverseHorizontal"
         static let keepDisplayAwake = "keepDisplayAwake"
         static let useBits = "useBits"
+        static let netUnit = "networkUnit"
         static let checkOnLaunch = "checkUpdatesOnLaunch"
         static let autoUpdate = "installUpdatesAutomatically"
         static let lidWarningShown = "lidWarningShown"
@@ -79,6 +80,10 @@ enum Prefs {
     static func set(_ v: Bool, _ k: String) { d.set(v, forKey: k) }
 
     static var useBits: Bool { get { bool(K.useBits) } set { set(newValue, K.useBits) } }
+    static var netUnit: NetworkMonitor.Unit {
+        get { NetworkMonitor.Unit(rawValue: d.integer(forKey: K.netUnit)) ?? .auto }
+        set { d.set(newValue.rawValue, forKey: K.netUnit) }
+    }
     static var showNetwork: Bool { get { bool(K.showNetwork) } set { set(newValue, K.showNetwork) } }
     static var showBattery: Bool { get { bool(K.showBattery) } set { set(newValue, K.showBattery) } }
     static var checkOnLaunch: Bool { get { bool(K.checkOnLaunch) } set { set(newValue, K.checkOnLaunch) } }
