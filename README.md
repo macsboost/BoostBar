@@ -78,6 +78,15 @@ On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes 
 
 **BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
 
+## Starlink screen saver 🛰
+
+<p align="center">
+  <img src="docs/media/starlink.gif" width="720" alt="BoostBar Starlink screen saver: Starlink V2 and V3 satellites flapping their solar wings like birds">
+  <br><sub><a href="docs/media/starlink.mp4">Watch in full quality (MP4)</a></sub>
+</p>
+
+**BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen flying-toasters style. The bus is the toaster; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V2, V3 or both** in its Options. The models are original, stylised V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
+
 ## Hot corners
 
 In **Settings ▸ Sleep ▸ Hot Corners**, choose a screen corner to toggle **Keep Awake** and one to **Sleep now**. Rest the pointer in the corner for a moment, and a small badge confirms the action.
