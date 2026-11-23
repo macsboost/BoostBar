@@ -83,7 +83,7 @@ struct BundledSaver {
     /// The choice boxes in Settings: liveries for the cars, V2/V3 for Starlink.
     var choices: [(id: String, name: String)] {
         switch scene {
-        case "starlink": return [("v15", "Starlink V1.5 (inchworm)"), ("v2", "Starlink V2"), ("v3", "Starlink V3"), ("deploy", "V3 deploying")]
+        case "starlink": return [("v15", "Starlink V1.5"), ("v2", "Starlink V2"), ("v3", "Starlink V3"), ("deploy", "V3 deploying")]
         case "cars": return [("macsboost", "MacsBoost"), ("yonder", "Yonder 01"), ("xxone", "XXONE 51")]
         default: return []
         }
