@@ -40,17 +40,18 @@ jobs:
           enc() { # frames-dir name
             ffmpeg -y -loglevel error -framerate 30 -i "$1/f%04d.png" -c:v libx264 -pix_fmt yuv420p -crf 20 -preset slow -movflags +faststart "docs/media/$2.mp4"
             ffmpeg -y -loglevel error -framerate 30 -i "$1/f%04d.png" -vf "fps=15,scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" "docs/media/$2.gif"
-            ffmpeg -y -loglevel error -i "$(python3 tools/pick_frame.py "$1" 1.78)" -q:v 3 "docs/media/$2.jpg"
+            python3 tools/pick_frame.py "$1" 1.78 0.75 "/tmp/$2-still.png"
+            ffmpeg -y -loglevel error -i "/tmp/$2-still.png" -vf "scale=1280:-2:flags=lanczos" -q:v 3 "docs/media/$2.jpg"
           }
           enc out/frames flying-cars
           enc out/ships starships
           enc out/sats starlink
           # System Settings thumbnails: centre crop of the busiest frame at 90x58 / 180x116 / 300x194
           for pair in "ships:starships" "sats:starlink"; do
-            f=$(python3 tools/pick_frame.py "out/${pair%%:*}" 1.55)
+            python3 tools/pick_frame.py "out/${pair%%:*}" 1.55 0.55 /tmp/thumb.png
             for sz in "thumbnail:90:58" "thumbnail@2x:180:116" "thumbnail@3x:300:194"; do
               IFS=: read n w h <<< "$sz"
-              ffmpeg -y -loglevel error -i "$f" -vf "crop=in_h*1.55:in_h:(in_w-in_h*1.55)/2:0,scale=$w:$h:flags=lanczos" "Saver/thumbs/${pair#*:}/$n.png"
+              ffmpeg -y -loglevel error -i /tmp/thumb.png -vf "scale=$w:$h:flags=lanczos" "Saver/thumbs/${pair#*:}/$n.png"
             done
           done
           ls -la docs/media
