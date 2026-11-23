@@ -100,6 +100,10 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 
 **BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen Flying Bread style. The bus is the loaf; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V1.5** (which creeps along in straight lines like an inchworm), **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. Turn on **Crossing orbits** to send them along two sets of lanes that cross in an X, each leg at its own altitude, and **Laser links** for red, shimmering inter-satellite lasers that hop between neighbours — on screen and off — making each new link before breaking an old one. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
 
+## CPU boost gauge
+
+A tiny half-round boost gauge at the right end of BoostBar reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Prefer bars? **Settings ▸ CPU ▸ Style** switches to one slim vertical bar per core. The colours adjust for a light or dark menu bar, and hovering shows a 5-minute chart.
+
 ## Updates
 
 BoostBar checks GitHub for a newer release when it starts, and you can check any time from the menu. Turn on **Settings ▸ General ▸ Install updates automatically** (or tick "Install future updates automatically" on the update prompt) and new versions are downloaded, verified as Apple-notarized and signed by MacsBoost, swapped in and relaunched with no prompt.
