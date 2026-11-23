@@ -14,6 +14,8 @@ struct SaverConfig {
     var clouds = false
     /// Starships: a red roadster with a spacesuited driver tumbling along among the ships, wheels spinning.
     var roadster = false
+    /// …flying level along with the ships (bobbing, banking and doing stunts like them) instead of tumbling.
+    var roadsterStable = false
     var oxidation = 0.35
     var tilt: Double? = nil
     /// Starlink: fly in two crossing sets of orbital lanes (ascending and descending passes) — an X pattern.
@@ -1035,7 +1037,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 if simd_dot(SIMD2(c.x, c.y), SIMD2(c.d.x, c.d.y)) > laneLength(lanes[c.lane]) { relane(c) }
             } else if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
             let tf = Float(t)
-            let straight = !c.inch.isEmpty || c.roadster        // V1.5 and the roadster: no bob, no stunts
+            let tumbling = c.roadster && !cfg.roadsterStable
+            let straight = !c.inch.isEmpty || tumbling           // V1.5 and the tumbling roadster: no bob, no stunts
             let bob = straight ? 0 : sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
             let stowed = (c.deploys && c.dep < 7.8) || straight
             if stowed { c.man = nil; c.next = max(c.next, t + 2) }      // no stunts until the arrays are out
@@ -1043,9 +1046,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
             let wobble = c.wob * sin(tf * 11 + c.phase) * 0.35
             var q = lookRotation(c.d)
-            if c.roadster {
+            for w in c.wheels { w.node.simdOrientation = w.q0 * simd_quatf(angle: c.spin * 9, axis: SIMD3(1, 0, 0)) }
+            if tumbling {
                 q = q * simd_quatf(angle: tf * c.tumbleRate + c.phase, axis: c.tumbleAxis)   // a slow tumble, as in space
-                for w in c.wheels { w.node.simdOrientation = w.q0 * simd_quatf(angle: c.spin * 9, axis: SIMD3(1, 0, 0)) }
             } else if straight {
                 q = q * simd_quatf(angle: tilt + wobble, axis: SIMD3(0, 0, 1))
             } else {

@@ -461,7 +461,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Laser links — red beams between nearby satellites (make before break)", get: { o.lasers ?? false },
                     set: { v in change { $0.lasers = v } }, visible: { current.scene == "starlink" })
             p.check("Roadster with Starman — a red roadster, wheels spinning, tumbling along with the ships", get: { o.roadster ?? false },
-                    set: { v in change { $0.roadster = v } }, visible: { current.scene == "starships" })
+                    set: { v in change { $0.roadster = v }; p.refresh() }, visible: { current.scene == "starships" })
+            p.check("Stabilized — Starman flies along level with the ships instead of tumbling", indent: true,
+                    get: { o.roadsterStable ?? false }, set: { v in change { $0.roadsterStable = v } },
+                    enabled: { o.roadster ?? false }, visible: { current.scene == "starships" })
             p.check("Clouds — a blue daytime sky with drifting clouds, After Dark style", get: { o.clouds ?? false },
                     set: { v in change { $0.clouds = v } }, visible: { current.scene == "cars" })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } },

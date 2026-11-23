@@ -18,6 +18,7 @@ struct SaverOptions: Codable {
     var lasers: Bool? = nil   // Starlink: laser links between nearby satellites
     var clouds: Bool? = nil   // Flying Cars: daytime sky with clouds
     var roadster: Bool? = nil // Starships: the red roadster with a spacesuited driver
+    var roadsterStable: Bool? = nil // …flying level with the ships instead of tumbling
     var savedAt: Double = 0
 }
 
@@ -61,7 +62,7 @@ enum SaverConfig {
     static func script(for scene: String) -> String {
         let o = options(for: scene)
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? false),lasers:\(o.lasers ?? false),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? false),lasers:\(o.lasers ?? false),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? false),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
     }
 }
 

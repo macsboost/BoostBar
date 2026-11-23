@@ -1123,7 +1123,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       if (c.lane !== undefined) { if (c.x * D.x + c.y * D.y > laneLen(lanes[c.lane])) relane(c); }
       else if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
-      const straight = !!c.inch || !!c.roadster; // V1.5 and the roadster: no bob, no stunts
+      const tumbling = !!c.roadster && !CFG.roadsterStable;
+      const straight = !!c.inch || tumbling; // V1.5 and the tumbling roadster: no bob, no stunts
       const bob = straight ? 0 : Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
       const stowed = (c.deploys && c.dep < 7.8) || straight; // no stunts until the arrays are out
       if (stowed) { c.man = null; c.next = Math.max(c.next, clock() + 2); }
@@ -1135,10 +1136,9 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.g.lookAt(tgt);
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
-      if (c.roadster) {
-        c.g.quaternion.multiply(tmpQ.setFromAxisAngle(c.tumbleAxis, t * c.tumbleRate + c.phase)); // a slow tumble, as in space
-        for (const w of c.wheels) w.o.quaternion.copy(w.q0).multiply(tmpQ.setFromAxisAngle(xAxis, c.spin * 9));
-      } else if (straight) c.g.rotateZ(TILT + wobble);
+      if (c.wheels) for (const w of c.wheels) w.o.quaternion.copy(w.q0).multiply(tmpQ.setFromAxisAngle(xAxis, c.spin * 9));
+      if (tumbling) c.g.quaternion.multiply(tmpQ.setFromAxisAngle(c.tumbleAxis, t * c.tumbleRate + c.phase)); // a slow tumble, as in space
+      else if (straight) c.g.rotateZ(TILT + wobble);
       else {
         if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
         c.g.rotateZ(TILT + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);

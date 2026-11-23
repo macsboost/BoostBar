@@ -48,6 +48,8 @@ for (name, t) in [("roadster_a", 1.0), ("roadster_b", 3.5), ("roadster_c", 6.0)]
 }
 var rs = SaverConfig(); rs.count = 5; rs.roadster = true
 shoot(.starships, rs, "ships_roadster", seconds: 5)
+rs.roadsterStable = true; rs.count = 2
+shoot(.starships, rs, "ships_roadster_stable", seconds: 3)
 var sats = SaverConfig(); sats.count = 5
 shoot(.starlink, sats, "native_sats", seconds: 4)
 var c1 = SaverConfig(); c1.count = 3; c1.liveries = ["macsboost"]
