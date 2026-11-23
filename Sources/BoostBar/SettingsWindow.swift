@@ -677,7 +677,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Stabilized (flies level with the ships instead of tumbling)", indent: true,
                     get: { o.roadsterStable ?? false }, set: { v in change { $0.roadsterStable = v } },
                     enabled: { o.roadster ?? false }, visible: { current.scene == "starships" })
-            p.check("Clouds (a blue daytime sky, After Dark style)", get: { o.clouds ?? false },
+            p.check("Clouds (a blue daytime sky)", get: { o.clouds ?? false },
                     set: { v in change { $0.clouds = v }; p.refresh() }, visible: { current.scene == "cars" })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } },
                     enabled: { !(current.scene == "cars" && (o.clouds ?? false)) })
