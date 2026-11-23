@@ -322,23 +322,49 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     // MARK: laser links
 
-    /// A red optical link between two satellites' terminals. It grows from one terminal to the other when it's
-    /// made and fades when it's dropped; a link is only dropped once both ends hold another (make before break).
+    /// A red optical link between two nodes of the mesh: satellites on screen (their corner terminals) or unseen
+    /// satellites just off screen ("ghosts", which carry the mesh out past the edges). It grows from one end to the
+    /// other when it's made and fades when it's dropped; a link is only dropped once both ends hold another (make
+    /// before break), or when it's stretched far out of range.
     private final class Beam {
         let a: Int, b: Int, ta: Int, tb: Int, ga: Int, gb: Int
         let root = SCNNode(), line: SCNNode, endA: SCNNode, endB: SCNNode
-        var grow: Float = 0, fade: Float = 1, dying = false, flick: Float = .random(in: 0...10)
+        var grow: Float = 0, fade: Float = 1, dying = false
+        /// Last drawn ends; a ghost end that jumped away stays put while its beam fades.
+        var lastA = SIMD3<Float>.zero, lastB = SIMD3<Float>.zero, holdA = false, holdB = false
         init(a: Int, b: Int, ta: Int, tb: Int, ga: Int, gb: Int, line: SCNNode, endA: SCNNode, endB: SCNNode) {
             self.a = a; self.b = b; self.ta = ta; self.tb = tb; self.ga = ga; self.gb = gb
             self.line = line; self.endA = endA; self.endB = endB
             root.addChildNode(line); root.addChildNode(endA); root.addChildNode(endB)
         }
     }
+    /// An unseen satellite off screen: flies with the flock in the band just outside the view, and jumps back
+    /// upstream (dropping its links) before it would come into view.
+    private struct Ghost { var p: SIMD3<Float>; var v: SIMD3<Float>; var gen = 0 }
+    private var ghosts: [Ghost] = []
     private var beams: [Beam] = []
     private var beamLine: SCNNode?, beamEnd: SCNNode?
-    private let makeR: Float = 30, breakR: Float = 40, hardR: Float = 56
+    private let makeR: Float = 34, breakR: Float = 46, hardR: Float = 64
 
     private func makeBeamParts() {
+        // a traveling shimmer: bright ripples run along every beam and the whole beam flickers a little
+        let shimmerGeo = """
+        #pragma varyings
+        float3 wp;
+        #pragma body
+        out.wp = (scn_node.modelTransform * _geometry.position).xyz;
+        """
+        let shimmerFrag = """
+        #pragma varyings
+        float3 wp;
+        #pragma body
+        float t = scn_frame.time;
+        float along = dot(in.wp, float3(0.83, 0.47, 0.31));
+        float ripple = 0.55 + 0.45 * sin(along * 2.6 - t * 21.0) * sin(along * 0.7 + t * 5.3);
+        float flick = 0.78 + 0.22 * sin(t * 37.0 + in.wp.x * 0.9) * sin(t * 11.0 + in.wp.y * 1.3);
+        _output.color.rgb *= ripple * flick;
+        _output.color.a *= ripple * flick;
+        """
         func tube(_ r: CGFloat, _ color: NSColor) -> SCNNode {
             let g = SCNCylinder(radius: r, height: 1)
             g.radialSegmentCount = 10
@@ -347,6 +373,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             m.diffuse.contents = color
             m.blendMode = .add
             m.writesToDepthBuffer = false
+            m.shaderModifiers = [.geometry: shimmerGeo, .fragment: shimmerFrag]
             g.materials = [m]
             let n = SCNNode(geometry: g)
             n.simdPosition = SIMD3(0, 0.5, 0)       // the unit tube runs from 0 to 1 along y
@@ -354,28 +381,76 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             return n
         }
         let line = SCNNode()
-        line.addChildNode(tube(0.045, NSColor(srgbRed: 1, green: 0.55, blue: 0.5, alpha: 1)))
-        line.addChildNode(tube(0.13, NSColor(srgbRed: 1, green: 0.08, blue: 0.05, alpha: 0.55)))
-        line.addChildNode(tube(0.32, NSColor(srgbRed: 1, green: 0.02, blue: 0.02, alpha: 0.16)))
+        line.addChildNode(tube(0.04, NSColor(srgbRed: 1, green: 0.45, blue: 0.4, alpha: 0.55)))
+        line.addChildNode(tube(0.12, NSColor(srgbRed: 1, green: 0.07, blue: 0.04, alpha: 0.3)))
+        line.addChildNode(tube(0.3, NSColor(srgbRed: 1, green: 0.02, blue: 0.02, alpha: 0.09)))
         beamLine = line
-        beamEnd = glow(inner: NSColor(srgbRed: 1, green: 0.75, blue: 0.7, alpha: 1), outer: NSColor(srgbRed: 1, green: 0.05, blue: 0.03, alpha: 0.5), size: 1.3)
+        beamEnd = glow(inner: NSColor(srgbRed: 1, green: 0.7, blue: 0.65, alpha: 0.8), outer: NSColor(srgbRed: 1, green: 0.05, blue: 0.03, alpha: 0.35), size: 1.1)
+        // ghosts: about one unseen satellite for every on-screen one, at least eight
+        for _ in 0..<max(8, craft.count) {
+            var g = Ghost(p: .zero, v: .zero)
+            placeGhost(&g, anywhere: true)
+            ghosts.append(g)
+        }
+    }
+
+    /// Puts a ghost in the band just outside the view: anywhere around it at the start, otherwise upstream.
+    private func placeGhost(_ g: inout Ghost, anywhere: Bool) {
+        let d: SIMD3<Float> = lanes.isEmpty ? dir : lanes.randomElement()!.d
+        let z = Float.random(in: -40...4)
+        let (w, h) = viewHalf(z)
+        let band: Float = 6 + .random(in: 0...34)
+        var x: Float, y: Float
+        if anywhere {
+            switch Int.random(in: 0..<4) {
+            case 0: x = w + band; y = .random(in: -1...1) * (h + 30)
+            case 1: x = -w - band; y = .random(in: -1...1) * (h + 30)
+            case 2: x = .random(in: -1...1) * (w + 30); y = h + band
+            default: x = .random(in: -1...1) * (w + 30); y = -h - band
+            }
+        } else if Float.random(in: 0...1) < 0.55 {
+            x = w + band; y = .random(in: -1...1) * (h + 30)              // off the right edge
+        } else {
+            x = .random(in: -0.2...1) * (w + 30); y = d.y < 0 ? h + band : -h - band   // above or below, upstream
+        }
+        g.p = SIMD3(x, y, z)
+        g.v = d * (6 + .random(in: 0...3)) * Float(cfg.speed)
+        g.gen += 1
     }
 
     private func ready(_ c: Craft) -> Bool { c.terminals.count == 4 && !(c.deploys && c.dep < 7.8) }
 
     private func updateLasers(_ dt: Float) {
         guard cfg.lasers, let lineT = beamLine, let endT = beamEnd else { return }
-        func dist(_ i: Int, _ j: Int) -> Float { simd_distance(craft[i].g.simdPosition, craft[j].g.simdPosition) }
+        let n = craft.count
+        // move the ghosts; one about to come into view (or far gone) goes back upstream
+        for k in ghosts.indices {
+            ghosts[k].p += ghosts[k].v * dt
+            let p = ghosts[k].p
+            let (w, h) = viewHalf(p.z)
+            let inside = abs(p.x) < w + 4 && abs(p.y) < h + 4
+            let gone = p.x < -w - 48 || abs(p.y) > h + 48
+            if inside || gone { placeGhost(&ghosts[k], anywhere: false) }
+        }
+        // the mesh's nodes: satellites first, then ghosts
+        func center(_ i: Int) -> SIMD3<Float> { i < n ? craft[i].g.simdPosition : ghosts[i - n].p }
+        func gen(_ i: Int) -> Int { i < n ? craft[i].gen : ghosts[i - n].gen }
+        func isReady(_ i: Int) -> Bool { i < n ? ready(craft[i]) : true }
+        func end(_ i: Int, _ t: Int) -> SIMD3<Float> { i < n ? craft[i].terminals[t].simdWorldPosition : ghosts[i - n].p }
+        let total = n + ghosts.count
         func holdsOther(_ i: Int, _ except: Beam) -> Bool {
             beams.contains { $0 !== except && !$0.dying && $0.grow >= 1 && ($0.a == i || $0.b == i) }
         }
-        // keep, drop or retire existing links
         for bm in beams {
-            let A = craft[bm.a], B = craft[bm.b]
-            if A.gen != bm.ga || B.gen != bm.gb { bm.fade = 0; bm.dying = true; continue }   // one went off screen
-            let d = dist(bm.a, bm.b)
+            if gen(bm.a) != bm.ga || gen(bm.b) != bm.gb {          // an end went off screen or jumped upstream
+                if bm.a < n && gen(bm.a) != bm.ga || bm.b < n && gen(bm.b) != bm.gb { bm.fade = 0 }
+                if gen(bm.a) != bm.ga { bm.holdA = true }
+                if gen(bm.b) != bm.gb { bm.holdB = true }
+                bm.dying = true
+            }
+            let d = simd_distance(bm.holdA ? bm.lastA : center(bm.a), bm.holdB ? bm.lastB : center(bm.b))
             if !bm.dying {
-                if !ready(A) || !ready(B) || d > hardR { bm.dying = true }
+                if !isReady(bm.a) || !isReady(bm.b) || d > hardR { bm.dying = true }
                 else if d > breakR, holdsOther(bm.a, bm), holdsOther(bm.b, bm) { bm.dying = true }
             }
             bm.grow = min(1, bm.grow + dt / 0.35)
@@ -385,7 +460,6 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             if b.fade <= 0 { b.root.removeFromParentNode(); return true }
             return false
         }
-        // make one new link per frame: the closest pair in range that isn't linked and has free terminals
         func used(_ i: Int) -> Set<Int> {
             var s = Set<Int>()
             for b in beams where !(b.dying && b.fade < 0.5) {
@@ -394,23 +468,26 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             }
             return s
         }
-        var best: (i: Int, j: Int, d: Float)?
-        for i in 0..<craft.count where ready(craft[i]) {
-            for j in (i + 1)..<max(i + 1, craft.count) where ready(craft[j]) {
-                let d = dist(i, j)
-                guard d < makeR, d < (best?.d ?? .infinity) else { continue }
-                if beams.contains(where: { !$0.dying && (($0.a == i && $0.b == j) || ($0.a == j && $0.b == i)) }) { continue }
-                if used(i).count >= 4 || used(j).count >= 4 { continue }
-                best = (i, j, d)
+        // make up to two new links a frame: the closest pairs in range that aren't linked and have free terminals
+        for _ in 0..<2 {
+            var best: (i: Int, j: Int, d: Float)?
+            for i in 0..<total where isReady(i) {
+                for j in (i + 1)..<max(i + 1, total) where isReady(j) {
+                    let d = simd_distance(center(i), center(j))
+                    guard d < makeR, d < (best?.d ?? .infinity) else { continue }
+                    if beams.contains(where: { !$0.dying && (($0.a == i && $0.b == j) || ($0.a == j && $0.b == i)) }) { continue }
+                    if used(i).count >= 4 || used(j).count >= 4 { continue }
+                    best = (i, j, d)
+                }
             }
-        }
-        if let p = best {
-            let A = craft[p.i], B = craft[p.j]
-            func pick(_ c: Craft, _ ui: Set<Int>, toward: SIMD3<Float>) -> Int {
-                (0..<4).filter { !ui.contains($0) }.min { simd_distance(c.terminals[$0].simdWorldPosition, toward) < simd_distance(c.terminals[$1].simdWorldPosition, toward) }!
+            guard let p = best else { break }
+            func pick(_ i: Int, toward: SIMD3<Float>) -> Int {
+                let free = (0..<4).filter { !used(i).contains($0) }
+                if i >= n { return free[0] }
+                return free.min { simd_distance(end(i, $0), toward) < simd_distance(end(i, $1), toward) }!
             }
-            let ta = pick(A, used(p.i), toward: B.g.simdPosition), tb = pick(B, used(p.j), toward: A.g.simdPosition)
-            let bm = Beam(a: p.i, b: p.j, ta: ta, tb: tb, ga: A.gen, gb: B.gen,
+            let ta = pick(p.i, toward: center(p.j)), tb = pick(p.j, toward: center(p.i))
+            let bm = Beam(a: p.i, b: p.j, ta: ta, tb: tb, ga: gen(p.i), gb: gen(p.j),
                           line: lineT.clone(), endA: endT.clone(), endB: endT.clone())
             scene.rootNode.addChildNode(bm.root)
             beams.append(bm)
@@ -418,18 +495,18 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         // draw
         let up = SIMD3<Float>(0, 1, 0)
         for bm in beams {
-            let pa = craft[bm.a].terminals[bm.ta].simdWorldPosition, pb = craft[bm.b].terminals[bm.tb].simdWorldPosition
+            let pa = bm.holdA ? bm.lastA : end(bm.a, bm.ta), pb = bm.holdB ? bm.lastB : end(bm.b, bm.tb)
+            bm.lastA = pa; bm.lastB = pb
             let v = (pb - pa) * bm.grow
             let len = max(1e-3, simd_length(v))
             bm.line.simdPosition = pa
             bm.line.simdOrientation = simd_quatf(from: up, to: v / len)
             bm.line.simdScale = SIMD3(1, len, 1)
             bm.endA.simdPosition = pa
+            bm.endA.isHidden = bm.a >= n
             bm.endB.simdPosition = pa + v
-            bm.endB.isHidden = bm.grow < 1
-            bm.flick += dt
-            let shimmer = 0.88 + 0.12 * sin(bm.flick * 23) * sin(bm.flick * 7.3)
-            bm.root.opacity = CGFloat(max(0, bm.fade) * shimmer)
+            bm.endB.isHidden = bm.grow < 1 || bm.b >= n
+            bm.root.opacity = CGFloat(max(0, bm.fade))
         }
     }
 

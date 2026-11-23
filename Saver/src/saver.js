@@ -628,35 +628,88 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   }
 
   // ---------- Starlink: laser links ----------
-  // Red optical links from the four corner terminals to nearby satellites. A new link grows across when two come in
-  // range; an old one is only dropped once both ends hold another link (make before break), or when far out of range.
-  const beams = [];
-  const MAKE_R = 30, BREAK_R = 40, HARD_R = 56;
+  // Red optical links from the four corner terminals to nearby satellites, on screen or just off it: unseen "ghost"
+  // satellites fly with the flock in a band outside the view so the mesh carries on past the edges. A new link
+  // grows across when two come in range; an old one is only dropped once both ends hold another link (make before
+  // break), or when it's stretched far out of range. Bright ripples run along the beams and they flicker a little.
+  const beams = [], ghosts = [];
+  const MAKE_R = 34, BREAK_R = 46, HARD_R = 64;
   const beamGeo = new THREE.CylinderGeometry(1, 1, 1, 10, 1, true).translate(0, 0.5, 0);
-  const beamMat = (color, opacity, r) => ({ r, m: new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }) });
-  const BEAM_LAYERS = [beamMat(0xff8c80, 1, 0.045), beamMat(0xff1408, 0.55, 0.13), beamMat(0xff0505, 0.16, 0.32)];
+  const beamTime = { value: 0 };
+  const beamShader = (color, opacity) =>
+    new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity }, uTime: beamTime },
+      vertexShader: 'varying vec3 wp; void main(){ vec4 w = modelMatrix * vec4(position,1.0); wp = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+      fragmentShader: [
+        'uniform vec3 uColor; uniform float uOpacity; uniform float uTime; varying vec3 wp;',
+        'void main(){',
+        '  float along = dot(wp, vec3(0.83, 0.47, 0.31));',
+        '  float ripple = 0.55 + 0.45 * sin(along * 2.6 - uTime * 21.0) * sin(along * 0.7 + uTime * 5.3);',
+        '  float flick = 0.78 + 0.22 * sin(uTime * 37.0 + wp.x * 0.9) * sin(uTime * 11.0 + wp.y * 1.3);',
+        '  gl_FragColor = vec4(uColor * uOpacity * ripple * flick, 1.0);',
+        '}',
+      ].join('\n'),
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+  const BEAM_LAYERS = [{ c: 0xff7366, o: 0.55, r: 0.04 }, { c: 0xff120a, o: 0.3, r: 0.12 }, { c: 0xff0505, o: 0.09, r: 0.3 }];
   const upY = new THREE.Vector3(0, 1, 0), pa = new THREE.Vector3(), pb = new THREE.Vector3(), bv = new THREE.Vector3();
   const readyFor = (c) => c.terminals && c.terminals.length === 4 && !(c.deploys && c.dep < 7.8);
   function newBeam() {
     const g = new THREE.Group();
     for (const L of BEAM_LAYERS) {
-      const m = new THREE.Mesh(beamGeo, L.m.clone());
-      m.userData.r = L.r; m.userData.o = L.m.opacity; m.frustumCulled = false; m.renderOrder = 20;
+      const m = new THREE.Mesh(beamGeo, beamShader(L.c, L.o));
+      m.userData.r = L.r; m.userData.o = L.o; m.frustumCulled = false; m.renderOrder = 20;
       g.add(m);
     }
     scene.add(g);
     return g;
   }
+  function placeGhost(g, anywhere) {
+    const d = lanes.length ? lanes[(Math.random() * lanes.length) | 0].d : DIR;
+    const z = -40 + Math.random() * 44;
+    const { w, h } = viewHalf(z);
+    const band = 6 + Math.random() * 34, r = () => Math.random() * 2 - 1;
+    let x, y;
+    if (anywhere) {
+      const s = (Math.random() * 4) | 0;
+      if (s === 0) { x = w + band; y = r() * (h + 30); }
+      else if (s === 1) { x = -w - band; y = r() * (h + 30); }
+      else if (s === 2) { x = r() * (w + 30); y = h + band; }
+      else { x = r() * (w + 30); y = -h - band; }
+    } else if (Math.random() < 0.55) { x = w + band; y = r() * (h + 30); }
+    else { x = (Math.random() * 1.2 - 0.2) * (w + 30); y = d.y < 0 ? h + band : -h - band; }
+    g.p = new THREE.Vector3(x, y, z);
+    g.v = d.clone().multiplyScalar((6 + Math.random() * 3) * CFG.speed);
+    g.gen = (g.gen || 0) + 1;
+  }
   function updateLasers(dt) {
     if (!CFG.lasers || !SATS) return;
-    const dist = (i, j) => craft[i].g.position.distanceTo(craft[j].g.position);
+    beamTime.value += dt;
+    const n = craft.length;
+    if (!ghosts.length) for (let k = 0; k < Math.max(8, n); k++) { const g = {}; placeGhost(g, true); ghosts.push(g); }
+    for (const g of ghosts) {
+      g.p.addScaledVector(g.v, dt);
+      const { w, h } = viewHalf(g.p.z);
+      const inside = Math.abs(g.p.x) < w + 4 && Math.abs(g.p.y) < h + 4;
+      const gone = g.p.x < -w - 48 || Math.abs(g.p.y) > h + 48;
+      if (inside || gone) placeGhost(g, false);
+    }
+    const center = (i) => (i < n ? craft[i].g.position : ghosts[i - n].p);
+    const gen = (i) => (i < n ? craft[i].gen || 0 : ghosts[i - n].gen);
+    const isReady = (i) => (i < n ? readyFor(craft[i]) : true);
+    const endOf = (i, t, out) => (i < n ? craft[i].terminals[t].getWorldPosition(out) : out.copy(ghosts[i - n].p));
+    const total = n + ghosts.length;
     const holdsOther = (i, ex) => beams.some((b) => b !== ex && !b.dying && b.grow >= 1 && (b.a === i || b.b === i));
     for (const b of beams) {
-      const A = craft[b.a], B = craft[b.b];
-      if ((A.gen || 0) !== b.ga || (B.gen || 0) !== b.gb) { b.fade = 0; continue; }
-      const d = dist(b.a, b.b);
+      if (gen(b.a) !== b.ga || gen(b.b) !== b.gb) {
+        if ((b.a < n && gen(b.a) !== b.ga) || (b.b < n && gen(b.b) !== b.gb)) b.fade = 0;
+        if (gen(b.a) !== b.ga) b.holdA = true;
+        if (gen(b.b) !== b.gb) b.holdB = true;
+        b.dying = true;
+      }
+      const d = (b.holdA ? b.lastA : center(b.a)).distanceTo(b.holdB ? b.lastB : center(b.b));
       if (!b.dying) {
-        if (!readyFor(A) || !readyFor(B) || d > HARD_R) b.dying = true;
+        if (!isReady(b.a) || !isReady(b.b) || d > HARD_R) b.dying = true;
         else if (d > BREAK_R && holdsOther(b.a, b) && holdsOther(b.b, b)) b.dying = true;
       }
       b.grow = Math.min(1, b.grow + dt / 0.35);
@@ -668,42 +721,45 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       for (const b of beams) if (!(b.dying && b.fade < 0.5)) { if (b.a === i) s.add(b.ta); if (b.b === i) s.add(b.tb); }
       return s;
     };
-    let best = null;
-    for (let i = 0; i < craft.length; i++) {
-      if (!readyFor(craft[i])) continue;
-      for (let j = i + 1; j < craft.length; j++) {
-        if (!readyFor(craft[j])) continue;
-        const d = dist(i, j);
-        if (d >= MAKE_R || (best && d >= best.d)) continue;
-        if (beams.some((b) => !b.dying && ((b.a === i && b.b === j) || (b.a === j && b.b === i)))) continue;
-        if (used(i).size >= 4 || used(j).size >= 4) continue;
-        best = { i, j, d };
+    for (let round = 0; round < 2; round++) {
+      let best = null;
+      for (let i = 0; i < total; i++) {
+        if (!isReady(i)) continue;
+        for (let j = i + 1; j < total; j++) {
+          if (!isReady(j)) continue;
+          const d = center(i).distanceTo(center(j));
+          if (d >= MAKE_R || (best && d >= best.d)) continue;
+          if (beams.some((b) => !b.dying && ((b.a === i && b.b === j) || (b.a === j && b.b === i)))) continue;
+          if (used(i).size >= 4 || used(j).size >= 4) continue;
+          best = { i, j, d };
+        }
       }
-    }
-    if (best) {
-      const A = craft[best.i], B = craft[best.j];
-      const pick = (c, u, to) => {
+      if (!best) break;
+      const pick = (i, to) => {
+        const u = used(i);
         let bi = -1, bd = Infinity;
         for (let k = 0; k < 4; k++) {
           if (u.has(k)) continue;
-          const d = c.terminals[k].getWorldPosition(pa).distanceTo(to);
+          if (i >= n) return k;
+          const d = endOf(i, k, pa).distanceTo(to);
           if (d < bd) { bd = d; bi = k; }
         }
         return bi;
       };
-      const ta = pick(A, used(best.i), B.g.position), tb = pick(B, used(best.j), A.g.position);
-      beams.push({ a: best.i, b: best.j, ta, tb, ga: A.gen || 0, gb: B.gen || 0, g: newBeam(), grow: 0, fade: 1, dying: false, flick: Math.random() * 10 });
+      const ta = pick(best.i, center(best.j)), tb = pick(best.j, center(best.i));
+      beams.push({ a: best.i, b: best.j, ta, tb, ga: gen(best.i), gb: gen(best.j), g: newBeam(), grow: 0, fade: 1, dying: false,
+        lastA: new THREE.Vector3(), lastB: new THREE.Vector3(), holdA: false, holdB: false });
     }
     for (const b of beams) {
-      craft[b.a].terminals[b.ta].getWorldPosition(pa);
-      craft[b.b].terminals[b.tb].getWorldPosition(pb);
+      if (b.holdA) pa.copy(b.lastA); else endOf(b.a, b.ta, pa);
+      if (b.holdB) pb.copy(b.lastB); else endOf(b.b, b.tb, pb);
+      b.lastA.copy(pa); b.lastB.copy(pb);
       bv.subVectors(pb, pa).multiplyScalar(b.grow);
       const len = Math.max(1e-3, bv.length());
       b.g.position.copy(pa);
       b.g.quaternion.setFromUnitVectors(upY, bv.divideScalar(len));
-      b.flick += dt;
-      const k = Math.max(0, b.fade) * (0.88 + 0.12 * Math.sin(b.flick * 23) * Math.sin(b.flick * 7.3));
-      for (const m of b.g.children) { m.scale.set(m.userData.r, len, m.userData.r); m.material.opacity = m.userData.o * k; }
+      const k = Math.max(0, b.fade);
+      for (const m of b.g.children) { m.scale.set(m.userData.r, len, m.userData.r); m.material.uniforms.uOpacity.value = m.userData.o * k; }
     }
   }
 
