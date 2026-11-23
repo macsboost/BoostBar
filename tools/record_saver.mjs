@@ -14,7 +14,8 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
 await page.evaluateOnNewDocument((scene) => {
-  window.SAVER_CONFIG = { liveries: scene === 'starlink' ? ['v2', 'v3'] : ['macsboost', 'yonder', 'xxone'], count: scene === 'starships' ? 11 : scene === 'starlink' ? 7 : 9, speed: 1, stars: true, manual: true };
+  window.SAVER_CONFIG = { liveries: scene === 'starlink' ? ['v15', 'v2', 'v3', 'deploy'] : ['macsboost', 'yonder', 'xxone'], count: scene === 'starships' ? 11 : scene === 'starlink' ? 10 : 9, speed: 1, stars: true, manual: true,
+    crossing: scene === 'starlink', lasers: scene === 'starlink' };
   Math.random = (() => { let s = 20261122; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); })();
 }, scene);
 await page.goto('file://' + html);

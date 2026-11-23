@@ -1,10 +1,10 @@
-/* BoostBar screen savers, flying-toasters style.
+/* BoostBar screen savers, Flying Bread style.
    scene 'cars'      BoostBar Flying Cars: X1 SkyRacers; liveries use the same format and paint logic as the
                      X1 SkyRacer Flying Car Race Sim (src/game/30_livery.js), applied per craft.
    scene 'starlink'  BoostBar Starlink: stylised Starlink V2 / V3 satellites (tools/starlink_glb.py), solar wings
                      built from hinged modules that bend like a bird's wings as they flap.
    scene 'starships' BoostBar Starships: Starship (Ship 42, from the sim's Starbase world, built from code by
-                     X1_sim/tools/starship/ship42.py) with its four flaps flapping like the toasters' wings. */
+                     X1_sim/tools/starship/ship42.py) with its four flaps flapping like the bread's wings. */
 (() => {
   'use strict';
   const CFG = Object.assign(
@@ -583,7 +583,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   const clock = () => (CFG.manual ? vt : performance.now() / 1000);
   window.__frame = (ms) => frame(ms);
   const craft = [];
-  const DIR = new THREE.Vector3(-1, -0.52, 0).normalize(); // toward lower-left, like the toasters
+  const DIR = new THREE.Vector3(-1, -0.52, 0).normalize(); // toward lower-left, like the flying bread
   function viewHalf(z) {
     const h = Math.tan((camera.fov * D2R) / 2) * (camera.position.z - z);
     return { w: h * camera.aspect, h };
@@ -1075,7 +1075,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         c.g.position.y -= 0.35 * Math.cos(ph0) * amp;
       }
       if (c.flaps) {
-        // flap like the toasters' wings: each flap swings about its hinge, the forward pair a beat behind the aft
+        // flap like the bread's wings: each flap swings about its hinge, the forward pair a beat behind the aft
         for (const f of c.flaps) {
           const ph = c.spin * c.flapRate + c.phase - (f.fwd ? 0.6 : 0);
           // degrees leeward of straight out: ~5° (spread, pointing at you) up to ~95° (raised over the hull) and back

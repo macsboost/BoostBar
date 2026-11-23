@@ -11,6 +11,11 @@ on:
 permissions:
   contents: write
 
+# one recording at a time: a newer push replaces a run still in progress (two runs committing media at once conflict)
+concurrency:
+  group: readme-media
+  cancel-in-progress: true
+
 jobs:
   record:
     runs-on: ubuntu-latest
@@ -62,4 +67,4 @@ jobs:
           git add docs/media Saver/thumbs
           git diff --cached --quiet && { echo "No change"; exit 0; }
           git commit -m "README media: screen saver recordings"
-          git pull --rebase origin main && git push origin HEAD:main
+          git pull --rebase -X theirs origin main && git push origin HEAD:main

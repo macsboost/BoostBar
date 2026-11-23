@@ -25,6 +25,10 @@
 </p>
 
 <p align="center">
+  <i>“This is the greatest utility since flying bread.”</i><br><sub>— SeaNet</sub>
+</p>
+
+<p align="center">
   <img src="docs/media/menubar.png" width="660" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts and a disk LED, next to TMOG's CPU meter">
 </p>
 <p align="center">
@@ -32,12 +36,12 @@
   <br><sub>Hover any piece for a 5-minute chart. Shown here next to the CPU meter from Dave Plummer's <a href="https://tmog.org">TMOG</a> — they make a great combo.</sub>
 </p>
 
-<h3 align="center">Three flying-toasters-style screen savers included</h3>
+<h3 align="center">Three Flying Bread–style screen savers included</h3>
 <table align="center">
   <tr>
     <td align="center"><a href="docs/media/flying-cars.mp4"><img src="docs/media/flying-cars.gif" width="280" alt="Flying Cars screen saver"></a><br><b>Flying Cars</b><br><sub>X1 SkyRacers, fans spinning</sub></td>
     <td align="center"><a href="docs/media/starships.mp4"><img src="docs/media/starships.gif" width="280" alt="Starships screen saver"></a><br><b>Starships</b><br><sub>flaps beating like wings</sub></td>
-    <td align="center"><a href="docs/media/starlink.mp4"><img src="docs/media/starlink.gif" width="280" alt="Starlink screen saver"></a><br><b>Starlink</b><br><sub>V2 &amp; V3, solar wings flapping like birds</sub></td>
+    <td align="center"><a href="docs/media/starlink.mp4"><img src="docs/media/starlink.gif" width="280" alt="Starlink screen saver"></a><br><b>Starlink</b><br><sub>V1.5, V2 &amp; V3, flapping, with laser links</sub></td>
   </tr>
 </table>
 
@@ -72,7 +76,7 @@ The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so yo
   <br><sub><a href="docs/media/flying-cars.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic flying toasters. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
+BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic Flying Bread. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
 
 ## Screen saver options
 
@@ -85,7 +89,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
   <br><sub><a href="docs/media/starships.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. An **Oxidation** slider in its Options takes the heat shield from fresh black tiles to a full post-re-entry look on the belly: frosty white streaks swept back from the nose, scorched dark tiles in the middle and rust-orange toward the rear. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
+**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen Flying Bread style, all four flaps beating like the bread's wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. An **Oxidation** slider in its Options takes the heat shield from fresh black tiles to a full post-re-entry look on the belly: frosty white streaks swept back from the nose, scorched dark tiles in the middle and rust-orange toward the rear. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
 
 ## Starlink screen saver 🛰
 
@@ -94,7 +98,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
   <br><sub><a href="docs/media/starlink.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-**BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen flying-toasters style. The bus is the toaster; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V1.5** (which creeps along in straight lines like an inchworm), **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
+**BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen Flying Bread style. The bus is the loaf; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V1.5** (which creeps along in straight lines like an inchworm), **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. Turn on **Crossing orbits** to send them along two sets of lanes that cross in an X, each leg at its own altitude, and **Laser links** for red, shimmering inter-satellite lasers that hop between neighbours — on screen and off — making each new link before breaking an old one. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
 
 ## Updates
 

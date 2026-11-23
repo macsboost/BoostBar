@@ -1,9 +1,9 @@
 import ScreenSaver
 import SceneKit
 
-/// BoostBar's screen savers, flying-toasters style. One source, two bundles (scripts/build-saver.sh):
+/// BoostBar's screen savers, Flying Bread style. One source, two bundles (scripts/build-saver.sh):
 ///   BoostBar Flying Cars  X1 SkyRacers in MacsBoost, Yonder and XXONE liveries
-///   BoostBar Starships    Starships flapping their flaps like the toasters' wings (built with -D STARSHIPS)
+///   BoostBar Starships    Starships flapping their flaps like the bread's wings (built with -D STARSHIPS)
 ///   BoostBar Starlink     Starlink V2 / V3 satellites beating their solar wings like birds (built with -D STARLINK)
 /// Each draws natively with SceneKit (Metal) — Saver/native/Flock.swift. The three.js page (saver.html) is still in
 /// the bundle for BoostBar's own Preview window.

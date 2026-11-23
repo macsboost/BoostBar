@@ -18,7 +18,7 @@ struct SaverConfig {
     var lasers = false
 }
 
-/// BoostBar's flying-toasters screen savers, drawn natively with SceneKit (Metal): the same flock, stunts, bumping,
+/// BoostBar's Flying Bread screen savers, drawn natively with SceneKit (Metal): the same flock, stunts, bumping,
 /// flapping and oxidation as the web version (Saver/src/saver.js), which stays for BoostBar's own Preview window.
 final class Flock: NSObject, SCNSceneRendererDelegate {
     enum Kind: String { case cars, starships, starlink }
@@ -34,7 +34,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     private var aspect: Float = 16.0 / 10.0
     var paused = false
 
-    private let dir = simd_normalize(SIMD3<Float>(-1, -0.52, 0))       // toward the lower left, like the toasters
+    private let dir = simd_normalize(SIMD3<Float>(-1, -0.52, 0))       // toward the lower left, like the flying bread
     private var perp: SIMD3<Float> { SIMD3(-dir.y, dir.x, 0) }
     private var lat: SIMD3<Float> { simd_normalize(perp * 0.45 + SIMD3(0, 0, 0.9)) }
     private let fov: Float = 28
