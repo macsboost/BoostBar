@@ -70,6 +70,10 @@ The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so yo
 
 BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic flying toasters. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
 
+## Screen saver options
+
+Every BoostBar screen saver has **Options** in System Settings ▸ Screen Saver: how many fly, **Speed** across the screen, **Flap speed** (fan speed for the flying cars), **Stunts** on/off (barrel rolls, veers, climbs and dives) and stars — plus liveries (Flying Cars), V2/V3 (Starlink) and Oxidation (Starships).
+
 ## Starships screen saver 🚀
 
 <p align="center">
@@ -77,7 +81,7 @@ BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of th
   <br><sub><a href="docs/media/starships.mp4">Watch in full quality (MP4)</a></sub>
 </p>
 
-**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. An **Oxidation** slider in its Options takes the heat shield from fresh black tiles to a streaky, rust-orange post-re-entry burn on the belly. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
+**BoostBar Starships** is the second screen saver: a fleet of Starships glides across the screen flying-toasters style, all four flaps beating like the toasters' wings, with the Raptors glowing. They barrel-roll, climb, dive and bump off each other just like the flying cars. An **Oxidation** slider in its Options takes the heat shield from fresh black tiles to a full post-re-entry look on the belly: frosty white streaks swept back from the nose, scorched dark tiles in the middle and rust-orange toward the rear. The model is Ship 42 from the X1 SkyRacer sim's Starbase world, built from code. Preview and install it in **Settings ▸ Screen Saver**, and set how many fly, how fast, and stars in its Options. (Direct download only. Not affiliated with SpaceX.)
 
 ## Starlink screen saver 🛰
 
