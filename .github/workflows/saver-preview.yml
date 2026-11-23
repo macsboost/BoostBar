@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["Saver/**", "tools/build_saver_html.py", "tools/macsboost_livery.py", ".github/workflows/saver-preview.yml"]
+    paths: ["Saver/**", "tools/native_check/**", "tools/build_saver_html.py", "tools/macsboost_livery.py", ".github/workflows/saver-preview.yml"]
 
 permissions:
   contents: read
@@ -25,6 +25,18 @@ jobs:
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/saver.html
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starships.html starships
           python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/starlink.html starlink
+      - name: Native (SceneKit/Metal) check
+        run: |
+          mkdir -p build/native_res
+          cp Saver/native/X1_*.glb Saver/src/Starship.glb Saver/src/Starlink.glb build/native_res/
+          swiftc -O tools/native_check/main.swift Saver/native/GLB.swift Saver/native/Flock.swift -o build/native_check
+          ./build/native_check build/native_res > build/native.txt 2>&1 || true
+          grep -v "^[A-Za-z0-9+/=]\{200,\}" build/native.txt | head -40
+          for n in native_cars native_ships native_sats; do
+            awk -v n="$n" '$0=="IMG_BEGIN "n".jpg"{getline; print; exit}' build/native.txt | base64 -d > "build/$n.jpg" || true
+            sips --resampleWidth 720 "build/$n.jpg" --out "build/${n}_s.jpg" >/dev/null 2>&1 || true
+            echo "IMG_BEGIN ${n}.jpg"; base64 -i "build/${n}_s.jpg" | tr -d '\n'; echo; echo "IMG_END"
+          done
       - name: WebKit check (as the .saver loads it)
         run: |
           swift tools/webkit_check.swift out/starships.html '{"count":4,"oxidation":0.8}' || true

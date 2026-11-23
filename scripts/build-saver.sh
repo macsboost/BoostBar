@@ -24,6 +24,12 @@ rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 python3 tools/build_saver_html.py "$W/three.min.js" "$W/GLTFLoader.js" "$OUT/Contents/Resources/saver.html" "$SCENE"
 cp Saver/thumbs/"$SCENE"/thumbnail*.png "$OUT/Contents/Resources/" 2>/dev/null || true
+# models for the native (SceneKit) renderer; the car liveries are pre-painted by tools/bake_liveries.py
+case "$SCENE" in
+  cars)      cp Saver/native/X1_*.glb "$OUT/Contents/Resources/" ;;
+  starships) cp Saver/src/Starship.glb "$OUT/Contents/Resources/" ;;
+  starlink)  cp Saver/src/Starlink.glb "$OUT/Contents/Resources/" ;;
+esac
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__ID__/$ID/" -e "s/__NAME__/$NAME/g" \
     -e "s/__EXEC__/$EXEC/" -e "s/__CLASS__/$CLASS/" -e "s/__CREDIT__/$CREDIT/" Saver/Info.plist > "$OUT/Contents/Info.plist"
 
@@ -31,8 +37,8 @@ if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCHS=(arm64 x86_64); else ARCHS=("$(una
 BINS=()
 for a in "${ARCHS[@]}"; do
   swiftc -O -target "$a-apple-macos13.0" -parse-as-library -module-name "$MODULE" ${FLAGS[@]+"${FLAGS[@]}"} \
-    -emit-executable -Xlinker -bundle -framework ScreenSaver -framework WebKit \
-    Saver/BoostBarSaverView.swift -o "$W/$EXEC-$a"
+    -emit-executable -Xlinker -bundle -framework ScreenSaver -framework SceneKit \
+    Saver/BoostBarSaverView.swift Saver/native/GLB.swift Saver/native/Flock.swift -o "$W/$EXEC-$a"
   BINS+=("$W/$EXEC-$a")
 done
 lipo -create "${BINS[@]}" -o "$OUT/Contents/MacOS/$EXEC"

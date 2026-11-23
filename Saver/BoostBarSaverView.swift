@@ -1,11 +1,12 @@
 import ScreenSaver
-import WebKit
+import SceneKit
 
 /// BoostBar's screen savers, flying-toasters style. One source, two bundles (scripts/build-saver.sh):
 ///   BoostBar Flying Cars  X1 SkyRacers in MacsBoost, Yonder and XXONE liveries
 ///   BoostBar Starships    Starships flapping their flaps like the toasters' wings (built with -D STARSHIPS)
 ///   BoostBar Starlink     Starlink V2 / V3 satellites beating their solar wings like birds (built with -D STARLINK)
-/// Each scene is a self-contained three.js page (saver.html) in its bundle.
+/// Each draws natively with SceneKit (Metal) — Saver/native/Flock.swift. The three.js page (saver.html) is still in
+/// the bundle for BoostBar's own Preview window.
 #if STARLINK
 @objc(BoostBarStarlinkView)
 final class BoostBarStarlinkView: BoostBarSceneView {}
@@ -50,7 +51,6 @@ class BoostBarSceneView: ScreenSaverView {
     static let defaultCount = 7
     #endif
 
-    private var web: WKWebView?
     private var sheet: NSWindow?
     private var checks: [NSButton] = []
     private var countSlider: NSSlider?
@@ -81,64 +81,70 @@ class BoostBarSceneView: ScreenSaverView {
 
     /// Options saved by BoostBar ▸ Settings ▸ Screen Saver, beside the installed savers (the real home folder — this
     /// runs inside the screen saver host's container). Used when newer than this saver's own Options sheet.
-    private func boostBarOptionsJS() -> String? {
+    private func boostBarOptions() -> [String: Any]? {
         guard let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir else { return nil }
         let url = URL(fileURLWithPath: String(cString: dir)).appendingPathComponent("Library/Screen Savers/BoostBar Screen Savers.json")
         guard let data = try? Data(contentsOf: url),
               let all = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let o = all[Self.scene] as? [String: Any] else { return nil }
-        let savedAt = o["savedAt"] as? Double ?? 0
-        if defaults.double(forKey: "savedAt") > savedAt { return nil }   // the Options sheet was used more recently
-        var o2 = o
-        o2["preview"] = isPreview
-        guard let js = try? JSONSerialization.data(withJSONObject: o2), let str = String(data: js, encoding: .utf8) else { return nil }
-        return "window.SAVER_CONFIG=\(str);"
+        if defaults.double(forKey: "savedAt") > (o["savedAt"] as? Double ?? 0) { return nil }   // the Options sheet is newer
+        return o
     }
 
-    private func configJS() -> String {
-        if let js = boostBarOptionsJS() { return js }
-        let d = defaults
-        let livs = (d.string(forKey: "liveries") ?? Self.allLiveries.map(\.id).joined(separator: ","))
-            .split(separator: ",").map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(d.integer(forKey: "count")),speed:\(d.double(forKey: "speed")),flapSpeed:\(d.double(forKey: "flapSpeed")),stunts:\(d.bool(forKey: "stunts")),stars:\(d.bool(forKey: "stars")),oxidation:\(d.double(forKey: "oxidation")),preview:\(isPreview)};"
+    private func config() -> SaverConfig {
+        var c = SaverConfig()
+        if let o = boostBarOptions() {
+            c.liveries = o["liveries"] as? [String] ?? []
+            c.count = o["count"] as? Int ?? Self.defaultCount
+            c.speed = o["speed"] as? Double ?? 1
+            c.flapSpeed = o["flapSpeed"] as? Double ?? 1
+            c.stunts = o["stunts"] as? Bool ?? true
+            c.stars = o["stars"] as? Bool ?? true
+            c.oxidation = o["oxidation"] as? Double ?? 0.35
+            c.tilt = o["tilt"] as? Double
+        } else {
+            let d = defaults
+            c.liveries = (d.string(forKey: "liveries") ?? "").split(separator: ",").map(String.init)
+            c.count = d.integer(forKey: "count")
+            c.speed = d.double(forKey: "speed")
+            c.flapSpeed = d.double(forKey: "flapSpeed")
+            c.stunts = d.bool(forKey: "stunts")
+            c.stars = d.bool(forKey: "stars")
+            c.oxidation = d.double(forKey: "oxidation")
+        }
+        if isPreview { c.count = min(c.count, 5) }
+        return c
     }
 
-    private var ready = false
+    private var sceneView: SCNView?
+    private var flock: Flock?
     private var status: NSTextField?
 
     private func loadScene() {
-        web?.removeFromSuperview()
-        ready = false
-        let conf = WKWebViewConfiguration()
-        conf.userContentController.addUserScript(WKUserScript(source: configJS(), injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        // the page reports back when the scene is running (or what went wrong)
-        conf.userContentController.add(MessageRelay(self), name: "boostbar")
-        let w = WKWebView(frame: bounds, configuration: conf)
-        w.autoresizingMask = [.width, .height]
-        w.setValue(false, forKey: "drawsBackground")
-        addSubview(w)
-        web = w
-        // Load the page from memory: it's self-contained (three.js, the models and liveries are inlined), and on
-        // macOS 26+ the screen saver host's web content process may not be allowed to read files in this bundle.
-        if let url = Bundle(for: type(of: self)).url(forResource: "saver", withExtension: "html"),
-           let html = try? String(contentsOf: url, encoding: .utf8) {
-            w.loadHTMLString(html, baseURL: nil)
-        } else {
-            show("\(Self.title): couldn't read its scene from the bundle. Reinstall it from BoostBar ▸ Settings ▸ Screen Saver.")
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
-            guard let self, !self.ready else { return }
-            self.show("\(Self.title) didn't start (no WebGL in the screen saver host?). Try Preview in BoostBar ▸ Settings ▸ Screen Saver.")
-        }
+        sceneView?.removeFromSuperview()
+        status?.removeFromSuperview(); status = nil
+        guard let res = Bundle(for: type(of: self)).resourceURL else { show("\(Self.title): its bundle is missing resources."); return }
+        let f = Flock(kind: Flock.Kind(rawValue: Self.scene) ?? .cars, cfg: config(), resources: res)
+        let v = SCNView(frame: bounds, options: [SCNView.Option.preferredRenderingAPI.rawValue: NSNumber(value: SCNRenderingAPI.metal.rawValue)])
+        v.autoresizingMask = [.width, .height]
+        v.scene = f.scene
+        v.pointOfView = f.camera
+        v.delegate = f
+        v.backgroundColor = .black
+        v.antialiasingMode = isPreview ? .none : .multisampling4X
+        v.preferredFramesPerSecond = isPreview ? 30 : 60
+        v.rendersContinuously = true
+        v.isPlaying = true
+        f.setAspect(bounds.width / max(bounds.height, 1))
+        addSubview(v)
+        sceneView = v
+        flock = f
+        if let e = f.error { show("\(Self.title) couldn't load its models: \(e). Reinstall it from BoostBar ▸ Settings ▸ Screen Saver.") }
     }
 
-    fileprivate func pageSaid(_ msg: String) {
-        if msg == "ready" {
-            ready = true
-            status?.removeFromSuperview(); status = nil
-        } else if !ready {
-            show("\(Self.title): \(msg)")
-        }
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        flock?.setAspect(bounds.width / max(bounds.height, 1))
     }
 
     /// A small message in the middle of the screen instead of a blank one.
@@ -155,17 +161,24 @@ class BoostBarSceneView: ScreenSaverView {
         status = t
     }
 
+    override func draw(_ rect: NSRect) {
+        NSColor.black.setFill()
+        rect.fill()
+    }
+
     override func startAnimation() {
         super.startAnimation()
-        web?.evaluateJavaScript("window.__resume && window.__resume()")
+        flock?.paused = false
+        sceneView?.isPlaying = true
     }
 
     override func stopAnimation() {
         super.stopAnimation()
-        web?.evaluateJavaScript("window.__pause && window.__pause()")
+        flock?.paused = true
+        sceneView?.isPlaying = false
     }
 
-    override func animateOneFrame() {}   // the page animates itself
+    override func animateOneFrame() {}   // SceneKit drives the frames
 
     // MARK: Options sheet
 
@@ -258,14 +271,5 @@ class BoostBarSceneView: ScreenSaverView {
             loadScene()
         }
         if let s = sheet { s.sheetParent?.endSheet(s) ?? s.close() }
-    }
-}
-
-/// WKUserContentController retains its handlers; relay weakly so the view can go away.
-private final class MessageRelay: NSObject, WKScriptMessageHandler {
-    weak var view: BoostBarSceneView?
-    init(_ v: BoostBarSceneView) { view = v }
-    func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
-        if let s = m.body as? String { view?.pageSaid(s) }
     }
 }

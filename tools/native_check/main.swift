@@ -1,0 +1,35 @@
+// Renders each native screen saver scene off-screen with Metal (SCNRenderer) and prints JPEG frames as base64,
+// so CI can check the SceneKit version without a screen saver host.
+// build: swiftc -O -parse-as-library? (no: top-level code) tools/native_check/main.swift Saver/native/*.swift -o native_check
+import AppKit
+import Metal
+import SceneKit
+
+let res = URL(fileURLWithPath: CommandLine.arguments[1])
+guard let device = MTLCreateSystemDefaultDevice() else { print("NO METAL DEVICE"); exit(1) }
+print("METAL:", device.name)
+let size = CGSize(width: 1280, height: 720)
+
+func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Double) {
+    let f = Flock(kind: kind, cfg: cfg, resources: res)
+    if let e = f.error { print("SCENE ERROR \(name):", e) }
+    f.setAspect(size.width / size.height)
+    let r = SCNRenderer(device: device, options: nil)
+    r.scene = f.scene
+    r.pointOfView = f.camera
+    var t = 0.0
+    f.step(to: t)
+    while t < seconds { t += 1.0 / 30; f.step(to: t) }
+    let img = r.snapshot(atTime: t, with: size, antialiasingMode: .multisampling4X)
+    guard let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+          let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.7]) else { print("NO IMAGE \(name)"); return }
+    print("IMG_BEGIN \(name).jpg"); print(jpg.base64EncodedString()); print("IMG_END")
+}
+
+var cars = SaverConfig(); cars.count = 7
+shoot(.cars, cars, "native_cars", seconds: 4)
+var ships = SaverConfig(); ships.count = 5; ships.oxidation = 0.8; ships.tilt = 30
+shoot(.starships, ships, "native_ships", seconds: 4)
+var sats = SaverConfig(); sats.count = 5
+shoot(.starlink, sats, "native_sats", seconds: 4)
+print("DONE")
