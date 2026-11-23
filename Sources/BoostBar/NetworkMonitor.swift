@@ -225,20 +225,20 @@ final class NetworkMonitor {
     }
 
     /// "12 KB/s", "3.4 MB/s" (or bits when `bits` is true). Decimal (1000) units like macOS.
-    /// Network speed units: 0 = automatic (K, M or G as needed), 1 = always K, 2 = always M.
+    /// The smallest unit network speeds are shown in; faster speeds still step up to M and G.
+    /// 0 = KB/s and up, 2 = MB/s and up (1, an older "always KB/s" setting, reads as KB/s and up).
     enum Unit: Int { case auto = 0, kilo = 1, mega = 2 }
 
     static func format(_ bytesPerSec: Double, bits: Bool, unit: Unit = .auto) -> String {
         let v = bits ? bytesPerSec * 8 : bytesPerSec
         let suffix = bits ? "b/s" : "B/s"
         let k = v / 1000
-        switch unit {
-        case .kilo:
-            return (k < 10 ? String(format: "%.1f K", k) : String(format: "%.0f K", k)) + suffix
-        case .mega:
+        if unit == .mega {
             let m = k / 1000
-            return (m < 10 ? String(format: "%.2f M", m) : m < 100 ? String(format: "%.1f M", m) : String(format: "%.0f M", m)) + suffix
-        case .auto: break
+            if m < 10 { return String(format: "%.2f M", m) + suffix }
+            if m < 100 { return String(format: "%.1f M", m) + suffix }
+            if m < 1000 { return String(format: "%.0f M", m) + suffix }
+            return String(format: "%.1f G", m / 1000) + suffix
         }
         if k < 10 { return String(format: "%.1f K", k) + suffix }
         if k < 1000 { return String(format: "%.0f K", k) + suffix }

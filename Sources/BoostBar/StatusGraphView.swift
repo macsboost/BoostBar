@@ -102,9 +102,8 @@ final class StatusGraphView: NSView {
         let u = netBits ? "b/s" : "B/s"
         let samples: [String]
         switch netUnit {
-        case .auto: samples = ["888 K\(u)"]
-        case .kilo: samples = ["8888 K\(u)"]
-        case .mega: samples = ["88.88 M\(u)", "888.8 M\(u)"]
+        case .auto, .kilo: samples = ["888 K\(u)"]
+        case .mega: samples = ["88.88 M\(u)"]
         }
         let w = samples.flatMap { ["▲ " + $0, "▼ " + $0] }.map {
             NSAttributedString(string: $0, attributes: [.font: font]).size().width

@@ -562,8 +562,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         list.append(Pane(title: "Network", symbol: "network") { p in
             p.header("Menu Bar")
             p.check("Show network speed graph", get: { Prefs.showNetwork }, set: { Prefs.showNetwork = $0; app.applySettings() })
-            p.popup("Speed units", items: ["Automatic (KB/s, MB/s, GB/s as needed)", "Always KB/s", "Always MB/s"],
-                    get: { Prefs.netUnit.rawValue }, set: { Prefs.netUnit = NetworkMonitor.Unit(rawValue: $0) ?? .auto; app.applySettings() })
+            p.popup("Smallest unit", items: ["KB/s (steps up to MB/s, GB/s when faster)", "MB/s (steps up to GB/s when faster)"],
+                    get: { Prefs.netUnit == .mega ? 1 : 0 }, set: { Prefs.netUnit = $0 == 1 ? .mega : .auto; app.applySettings() })
             p.check("Show bits per second (Kb/s, Mb/s) instead of bytes", get: { Prefs.useBits }, set: { Prefs.useBits = $0; app.applySettings() })
             p.popup("Graphs", items: ["One combined graph (all connections)", "Separate graph per connection (LAN, Wi‑Fi, …)"],
                     get: { Prefs.netSplit ? 1 : 0 }, set: { Prefs.netSplit = $0 == 1; app.applySettings() })
