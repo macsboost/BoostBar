@@ -29,7 +29,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/menubar.png" width="660" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts and a disk LED, next to TMOG's CPU meter">
+  <img src="docs/media/menubar-sample.png" width="820" alt="BoostBar's menu bar pieces on a dark and a light menu bar: googly eyes, network graph with upload/download speeds, battery watts, a disk LED and the CPU boost gauge; on the right, with the stacked NET / BAT / HDD / CPU labels and the CPU bars">
+  <br><sub>Dark and light menu bars · plain, and with stacked labels · CPU as a boost gauge or as bars</sub>
 </p>
 <p align="center">
   <img src="docs/media/menubar-hover.png" width="600" alt="Hovering the network graph opens a 5-minute upload/download chart">
@@ -102,7 +103,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 
 ## CPU boost gauge
 
-A tiny half-round boost gauge at the right end of BoostBar reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Prefer bars? **Settings ▸ CPU ▸ Style** switches to one slim vertical bar per core. The colours adjust for a light or dark menu bar, and hovering shows a 5-minute chart.
+A tiny half-round boost gauge at the right end of BoostBar reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Prefer bars? **Settings ▸ CPU ▸ Style** switches to one slim vertical bar per core. The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU (1–10 times a second) — the needle's damping follows it automatically.
 
 ## Updates
 
