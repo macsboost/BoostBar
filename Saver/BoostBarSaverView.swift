@@ -103,18 +103,56 @@ class BoostBarSceneView: ScreenSaverView {
         return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(d.integer(forKey: "count")),speed:\(d.double(forKey: "speed")),flapSpeed:\(d.double(forKey: "flapSpeed")),stunts:\(d.bool(forKey: "stunts")),stars:\(d.bool(forKey: "stars")),oxidation:\(d.double(forKey: "oxidation")),preview:\(isPreview)};"
     }
 
+    private var ready = false
+    private var status: NSTextField?
+
     private func loadScene() {
         web?.removeFromSuperview()
+        ready = false
         let conf = WKWebViewConfiguration()
         conf.userContentController.addUserScript(WKUserScript(source: configJS(), injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        // the page reports back when the scene is running (or what went wrong)
+        conf.userContentController.add(MessageRelay(self), name: "boostbar")
         let w = WKWebView(frame: bounds, configuration: conf)
         w.autoresizingMask = [.width, .height]
         w.setValue(false, forKey: "drawsBackground")
         addSubview(w)
-        if let url = Bundle(for: type(of: self)).url(forResource: "saver", withExtension: "html") {
-            w.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-        }
         web = w
+        // Load the page from memory: it's self-contained (three.js, the models and liveries are inlined), and on
+        // macOS 26+ the screen saver host's web content process may not be allowed to read files in this bundle.
+        if let url = Bundle(for: type(of: self)).url(forResource: "saver", withExtension: "html"),
+           let html = try? String(contentsOf: url, encoding: .utf8) {
+            w.loadHTMLString(html, baseURL: nil)
+        } else {
+            show("\(Self.title): couldn't read its scene from the bundle. Reinstall it from BoostBar ▸ Settings ▸ Screen Saver.")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, !self.ready else { return }
+            self.show("\(Self.title) didn't start (no WebGL in the screen saver host?). Try Preview in BoostBar ▸ Settings ▸ Screen Saver.")
+        }
+    }
+
+    fileprivate func pageSaid(_ msg: String) {
+        if msg == "ready" {
+            ready = true
+            status?.removeFromSuperview(); status = nil
+        } else if !ready {
+            show("\(Self.title): \(msg)")
+        }
+    }
+
+    /// A small message in the middle of the screen instead of a blank one.
+    private func show(_ text: String) {
+        status?.removeFromSuperview()
+        let t = NSTextField(wrappingLabelWithString: text)
+        t.textColor = NSColor(white: 0.8, alpha: 1)
+        t.font = .systemFont(ofSize: isPreview ? 9 : 18, weight: .medium)
+        t.alignment = .center
+        let w = min(bounds.width - 40, 760)
+        t.frame = NSRect(x: (bounds.width - w) / 2, y: bounds.midY - 40, width: w, height: 80)
+        t.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
+        addSubview(t)
+        status = t
     }
 
     override func startAnimation() {
@@ -220,5 +258,14 @@ class BoostBarSceneView: ScreenSaverView {
             loadScene()
         }
         if let s = sheet { s.sheetParent?.endSheet(s) ?? s.close() }
+    }
+}
+
+/// WKUserContentController retains its handlers; relay weakly so the view can go away.
+private final class MessageRelay: NSObject, WKScriptMessageHandler {
+    weak var view: BoostBarSceneView?
+    init(_ v: BoostBarSceneView) { view = v }
+    func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
+        if let s = m.body as? String { view?.pageSaid(s) }
     }
 }

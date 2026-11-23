@@ -12,6 +12,11 @@
     window.SAVER_CONFIG || {},
   );
   const D2R = Math.PI / 180;
+  // report to the screen saver (it shows a message instead of a blank screen if the scene never starts)
+  function tell(msg) {
+    try { window.webkit.messageHandlers.boostbar.postMessage(String(msg)); } catch (e) {}
+  }
+  window.addEventListener('error', (e) => tell('error: ' + (e.message || e)));
   const SCENE = window.SAVER_SCENE || CFG.scene;
   const SHIPS = SCENE === 'starships';
   const SATS = SCENE === 'starlink';
@@ -822,9 +827,13 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     renderer.render(scene, camera);
   }
   build()
-    .then(() => (CFG.manual ? (window.__ready = true) : requestAnimationFrame(frame)))
+    .then(() => {
+      tell('ready');
+      return CFG.manual ? (window.__ready = true) : requestAnimationFrame(frame);
+    })
     .catch((e) => {
       const el = $('loading');
       if (el) el.textContent = (SHIPS ? 'Could not load Starship: ' : 'Could not load the SkyRacer: ') + e;
+      tell('could not load the scene: ' + e);
     });
 })();
