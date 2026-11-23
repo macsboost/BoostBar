@@ -414,9 +414,15 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   float fine = oxN(vec2(th * 70.0, yn * 6.0));
   float side = 1.0 - smoothstep(0.55, 1.45, abs(th));     // heat is greatest on the centre line
   float along = 1.0 - smoothstep(0.5, 0.92, yn);           // and lower on the hull
+  float thin = oxN(vec2(th * 160.0, yn * 2.2));            // long, thin flow lines
   float m = side * along * (0.45 + 0.75 * streak) + 0.18 * (fine - 0.5);
-  oxK = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
-  vec3 rust = mix(vec3(0.42, 0.13, 0.035), vec3(0.96, 0.50, 0.16), clamp(streak * 1.25 + fine * 0.35 - 0.2, 0.0, 1.0));
+  float cover = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
+  // patchy at first (dark tiles between the streaks), filling in as it gets hotter
+  float patch = smoothstep(0.32, 0.62, streak * 0.75 + thin * 0.35 + fine * 0.15);
+  oxK = cover * mix(patch, 1.0, smoothstep(0.55, 1.0, uOx) * 0.75);
+  float glow = clamp(streak * 1.1 + thin * 0.55 - 0.35, 0.0, 1.0);
+  vec3 rust = mix(vec3(0.24, 0.07, 0.02), vec3(1.0, 0.56, 0.2), glow);
+  rust = mix(rust, vec3(0.12, 0.05, 0.03), smoothstep(0.75, 0.95, 1.0 - thin) * 0.5);  // scorched dark streaks
   diffuseColor.rgb = mix(diffuseColor.rgb, rust, oxK);
   // white flecks: insulation where tiles came off (more of them the hotter it got)
   float fleck = step(0.993 - 0.02 * uOx, oxH(floor(vec2(th * 90.0, yn * 260.0)))) * smoothstep(0.2, 0.6, oxK + 0.3 * uOx * side);
@@ -755,7 +761,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
       if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
-      c.g.rotateZ((SATS ? -1.15 : SHIPS ? -0.2 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
+      c.g.rotateZ((SATS ? -1.15 : SHIPS ? 0.12 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt;
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;
