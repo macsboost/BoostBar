@@ -72,7 +72,7 @@ BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of th
 
 ## Screen saver options
 
-Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at the top, then how many fly, **Speed** across the screen, **Flap speed** (fan speed for the flying cars), **Stunts** on/off (barrel rolls, veers, climbs and dives), stars, plus liveries (Flying Cars), V2/V3 (Starlink) and **Oxidation** (Starships). **Install & Show in System Settings** copies the screen saver into your Screen Savers folder and opens System Settings ▸ Wallpaper; click it under **Other** (at the end) to use it — macOS doesn't let apps choose the screen saver for you.
+Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at the top, then how many fly, **Speed** across the screen, **Flap speed** (fan speed for the flying cars), **Angle** (how far they're rolled toward you), **Stunts** on/off (barrel rolls, veers, climbs and dives), stars, plus liveries (Flying Cars), V2/V3 (Starlink) and **Oxidation** (Starships). **Install & Show in System Settings** copies the screen saver into your Screen Savers folder and opens System Settings ▸ Wallpaper; click it under **Other** (at the end) to use it — macOS doesn't let apps choose the screen saver for you.
 
 ## Starships screen saver 🚀
 

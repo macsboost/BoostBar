@@ -449,6 +449,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      caption: "flaps, wings — fans for the cars")
             p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
                      caption: "Starships: fresh tiles → post-re-entry", enabled: { current.scene == "starships" })
+            p.slider("Angle", min: -90, max: 90, get: { o.tilt ?? SaverConfig.defaultTilt(for: current.scene) },
+                     set: { v in change { $0.tilt = (v / 2).rounded() * 2 } }, caption: "roll toward you")
+            p.button("Default Angle") { change { $0.tilt = nil }; p.refresh() }
             p.check("Stunts (barrel rolls, veers, climbs and dives)", get: { o.stunts }, set: { v in change { $0.stunts = v } })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } })
             p.note("Changes apply the next time the screen saver starts (and in Preview). Not affiliated with SpaceX; the X1 SkyRacer, its liveries and the Starship come from the X1 SkyRacer Flying Car Race Sim.")

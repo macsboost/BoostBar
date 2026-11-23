@@ -15,6 +15,9 @@
   const SCENE = window.SAVER_SCENE || CFG.scene;
   const SHIPS = SCENE === 'starships';
   const SATS = SCENE === 'starlink';
+  // Angle (CFG.tilt, degrees): how far each craft is rolled about its flight path toward the viewer. Defaults:
+  // cars -32° (shows the roof), Starships -11°, Starlink -66° (three-quarter top view of the wings).
+  const TILT = (CFG.tilt != null && isFinite(+CFG.tilt) ? +CFG.tilt : SATS ? -66 : SHIPS ? -11.5 : -32) * (Math.PI / 180);
   const $ = (id) => document.getElementById(id);
 
   // ---------- renderer / scene ----------
@@ -786,7 +789,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       const wobble = c.wob * Math.sin(t * 11 + c.phase) * 0.35;
       // base tilt ≈ 32° for the cars (shows the roof); Starships fly flatter, side-on, so the flaps flap in profile
       if (SATS) c.g.rotateY(0.45); // three-quarter view, like the satellites in the comparison art
-      c.g.rotateZ((SATS ? -1.15 : SHIPS ? 0.55 : -0.555) + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
+      c.g.rotateZ(TILT + Math.sin(t * 0.9 + c.phase) * 0.05 + (st ? st.roll : 0) + wobble);
       c.g.rotateX(Math.sin(t * 1.3 + c.phase + 1) * 0.04 - (st && st.pitch ? st.pitch : 0) + wobble * 0.5);
       c.spin += dt * Math.max(0.05, +CFG.flapSpeed || 1); // fans, flaps and wings all run on this clock
       for (const f of c.fans) f.o.rotation.y = f.y0 + f.sg * f.rate * c.spin;

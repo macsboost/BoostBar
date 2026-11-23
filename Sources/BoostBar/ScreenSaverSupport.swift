@@ -13,6 +13,7 @@ struct SaverOptions: Codable {
     var stars: Bool = true
     var liveries: [String]
     var oxidation: Double = 0.35
+    var tilt: Double? = nil   // degrees; nil = the scene's own default
     var savedAt: Double = 0
 }
 
@@ -30,6 +31,10 @@ enum SaverConfig {
         case "starlink": return SaverOptions(count: 5, liveries: ["v2", "v3"])
         default: return SaverOptions(count: 7, liveries: ["macsboost", "yonder", "xxone"])
         }
+    }
+
+    static func defaultTilt(for scene: String) -> Double {
+        switch scene { case "starships": return -11.5; case "starlink": return -66; default: return -32 }
     }
 
     static func all() -> [String: SaverOptions] {
@@ -52,7 +57,7 @@ enum SaverConfig {
     static func script(for scene: String) -> String {
         let o = options(for: scene)
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),preview:false};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
     }
 }
 
