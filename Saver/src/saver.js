@@ -538,6 +538,68 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     mat.customProgramCacheKey = () => 'oxidised';
   }
 
+  // The Raptor exhaust: a long, translucent plume behind the tail (local -z), drawn on four crossed planes so it
+  // reads from any side — blue-white at the nozzles, shock diamonds, then a hot orange tail fading out.
+  function exhaust(length, width) {
+    const W = 256, H = 64, cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d'), img = cx.createImageData(W, H);
+    const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    for (let y = 0; y < H; y++) {
+      const v = Math.abs((y / (H - 1)) * 2 - 1);
+      for (let x = 0; x < W; x++) {
+        const u = x / (W - 1), radius = 0.42 + 0.5 * Math.pow(u, 0.7), r = v / radius;
+        if (r >= 1) continue;
+        const across = Math.pow(1 - r * r, 1.6);
+        const coreW = Math.max(0, 1 - r / Math.max(0.05, 0.55 - 0.5 * u));
+        const diamonds = u < 0.45 ? 0.5 + 0.5 * Math.cos(u * 52) : 0;
+        const fade = (1 - sm(0.55, 1, u)) * sm(0, 0.02, u);
+        const hot = coreW * (1 - sm(0.05, 0.5, u)) * (0.75 + 0.25 * diamonds);
+        const R = hot + (0.55 + 0.45 * sm(0.15, 0.6, u)) * (1 - hot);
+        const G = hot + (0.55 - 0.15 * sm(0.15, 0.6, u)) * (1 - hot);
+        const B = hot + (0.95 - 0.8 * sm(0.1, 0.5, u)) * (1 - hot);
+        const a = Math.min(1, across * fade * (0.42 + 0.58 * hot) + 0.12 * diamonds * coreW * fade);
+        const i = (y * W + x) * 4;
+        img.data[i] = Math.min(255, R * 255); img.data[i + 1] = Math.min(255, G * 255); img.data[i + 2] = Math.min(255, B * 255);
+        img.data[i + 3] = a * 255;
+      }
+    }
+    cx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.encoding = THREE.sRGBEncoding;
+    const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    const geo = new THREE.PlaneGeometry(length, width);
+    const g = new THREE.Group();
+    for (let k = 0; k < 4; k++) {
+      const p = new THREE.Mesh(geo, m);
+      // plane x → -z (nozzles at the tail, the image's left edge), spun around the plume's axis
+      p.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), (k * Math.PI) / 4).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2));
+      p.position.set(0, 0, -length / 2);
+      p.renderOrder = 10;
+      p.frustumCulled = false;
+      g.add(p);
+    }
+    return g;
+  }
+
+  // Studio-style reflections so the Starships' stainless steel has something to mirror (as in the native saver)
+  if (SCENE === 'starships') {
+    const cv = document.createElement('canvas');
+    cv.width = 512; cv.height = 256;
+    const g = cv.getContext('2d'), gr = g.createLinearGradient(0, 256, 0, 0);
+    gr.addColorStop(0, 'rgb(5,6,9)'); gr.addColorStop(0.5, 'rgb(41,43,48)'); gr.addColorStop(1, 'rgb(107,115,128)');
+    g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
+    for (const [x, y, w, h, k] of [[90, 175, 120, 50, 242], [330, 205, 160, 22, 179], [420, 120, 40, 40, 128]]) {
+      g.fillStyle = `rgb(${k},${k},${Math.round(k * 0.97)})`; g.fillRect(x, 256 - y - h, w, h);
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.encoding = THREE.sRGBEncoding;
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromEquirectangular(t).texture;
+    pm.dispose();
+  }
+
   function loadStarship() {
     return new Promise((res, rej) =>
       new THREE.GLTFLoader().parse(
@@ -553,7 +615,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
             o.frustumCulled = false;
             const m = (o.material = o.material.clone());
             m.side = THREE.DoubleSide;
-            if (m.name === 'steel') { m.metalness = 0.5; m.roughness = 0.38; m.color.setHex(0xb9bec4); } // brushed stainless, not chrome-white
+            if (m.name === 'steel') { m.metalness = 0.92; m.roughness = 0.26; m.color.setHex(0xcfd1d4); m.envMapIntensity = 1.6; } // polished stainless
             if (m.name === 'tile' && o.parent && o.parent.name === 'ship' || (m.name === 'tile' && o.name === 'ship')) {
               o.geometry.computeBoundingBox();
               const bb = o.geometry.boundingBox;
@@ -568,20 +630,16 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
           root.add(pivot);
           // Raptor glow out of the engines
           const tail = (box.min.y - mid.y) * SHIP_SCALE;
-          const plume = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: glowTexture('rgba(255,255,255,1)', 'rgba(255,150,60,0.75)'),
-            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
-          }));
-          plume.position.set(0, 0, tail - 0.4);
-          plume.scale.set(1.9, 1.9, 1);
+          const plume = exhaust(5.4, 1.25); // the same long translucent plume as the native saver
+          plume.position.set(0, 0, tail + 0.05);
           plume.name = 'plume';
           root.add(plume);
           const core = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: glowTexture('rgba(220,235,255,1)', 'rgba(120,160,255,0.6)'),
+            map: glowTexture('rgba(230,240,255,0.9)', 'rgba(120,160,255,0.35)'),
             blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
           }));
-          core.position.set(0, 0, tail - 0.15);
-          core.scale.set(0.9, 0.9, 1);
+          core.position.set(0, 0, tail - 0.1);
+          core.scale.set(1.0, 1.0, 1);
           core.name = 'core';
           root.add(core);
           res(root);
@@ -1182,8 +1240,9 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
           f.o.quaternion.copy(f.q0).multiply(flapQ.setFromAxisAngle(yAxis, f.s * deg * D2R));
         }
         const fl = 0.85 + 0.15 * Math.sin(t * 37 + c.phase) + 0.08 * Math.sin(t * 61);
-        if (c.plume) c.plume.scale.set(1.9 * fl, 1.9 * fl, 1);
-        if (c.core) c.core.scale.set(0.9 * fl, 0.9 * fl, 1);
+        const fw = 1 + 0.25 * (fl - 0.85);
+        if (c.plume) c.plume.scale.set(fw, fw, fl); // length flickers most
+        if (c.core) { const k = 0.9 + 0.3 * (fl - 0.85); c.core.scale.set(k, k, 1); }
       }
     }
     bump(t);
