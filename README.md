@@ -28,6 +28,15 @@
   <br><sub>Hover any piece for a 5-minute chart. Shown here next to the CPU meter from Dave Plummer's <a href="https://tmog.org">TMOG</a> — they make a great combo.</sub>
 </p>
 
+<h3 align="center">Three flying-toasters-style screen savers included</h3>
+<table align="center">
+  <tr>
+    <td align="center"><a href="docs/media/flying-cars.mp4"><img src="docs/media/flying-cars.gif" width="280" alt="Flying Cars screen saver"></a><br><b>Flying Cars</b><br><sub>X1 SkyRacers, fans spinning</sub></td>
+    <td align="center"><a href="docs/media/starships.mp4"><img src="docs/media/starships.gif" width="280" alt="Starships screen saver"></a><br><b>Starships</b><br><sub>flaps beating like wings</sub></td>
+    <td align="center"><a href="docs/media/starlink.mp4"><img src="docs/media/starlink.gif" width="280" alt="Starlink screen saver"></a><br><b>Starlink</b><br><sub>V2 &amp; V3, solar wings flapping like birds</sub></td>
+  </tr>
+</table>
+
 ---
 
 A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It has no Dock icon and uses about 1% CPU or less.
@@ -61,18 +70,6 @@ The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so yo
 
 BoostBar ships with **BoostBar Flying Cars**, a screen saver in the spirit of the classic flying toasters. X1 SkyRacers fly across the screen in a loose flock with their rotors and thruster fans spinning, painted in MacsBoost, Yonder 01 and XXONE 51 liveries. Open **Settings ▸ Screen Saver** to preview it, install it or start it now. To pick liveries, number of cars, speed and stars, go to System Settings ▸ Screen Saver ▸ BoostBar Flying Cars ▸ Options. (Direct download only.)
 
-## Updates
-
-BoostBar checks GitHub for a newer release when it starts, and you can check any time from the menu. Turn on **Settings ▸ General ▸ Install updates automatically** (or tick "Install future updates automatically" on the update prompt) and new versions are downloaded, verified as Apple-notarized and signed by MacsBoost, swapped in and relaunched with no prompt.
-
-## Spin the eyes
-
-Circle the pointer around the googly eyes twice and the pupils hop onto an internal wheel: it spins on a vertical axis, so the pupils slide out of one eye and into the other, and it turns as fast (and the same way) as you're circling. Stop, and the wheel keeps coasting for a few seconds before the pupils snap back to following the pointer.
-
-## Dizzy eyes
-
-On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) only while this is turned on — **Settings ▸ Eyes ▸ Shake the Mac to make them dizzy**. Direct download only.
-
 ## Starships screen saver 🚀
 
 <p align="center">
@@ -90,6 +87,18 @@ On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes 
 </p>
 
 **BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen flying-toasters style. The bus is the toaster; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V2, V3 or both** in its Options. The models are original, stylised V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
+
+## Updates
+
+BoostBar checks GitHub for a newer release when it starts, and you can check any time from the menu. Turn on **Settings ▸ General ▸ Install updates automatically** (or tick "Install future updates automatically" on the update prompt) and new versions are downloaded, verified as Apple-notarized and signed by MacsBoost, swapped in and relaunched with no prompt.
+
+## Spin the eyes
+
+Circle the pointer around the googly eyes twice and the pupils hop onto an internal wheel: it spins on a vertical axis, so the pupils slide out of one eye and into the other, and it turns as fast (and the same way) as you're circling. Stop, and the wheel keeps coasting for a few seconds before the pupils snap back to following the pointer.
+
+## Dizzy eyes
+
+On MacBooks with Apple silicon, give the Mac a few firm shakes: the googly eyes squeeze shut while it's shaking, then pop open with their pupils spinning. Bumps, carrying it around and car rides don't trigger it. BoostBar reads the MacBook's built-in motion sensor (the undocumented IMU behind the Sensor Processing Unit) only while this is turned on — **Settings ▸ Eyes ▸ Shake the Mac to make them dizzy**. Direct download only.
 
 ## Hot corners
 
