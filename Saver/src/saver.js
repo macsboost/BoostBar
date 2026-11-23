@@ -418,8 +418,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   float m = side * along * (0.45 + 0.75 * streak) + 0.18 * (fine - 0.5);
   float cover = clamp((m - (1.0 - 1.15 * uOx)) * 2.6, 0.0, 1.0) * step(0.001, uOx);
   // patchy at first (dark tiles between the streaks), filling in as it gets hotter
-  float patch = smoothstep(0.32, 0.62, streak * 0.75 + thin * 0.35 + fine * 0.15);
-  oxK = cover * mix(patch, 1.0, smoothstep(0.55, 1.0, uOx) * 0.75);
+  float patchy = smoothstep(0.32, 0.62, streak * 0.75 + thin * 0.35 + fine * 0.15);
+  oxK = cover * mix(patchy, 1.0, smoothstep(0.55, 1.0, uOx) * 0.75);
   float glow = clamp(streak * 1.1 + thin * 0.55 - 0.35, 0.0, 1.0);
   vec3 rust = mix(vec3(0.24, 0.07, 0.02), vec3(1.0, 0.56, 0.2), glow);
   rust = mix(rust, vec3(0.12, 0.05, 0.03), smoothstep(0.75, 0.95, 1.0 - thin) * 0.5);  // scorched dark streaks
