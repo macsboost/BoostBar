@@ -274,8 +274,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
 
     private func lanePoint(_ l: Lane, _ s: Float) -> SIMD2<Float> {
         let (_, h) = viewHalf(l.z)
-        let p = SIMD2(-l.d.y, l.d.x) * (l.off * h)
-        return p + SIMD2(l.d.x, l.d.y) * s
+        let k: Float = l.off * h
+        let p = SIMD2<Float>(-l.d.y * k, l.d.x * k)
+        return p + SIMD2<Float>(l.d.x * s, l.d.y * s)
     }
 
     private func makeLanes() {
