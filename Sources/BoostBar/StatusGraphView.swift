@@ -96,7 +96,7 @@ final class StatusGraphView: NSView {
     /// (a fixed 58 pt left a visibly bigger gap before the next piece than between the others).
     private static let netTextWidth: CGFloat = {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
-        let w = ["▲ 888 MB/s", "▼ 888 MB/s", "▲ 888 Mb/s", "▲ 88.8 GB/s"].map {
+        let w = ["▲ 888 KB/s", "▼ 888 KB/s", "▲ 888 Kb/s"].map {
             NSAttributedString(string: $0, attributes: [.font: font]).size().width
         }.max() ?? 50
         return ceil(w)
@@ -196,7 +196,7 @@ final class StatusGraphView: NSView {
                 if showsBattery {
                     gap(3)
                     label("BAT")
-                    batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
+                    batteryRect = NSRect(x: x, y: 0, width: batteryTextWidth, height: h)
                     x = batteryRect.maxX
                 }
             case .cpu:
@@ -539,6 +539,18 @@ final class StatusGraphView: NSView {
             return true
         }
         tinted.draw(in: NSRect(x: x + (Self.iconWidth - s.width) / 2, y: (h - s.height) / 2, width: s.width, height: s.height))
+    }
+
+    /// The battery readout is exactly as wide as what it shows right now ("8.4W" over "OUT", "42W" over "IN", …).
+    private var batteryTextWidth: CGFloat {
+        guard let b = battery else { return Self.batteryWidth }
+        let top = b.direction == .idle ? (b.externalConnected ? (b.systemWatts.map(BatteryMonitor.formatWatts) ?? "0.0W") : "0.0W")
+                                       : BatteryMonitor.formatWatts(b.watts)
+        let bottom = b.direction == .charging ? "IN" : b.direction == .discharging ? "OUT" : (b.externalConnected ? "AC" : "IDLE")
+        let f = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        let w = max(NSAttributedString(string: top, attributes: [.font: f]).size().width,
+                    NSAttributedString(string: bottom, attributes: [.font: NSFont.systemFont(ofSize: 8.5, weight: .heavy)]).size().width)
+        return ceil(w) + 1
     }
 
     // MARK: CPU
