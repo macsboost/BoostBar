@@ -2,7 +2,7 @@ name: Visitor Counter
 
 # An old-school hit counter for the README, drawn as an odometer (tools/odometer.py). The README loads a 1px
 # counting image on every view; this job reads the tally a few times a day, redraws the odometer and pushes it
-# to the "counter" branch (so main's history stays clean). Its own reads are subtracted from the count.
+# to the "counter" branch (so main's history stays clean).
 on:
   workflow_dispatch:
   schedule:
@@ -33,13 +33,9 @@ jobs:
           echo "badge: $(head -c 1500 /tmp/badge.svg 2>/dev/null)"
           RAW=$(python3 -c "import re,sys; t=re.findall(r'>\s*([\d,]+)\s*<', open('/tmp/badge.svg').read()); print(t[-1].replace(',','') if t else '')" 2>/dev/null || true)
           echo "raw=$RAW shown=$SHOWN self=$SELF"
-          if [ -n "$RAW" ]; then
-            SELF=$((SELF + 1))
-            N=$((RAW - SELF)); [ "$N" -lt "$SHOWN" ] && N=$SHOWN
-          else
-            N=$SHOWN
-          fi
-          echo "$N $SELF" > state.txt
+          # the tally only goes up for views that come through GitHub's image proxy, so reading it here doesn't count
+          N=$SHOWN; [ -n "$RAW" ] && [ "$RAW" -gt "$SHOWN" ] && N=$RAW
+          echo "$N 0" > state.txt
           python3 ../tools/odometer.py "$N" odometer.svg
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
