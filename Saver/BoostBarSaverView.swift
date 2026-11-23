@@ -24,7 +24,7 @@ class BoostBarSceneView: ScreenSaverView {
     static let moduleName = "com.macsboost.boostbar.starlink"
     static let title = "BoostBar Starlink"
     static let things = "Satellites"
-    static let allLiveries: [(id: String, name: String)] = [("v2", "Starlink V2"), ("v3", "Starlink V3")]
+    static let allLiveries: [(id: String, name: String)] = [("v2", "Starlink V2"), ("v3", "Starlink V3"), ("deploy", "V3 deploying (unfolds its arrays)")]
     static let liveriesTitle = "Satellites to fly"
     static let hasOxidation = false
     static let flapTitle = "Flap speed"

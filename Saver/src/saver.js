@@ -603,6 +603,8 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.y = (Math.random() * 2 - 0.6) * h;
     }
     c.phase = Math.random() * Math.PI * 2;
+    c.dep = initial ? Math.random() * 9 : 0; // Starlink "deploying": new arrivals come in stowed
+    c.depStarted = !!initial;
     c.man = null;
     c.kx = c.ky = c.kz = 0; // knock-back velocity from bumping into another car
     c.wob = 0; // wobble left over from a bump
@@ -670,17 +672,19 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
 
   async function build() {
     if (SATS) {
-      const want = (CFG.liveries || []).map((x) => String(x).toUpperCase()).filter((x) => x === 'V2' || x === 'V3');
-      const names = want.length ? want : ['V2', 'V3'];
-      const tpls = await loadStarlink(names);
-      const have = names.filter((n) => tpls[n]);
+      const want = (CFG.liveries || []).map((x) => String(x).toUpperCase()).filter((x) => x === 'V2' || x === 'V3' || x === 'DEPLOY');
+      const names = want.length ? want : ['V2', 'V3', 'DEPLOY'];
+      const model = (k) => (k === 'DEPLOY' ? 'V3' : k); // the deploying one is a V3, fresh off Starship
+      const tpls = await loadStarlink([...new Set(names.map(model))]);
+      const have = names.filter((n) => tpls[model(n)]);
       const n = Math.max(1, Math.min(20, CFG.count | 0));
       for (let i = 0; i < n; i++) {
-        const root = tpls[have[i % have.length]].clone(true),
+        const pick = have[i % have.length];
+        const root = tpls[model(pick)].clone(true),
           g = new THREE.Group();
         g.add(root);
         scene.add(g);
-        const c = { g, fans: [], wings: wingsOf(root), flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10 };
+        const c = { g, fans: [], wings: wingsOf(root), flapRate: 3.6 + Math.random() * 1.6, spin: Math.random() * 10, deploys: pick === 'DEPLOY' };
         spawn(c, true);
         craft.push(c);
       }
@@ -785,7 +789,9 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const bob = Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
-      const st = stunt(c, t);
+      const stowed = c.deploys && c.dep < 6.1; // no stunts until the arrays are out
+      if (stowed) { c.man = null; c.next = Math.max(c.next, clock() + 2); }
+      const st = stowed ? null : stunt(c, t);
       c.g.position.set(c.x, c.y + bob, c.z);
       if (st) c.g.position.add(st.off);
       // nose along the direction of travel, left flank toward the viewer, rolled a little to show the roof
@@ -802,13 +808,26 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         // bird-like wingbeat: a quick downstroke and a slower upstroke, travelling out along the wing so each module
         // lags the one inside it and the tips whip; the body rises a little on each downstroke
         const ph0 = c.spin * c.flapRate + c.phase;
+        // deploying: u unfolds the fan-fold stack straight up, v lays the arrays flat, amp fades the wingbeat in
+        let u = 1, v = 1, amp = 1;
+        if (c.deploys) {
+          if (!c.depStarted && Math.abs(c.x) < w * 0.85 && Math.abs(c.y) < h * 0.85) c.depStarted = true;
+          if (c.depStarted) c.dep += dt;
+          const es = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
+          u = es((c.dep - 0.8) / 3.5);
+          v = es((c.dep - 4.3) / 1.8);
+          amp = es((c.dep - 6.1) / 1.5);
+        }
+        // a panel's angle up from flat: stowed they alternate 180°-d / d (a stack lying on the bus), then 90°, then 0°
+        const fold = (i) => (Math.PI / 2 + (i % 2 === 0 ? 1 : -1) * (Math.PI / 2 - 0.044) * (1 - u)) * (1 - v);
         for (const j of c.wings) {
           const ph = ph0 - j.i * 0.42;
           const beat = Math.sin(ph) + 0.28 * Math.sin(2 * ph);
-          const a = j.i === 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / j.n) * beat;
+          const flap = j.i === 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / j.n) * beat;
+          const a = (j.i === 0 ? fold(0) : fold(j.i) - fold(j.i - 1)) + amp * flap;
           j.o.quaternion.copy(j.q0).multiply(flapQ.setFromAxisAngle(zAxis, j.s * a));
         }
-        c.g.position.y -= 0.35 * Math.cos(ph0);
+        c.g.position.y -= 0.35 * Math.cos(ph0) * amp;
       }
       if (c.flaps) {
         // flap like the toasters' wings: each flap swings about its hinge, the forward pair a beat behind the aft

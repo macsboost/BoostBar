@@ -28,7 +28,7 @@ enum SaverConfig {
     static func defaults(for scene: String) -> SaverOptions {
         switch scene {
         case "starships": return SaverOptions(count: 6, liveries: [])
-        case "starlink": return SaverOptions(count: 5, liveries: ["v2", "v3"])
+        case "starlink": return SaverOptions(count: 5, liveries: ["v2", "v3", "deploy"])
         default: return SaverOptions(count: 7, liveries: ["macsboost", "yonder", "xxone"])
         }
     }
@@ -73,7 +73,7 @@ struct BundledSaver {
     var about: String {
         switch scene {
         case "starships": return "Starships glide across the screen, flaps beating like wings, Raptors glowing."
-        case "starlink": return "Starlink V2 and V3 satellites beat their solar wings like birds."
+        case "starlink": return "Starlink V2 and V3 satellites beat their solar wings like birds; some arrive folded and unfurl their arrays."
         default: return "X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries, fans spinning."
         }
     }
@@ -81,7 +81,7 @@ struct BundledSaver {
     /// The choice boxes in Settings: liveries for the cars, V2/V3 for Starlink.
     var choices: [(id: String, name: String)] {
         switch scene {
-        case "starlink": return [("v2", "Starlink V2"), ("v3", "Starlink V3")]
+        case "starlink": return [("v2", "Starlink V2"), ("v3", "Starlink V3"), ("deploy", "V3 deploying")]
         case "cars": return [("macsboost", "MacsBoost"), ("yonder", "Yonder 01"), ("xxone", "XXONE 51")]
         default: return []
         }

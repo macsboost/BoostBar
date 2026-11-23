@@ -51,8 +51,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     private var closeupZ: Float?
 
     /// For the CI check: park the first craft in front of the camera and hide the rest.
-    func closeup(distance: Float = 30) {
+    func closeup(distance: Float = 30, deploy: Float? = nil) {
         closeupZ = 52 - distance
+        if let d = deploy, let c = craft.first { c.dep = d; c.depStarted = false }
         for (i, c) in craft.enumerated() {
             c.g.isHidden = i > 0
             if i == 0 { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.man = nil; c.next = .greatestFiniteMagnitude }
@@ -125,6 +126,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         var flaps: [(node: SCNNode, q0: simd_quatf, s: Float, fwd: Bool)] = []
         var wings: [(node: SCNNode, q0: simd_quatf, s: Float, i: Int, n: Int)] = []
         var plume: SCNNode?, core: SCNNode?
+        /// Starlink "deploying": arrays start fan-folded on the bus, unfold straight up, lay flat, then flap.
+        var deploys = false, dep: Float = 0, depStarted = false
         var x: Float = 0, y: Float = 0, z: Float = 0, speed: Float = 8, phase: Float = 0
         var kx: Float = 0, ky: Float = 0, kz: Float = 0, wob: Float = 0
         var spin: Float = .random(in: 0...10), flapRate: Float = 1
@@ -212,10 +215,12 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             }
         case .starlink:
             let m = try GLB.load(res.appendingPathComponent("Starlink.glb"))
-            var want = cfg.liveries.map { $0.uppercased() }.filter { $0 == "V2" || $0 == "V3" }
-            if want.isEmpty { want = ["V2", "V3"] }
+            var want = cfg.liveries.map { $0.uppercased() }.filter { $0 == "V2" || $0 == "V3" || $0 == "DEPLOY" }
+            if want.isEmpty { want = ["V2", "V3", "DEPLOY"] }
             var tpl: [String: SCNNode] = [:]
-            for name in want {
+            for kindName in want {
+                let name = kindName == "DEPLOY" ? "V3" : kindName      // the deploying one is a V3, fresh off Starship
+                if tpl[name] != nil { continue }
                 guard let sat = m.root.childNode(withName: name, recursively: true) else { continue }
                 sat.removeFromParentNode()
                 sat.enumerateHierarchy { o, _ in o.geometry?.materials.forEach { $0.isDoubleSided = true } }
@@ -223,11 +228,13 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 let root = SCNNode(); root.addChildNode(pivot)
                 tpl[name] = root
             }
-            let have = want.filter { tpl[$0] != nil }
+            let have = want.filter { tpl[$0 == "DEPLOY" ? "V3" : $0] != nil }
             guard !have.isEmpty else { throw GLBError.badFile("no satellites in Starlink.glb") }
             for i in 0..<n {
                 let c = Craft()
-                let root = tpl[have[i % have.count]]!.clone()
+                let pick = have[i % have.count]
+                c.deploys = pick == "DEPLOY"
+                let root = tpl[pick == "DEPLOY" ? "V3" : pick]!.clone()
                 c.g.addChildNode(root)
                 root.enumerateHierarchy { o, _ in
                     guard let name = o.name, let e = m.extras[name], let w = e["wing"] as? String else { return }
@@ -486,6 +493,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             c.y = (.random(in: 0...2) - 0.6) * h
         }
         c.phase = .random(in: 0...(2 * .pi))
+        c.dep = initial ? .random(in: 0...9) : 0      // new arrivals come in stowed
+        c.depStarted = initial
         c.man = nil
         c.kx = 0; c.ky = 0; c.kz = 0; c.wob = 0
         c.next = clock + 2 + .random(in: 0...9)
@@ -560,7 +569,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             if c.x < -w - marginX || c.y < -h - marginY { spawn(c, initial: false) }
             let tf = Float(t)
             let bob = sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
-            let st = stunt(c, t)
+            let stowed = c.deploys && c.dep < 6.1
+            if stowed { c.man = nil; c.next = max(c.next, t + 2) }      // no stunts until the arrays are out
+            let st = stowed ? nil : stunt(c, t)
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
             let wobble = c.wob * sin(tf * 11 + c.phase) * 0.35
             var q = lookRotation(dir)
@@ -573,13 +584,25 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             }
             if !c.wings.isEmpty {
                 let ph0 = c.spin * c.flapRate + c.phase
+                // deployment: u unfolds the fan-fold stack straight up, v lays the arrays flat, amp fades the wingbeat in
+                var u: Float = 1, v: Float = 1, amp: Float = 1
+                if c.deploys {
+                    if !c.depStarted, abs(c.x) < w * 0.85, abs(c.y) < h * 0.85 { c.depStarted = true }
+                    if c.depStarted { c.dep += dt }
+                    u = Float(ease(Double((c.dep - 0.8) / 3.5)))
+                    v = Float(ease(Double((c.dep - 4.3) / 1.8)))
+                    amp = Float(ease(Double((c.dep - 6.1) / 1.5)))
+                }
+                // a panel's angle up from flat: stowed they alternate 180°-d / d (a stack lying on the bus), then all 90°, then 0°
+                func fold(_ i: Int) -> Float { (.pi / 2 + (i % 2 == 0 ? 1 : -1) * (.pi / 2 - 0.044) * (1 - u)) * (1 - v) }
                 for j in c.wings {
                     let ph = ph0 - Float(j.i) * 0.42
                     let beat = sin(ph) + 0.28 * sin(2 * ph)
-                    let a = j.i == 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / Float(j.n)) * beat
+                    let flap = j.i == 0 ? 0.05 + 0.34 * beat : 0.012 + (0.95 / Float(j.n)) * beat
+                    let a = (j.i == 0 ? fold(0) : fold(j.i) - fold(j.i - 1)) + amp * flap
                     j.node.simdOrientation = j.q0 * simd_quatf(angle: j.s * a, axis: SIMD3(0, 0, 1))
                 }
-                pos.y -= 0.35 * cos(ph0)
+                pos.y -= 0.35 * cos(ph0) * amp
             }
             if !c.flaps.isEmpty {
                 for f in c.flaps {

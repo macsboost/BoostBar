@@ -10,7 +10,7 @@ guard let device = MTLCreateSystemDefaultDevice() else { print("NO METAL DEVICE"
 print("METAL:", device.name)
 let size = CGSize(width: 1280, height: 720)
 
-func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Double, closeup: Float? = nil) {
+func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Double, closeup: Float? = nil, deploy: Float? = nil) {
     let f = Flock(kind: kind, cfg: cfg, resources: res)
     if let e = f.error { print("SCENE ERROR \(name):", e) }
     f.setAspect(size.width / size.height)
@@ -19,7 +19,7 @@ func shoot(_ kind: Flock.Kind, _ cfg: SaverConfig, _ name: String, seconds: Doub
     r.pointOfView = f.camera
     var t = 0.0
     f.step(to: t)
-    if let d = closeup { f.closeup(distance: d) }
+    if let d = closeup { f.closeup(distance: d, deploy: deploy) }
     while t < seconds { t += 1.0 / 30; f.step(to: t) }
     let img = r.snapshot(atTime: t, with: size, antialiasingMode: .multisampling4X)
     guard let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
@@ -41,4 +41,11 @@ var c4 = SaverConfig(); c4.count = 1; c4.oxidation = 0.0; c4.stunts = false
 shoot(.starships, c4, "close_ship2", seconds: 2.1, closeup: 22)
 var c3 = SaverConfig(); c3.count = 1; c3.liveries = ["v3"]; c3.stunts = false
 shoot(.starlink, c3, "close_sat", seconds: 1.3, closeup: 40)
+c3.liveries = ["v2"]
+shoot(.starlink, c3, "close_v2", seconds: 1.3, closeup: 26)
+c3.liveries = ["deploy"]
+shoot(.starlink, c3, "dep_a", seconds: 1.3, closeup: 22, deploy: -1)
+shoot(.starlink, c3, "dep_b", seconds: 1.3, closeup: 26, deploy: 1.3)
+shoot(.starlink, c3, "dep_c", seconds: 1.3, closeup: 40, deploy: 2.9)
+shoot(.starlink, c3, "dep_d", seconds: 1.3, closeup: 40, deploy: 3.9)
 print("DONE")
