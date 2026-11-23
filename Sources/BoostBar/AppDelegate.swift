@@ -158,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var watch: Set<Corner> = [Prefs.cornerAwake]
         #if !APPSTORE
         watch.insert(Prefs.cornerSleep)
+        watch.insert(Prefs.cornerSaver)
         #endif
         corners.watched = watch
 
@@ -166,6 +167,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func hotCorner(_ c: Corner, _ screen: NSScreen) {
         #if !APPSTORE
+        if c == Prefs.cornerSaver && c != .none {
+            Toast.shared.show("Screen saver…", symbol: "sparkles.tv", near: c, on: screen)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { BundledSaver.startNow() }
+            return
+        }
         if c == Prefs.cornerSleep && c != .none {
             Toast.shared.show("Sleeping…", symbol: "moon.zzz.fill", near: c, on: screen)
             sleep.allow()

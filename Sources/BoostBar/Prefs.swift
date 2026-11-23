@@ -32,6 +32,7 @@ enum Prefs {
         static let pirate = "pirateEyes"
         static let cornerAwake = "hotCornerKeepAwake"
         static let cornerSleep = "hotCornerSleepNow"
+        static let cornerSaver = "hotCornerScreenSaver"
     }
 
     static func registerDefaults() {
@@ -111,6 +112,10 @@ enum Prefs {
     static var cornerAwake: Corner {
         get { Corner(rawValue: d.integer(forKey: K.cornerAwake)) ?? .none }
         set { d.set(newValue.rawValue, forKey: K.cornerAwake) }
+    }
+    static var cornerSaver: Corner {
+        get { Corner(rawValue: d.integer(forKey: K.cornerSaver)) ?? .none }
+        set { d.set(newValue.rawValue, forKey: K.cornerSaver) }
     }
     static var cornerSleep: Corner {
         get { Corner(rawValue: d.integer(forKey: K.cornerSleep)) ?? .none }

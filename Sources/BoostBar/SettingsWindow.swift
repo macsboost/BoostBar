@@ -411,6 +411,10 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.custom(row, height: 30)
             p.label { current.isInstalled ? "✓ Installed. To use it: System Settings ▸ Wallpaper ▸ Screen Saver, then click it under Other (at the end)." : "Not installed yet." }
 
+            p.popup("Hot corner", items: Corner.allCases.map(\.title), get: { Prefs.cornerSaver.rawValue },
+                    set: { Prefs.cornerSaver = Corner(rawValue: $0) ?? .none; app.applySettings() })
+            p.note("Rest the pointer in that corner for a moment to start the screen saver (whichever one is chosen in System Settings). Pick a corner not already used by Keep Awake or Sleep now.", indent: true)
+
             p.header("Options")
             // the three choice boxes are liveries (Flying Cars) or satellites (Starlink); Starships has none
             let boxes = (0..<3).map { _ in NSButton(checkboxWithTitle: "", target: nil, action: nil) }
