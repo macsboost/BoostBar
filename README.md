@@ -21,6 +21,10 @@
 </p>
 
 <p align="center">
+  <img src="https://raw.githubusercontent.com/macsboost/BoostBar/counter/odometer.svg" height="96" alt="Visitor counter"><img src="https://komarev.com/ghpvc/?username=macsboost-boostbar&label=visits" width="1" height="1" alt="">
+</p>
+
+<p align="center">
   <img src="docs/media/menubar.png" width="660" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts and a disk LED, next to TMOG's CPU meter">
 </p>
 <p align="center">

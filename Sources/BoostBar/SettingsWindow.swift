@@ -106,7 +106,7 @@ private final class Pane: NSViewController {
     }
 
     func slider(_ label: String, min: Double, max: Double, get: @escaping () -> Double, set: @escaping (Double) -> Void,
-                caption: String? = nil, enabled: (() -> Bool)? = nil) {
+                caption: String? = nil, enabled: (() -> Bool)? = nil, visible: (() -> Bool)? = nil) {
         let l = NSTextField(labelWithString: label)
         l.widthAnchor.constraint(equalToConstant: 110).isActive = true
         let s = NSSlider(value: get(), minValue: min, maxValue: max, target: nil, action: nil)
@@ -123,7 +123,9 @@ private final class Pane: NSViewController {
             s?.doubleValue = get()
             if let enabled { s?.isEnabled = enabled() }
         }
-        add(row(views), indent: false)
+        let r = row(views)
+        if let visible { refreshers.append { [weak r] in r?.isHidden = !visible() } }
+        add(r, indent: false)
     }
 
     func color(_ label: String, get: @escaping () -> NSColor, set: @escaping (NSColor) -> Void) {
@@ -448,7 +450,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.slider("Flap speed", min: 0.2, max: 3, get: { o.flapSpeed }, set: { v in change { $0.flapSpeed = v } },
                      caption: "flaps, wings — fans for the cars")
             p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
-                     caption: "Starships: fresh tiles → post-re-entry", enabled: { current.scene == "starships" })
+                     caption: "fresh tiles → post-re-entry", visible: { current.scene == "starships" })
             p.slider("Angle", min: -90, max: 90, get: { o.tilt ?? SaverConfig.defaultTilt(for: current.scene) },
                      set: { v in change { $0.tilt = (v / 2).rounded() * 2 } }, caption: "roll toward you")
             p.button("Default Angle") { change { $0.tilt = nil }; p.refresh() }

@@ -1,0 +1,48 @@
+name: Visitor Counter
+
+# An old-school hit counter for the README, drawn as an odometer (tools/odometer.py). The README loads a 1px
+# counting image on every view; this job reads the tally a few times a day, redraws the odometer and pushes it
+# to the "counter" branch (so main's history stays clean). Its own reads are subtracted from the count.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */3 * * *"
+  push:
+    branches: [main]
+    paths: ["tools/odometer.py", ".github/workflows/counter.yml"]
+
+permissions:
+  contents: write
+
+concurrency: counter
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the tally and draw
+        run: |
+          mkdir -p out && cd out
+          git init -q . && git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth 1 origin counter 2>/dev/null; then git checkout -q -b counter FETCH_HEAD; else git checkout -q --orphan counter; fi
+          [ -f state.txt ] || echo "0 0" > state.txt          # "<count shown> <our own reads>"
+          read SHOWN SELF < state.txt
+          RAW=$(curl -fsS --max-time 20 "https://komarev.com/ghpvc/?username=macsboost-boostbar&label=visits" \
+                | python3 -c "import re,sys; t=re.findall(r'>\s*([\d,]+)\s*<', sys.stdin.read()); print(t[-1].replace(',','') if t else '')" || true)
+          echo "raw=$RAW shown=$SHOWN self=$SELF"
+          if [ -n "$RAW" ]; then
+            SELF=$((SELF + 1))
+            N=$((RAW - SELF)); [ "$N" -lt "$SHOWN" ] && N=$SHOWN
+          else
+            N=$SHOWN
+          fi
+          echo "$N $SELF" > state.txt
+          python3 ../tools/odometer.py "$N" odometer.svg
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && { echo "No change"; exit 0; }
+          git commit -q -m "Visitor counter: $N"
+          git push -q origin counter
