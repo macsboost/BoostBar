@@ -1,0 +1,27 @@
+name: Screen Saver Video
+
+# Records smooth 60 fps H.264 video of a native screen saver (the same SceneKit/Metal code the .saver runs).
+on:
+  workflow_dispatch:
+    inputs:
+      scene: { description: "cars | starships | starlink", default: "starlink" }
+      seconds: { description: "length", default: "20" }
+      config: { description: "JSON options", default: '{"count":12,"liveries":["v2","v3","deploy"],"crossing":true,"lasers":true}' }
+
+jobs:
+  record:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record
+        run: |
+          mkdir -p build/res
+          cp Saver/native/X1_*.glb Saver/src/Starship.glb Saver/src/Starlink.glb build/res/
+          swiftc -O tools/native_video/main.swift Saver/native/GLB.swift Saver/native/Flock.swift -o build/native_video
+          ./build/native_video build/res "build/${{ inputs.scene }}.mp4" "${{ inputs.scene }}" "${{ inputs.seconds }}" '${{ inputs.config }}'
+          ls -la build/*.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saver-video
+          path: build/*.mp4
