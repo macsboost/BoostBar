@@ -6,6 +6,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
     private let cpu = CPUMonitor()
+    /// The CPU meter runs on its own fast clock: load is sampled 5 times a second and the needle and bars glide
+    /// toward each reading at 20 frames a second, redrawing only the meter (and only while something moves).
+    private var cpuTimer: Timer?
+    private var cpuFrame = 0
+    private var cpuShown = 0.0, cpuCoresShown: [Double] = []
+
+    private func setCPUMeterRunning(_ on: Bool) {
+        if !on { cpuTimer?.invalidate(); cpuTimer = nil; return }
+        guard cpuTimer == nil else { return }
+        let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.cpuStep() }
+        t.tolerance = 0.01
+        RunLoop.main.add(t, forMode: .common)
+        cpuTimer = t
+    }
+
+    private func cpuStep() {
+        cpuFrame += 1
+        if cpuFrame % 4 == 0 { cpu.sample() }
+        var moved = abs(cpu.total - cpuShown) > 0.002
+        cpuShown += (cpu.total - cpuShown) * 0.3
+        if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores; moved = true }
+        for i in cpuCoresShown.indices {
+            if abs(cpu.cores[i] - cpuCoresShown[i]) > 0.004 { moved = true }
+            cpuCoresShown[i] += (cpu.cores[i] - cpuCoresShown[i]) * 0.3
+        }
+        guard moved else { return }
+        graphView.cpu = cpuShown
+        graphView.cpuCores = cpuCoresShown
+        graphView.setNeedsDisplay(graphView.cpuRect.insetBy(dx: -1, dy: 0))
+    }
     private let eyes = EyesAnimator()
     #if !APPSTORE
     let shake = ShakeDetector()
@@ -207,7 +237,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Once per second: sample battery history, redraw, and refresh an open hover panel.
     private func tick() {
-        if Prefs.showCPU { cpu.sample() }
         if BatteryMonitor.hasBattery, let b = BatteryMonitor.read() {
             batteryHistory.append(b.watts)
         }
@@ -228,8 +257,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showEyes = Prefs.showEyes
         graphView.showCPU = Prefs.showCPU
         graphView.cpuStyle = Prefs.cpuStyle
-        graphView.cpu = cpu.total
-        graphView.cpuCores = cpu.cores
+        if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores }
+        graphView.cpu = cpuShown
+        graphView.cpuCores = cpuCoresShown
+        setCPUMeterRunning(Prefs.showCPU)
         graphView.eyeSize = Prefs.eyeSize
         graphView.singleEye = Prefs.singleEye
         graphView.bloodshot = Prefs.bloodshot || (Prefs.bloodshotAwake && (sleep.isPreventing || lidSleepDisabled))

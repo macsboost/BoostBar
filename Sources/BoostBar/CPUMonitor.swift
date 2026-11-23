@@ -24,13 +24,16 @@ final class CPUMonitor {
         return (0..<Int(count)).map { c in (0..<n).map { UInt32(bitPattern: info[c * n + $0]) } }
     }
 
-    /// Call about once a second.
+    private var sinceRecord = 0.0, accTotal = 0.0, accUser = 0.0, accSystem = 0.0, accN = 0.0
+    private var lastTime = ProcessInfo.processInfo.systemUptime
+
+    /// Call a few times a second; the 5-minute history still gets one (averaged) point per second.
     func sample() {
-        guard let now = ticks() else { return }
-        defer { last = now }
-        guard last.count == now.count else { return }
+        guard let cur = ticks() else { return }
+        defer { last = cur }
+        guard last.count == cur.count else { return }
         var busyAll = 0.0, allAll = 0.0, userAll = 0.0, sysAll = 0.0
-        cores = zip(now, last).map { a, b in
+        cores = zip(cur, last).map { a, b in
             let u = Double(a[Int(CPU_STATE_USER)] &- b[Int(CPU_STATE_USER)]) + Double(a[Int(CPU_STATE_NICE)] &- b[Int(CPU_STATE_NICE)])
             let s = Double(a[Int(CPU_STATE_SYSTEM)] &- b[Int(CPU_STATE_SYSTEM)])
             let i = Double(a[Int(CPU_STATE_IDLE)] &- b[Int(CPU_STATE_IDLE)])
@@ -40,6 +43,12 @@ final class CPUMonitor {
         total = allAll > 0 ? busyAll / allAll : 0
         user = allAll > 0 ? userAll / allAll : 0
         system = allAll > 0 ? sysAll / allAll : 0
-        history.append(total); userHistory.append(user); systemHistory.append(system)
+        let now = ProcessInfo.processInfo.systemUptime
+        sinceRecord += now - lastTime; lastTime = now
+        accTotal += total; accUser += user; accSystem += system; accN += 1
+        if sinceRecord >= 1 {
+            history.append(accTotal / accN); userHistory.append(accUser / accN); systemHistory.append(accSystem / accN)
+            sinceRecord = 0; accTotal = 0; accUser = 0; accSystem = 0; accN = 0
+        }
     }
 }
