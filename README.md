@@ -110,7 +110,7 @@ BoostBar checks GitHub for a newer release when it starts, and you can check any
 
 ## Spin the eyes
 
-Circle the pointer around the googly eyes two and a half times and the pupils hop onto an internal wheel: it spins on a vertical axis, so the pupils slide out of one eye and into the other, and it turns as fast (and the same way) as you're circling. Stop, and the wheel keeps coasting for a few seconds before the pupils snap back to following the pointer.
+Circle the pointer right over the googly eyes in the menu bar two and a half times and the pupils hop onto an internal wheel: it spins on a vertical axis, so the pupils slide out of one eye and into the other, and it turns as fast (and the same way) as you're circling. Stop, and the wheel keeps coasting for a few seconds before the pupils snap back to following the pointer.
 
 ## Dizzy eyes
 

@@ -55,10 +55,11 @@ final class EyesAnimator {
     }
 
     /// Follows the pointer's heading; returns true while the eyes are in wheel mode (and advances the wheel).
-    private func trackCircles(mouse: NSPoint, mid: CGPoint, now: TimeInterval) -> Bool {
+    private func trackCircles(mouse: NSPoint, mid: CGPoint, halfSpan: CGFloat, now: TimeInterval) -> Bool {
         let dt = lastStep == 0 ? 1.0 / 30 : min(0.1, now - lastStep)
         lastStep = now
-        let near = abs(mouse.x - mid.x) < 420 && mid.y - mouse.y < 480
+        // only loops drawn right over the eyes count: within the eyes' width (plus a little) and inside the menu bar's height
+        let near = abs(mouse.x - mid.x) < halfSpan + 16 && abs(mid.y - mouse.y) < 24
         var circling = false
         if lastSample.x.isNaN { lastSample = mouse }
         let dx = mouse.x - lastSample.x, dy = mouse.y - lastSample.y
@@ -167,7 +168,7 @@ final class EyesAnimator {
         }
 
         let now = ProcessInfo.processInfo.systemUptime
-        if trackCircles(mouse: mouse, mid: mid, now: now) {
+        if trackCircles(mouse: mouse, mid: mid, halfSpan: (centers.last!.x - centers.first!.x) / 2 + v.pupilTravel.width + 6, now: now) {
             v.wheelAngle = wheelAngle
             v.pupilOffsets = pos
             v.eyesClosed = shaking
