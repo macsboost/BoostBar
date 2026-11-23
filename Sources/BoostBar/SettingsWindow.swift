@@ -420,7 +420,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 for style in 0...1 {
                     let v = StatusGraphView(frame: .zero)
                     v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-                    v.showNetwork = true; v.showBattery = false; v.showDisks = false; v.showEyes = true; v.eyeSize = 2
+                    v.showNetwork = true; v.showBattery = true; v.showDisks = true; v.showEyes = true; v.eyeSize = 2
+                    v.battery = BatteryReading(watts: [-8.4, 42, -23.5][k], percent: 70, externalConnected: k == 1, isCharging: k == 1, fullyCharged: false); v.leds = [.init(key: "a", color: .systemGreen)]; v.ledSize = 1
                     v.showCPU = true; v.cpuStyle = style; v.cpu = load
                     v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
                     v.verticalLabels = k == 1

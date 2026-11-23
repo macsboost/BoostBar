@@ -99,9 +99,15 @@ final class StatusGraphView: NSView {
         let w = ["▲ 888 MB/s", "▼ 888 MB/s", "▲ 888 Mb/s", "▲ 88.8 GB/s"].map {
             NSAttributedString(string: $0, attributes: [.font: font]).size().width
         }.max() ?? 50
-        return ceil(w) + 1
+        return ceil(w)
     }()
-    private static let batteryWidth: CGFloat = 30
+    /// Just wide enough for the widest watts reading, so no slack pads either side of it.
+    private static let batteryWidth: CGFloat = {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
+        let w = ["88.8W", "188W"].map { NSAttributedString(string: $0, attributes: [.font: font]).size().width }.max() ?? 26
+        let l = NSAttributedString(string: "IDLE", attributes: [.font: NSFont.systemFont(ofSize: 8.5, weight: .heavy)]).size().width
+        return ceil(max(w, l)) + 1
+    }()
     private static let iconWidth: CGFloat = 20
     private static let ledDiameters: [CGFloat] = [7, 11, 15]
     private static let eyeSizes: [NSSize] = [NSSize(width: 9, height: 13), NSSize(width: 12, height: 17), NSSize(width: 15, height: 20)]
@@ -147,7 +153,7 @@ final class StatusGraphView: NSView {
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
         var first = true
-        func gap() { if !first { x += 4 }; first = false }
+        func gap(_ w: CGFloat = 4) { if !first { x += w }; first = false }
         func label(_ text: String) {
             guard verticalLabels else { return }
             labelRects.append((text, NSRect(x: x, y: 0, width: Self.labelWidth, height: h)))
@@ -188,7 +194,7 @@ final class StatusGraphView: NSView {
                 }
             case .battery:
                 if showsBattery {
-                    gap()
+                    gap(3)
                     label("BAT")
                     batteryRect = NSRect(x: x, y: 0, width: Self.batteryWidth, height: h)
                     x = batteryRect.maxX
@@ -204,18 +210,18 @@ final class StatusGraphView: NSView {
                 }
             case .disks:
                 if showsDisks {
-                    gap()
+                    gap(2)
                     label("HDD")
                     // Small LEDs stack in two rows when there are several drives; medium/large use one row.
                     let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]
                     let cell = dia + 2
                     let rows = (ledSize == 0 && leds.count > 1) ? 2 : 1
                     let cols = Int(ceil(Double(leds.count) / Double(rows)))
-                    diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * cell + 1, height: h)
+                    diskRect = NSRect(x: x, y: 0, width: CGFloat(cols) * cell, height: h)
                     for (i, led) in leds.enumerated() {
                         let col = i / rows, row = i % rows
                         let cy: CGFloat = rows == 1 ? h / 2 : (row == 0 ? h / 2 + 4.5 : h / 2 - 4.5)
-                        let rect = NSRect(x: x + CGFloat(col) * cell + 1.5, y: cy - dia / 2, width: dia, height: dia)
+                        let rect = NSRect(x: x + CGFloat(col) * cell + 0.5, y: cy - dia / 2, width: dia, height: dia)
                         ledRects.append((led.key, rect))
                     }
                     x = diskRect.maxX
