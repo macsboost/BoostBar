@@ -641,8 +641,15 @@ final class StatusGraphView: NSView {
         }
     }
 
+    /// White traces would vanish on a light menu bar: there they're drawn in the bar's own text colour instead.
+    private func traceColor(_ c: NSColor) -> NSColor {
+        guard barIsLight, let s = c.usingColorSpace(.sRGB), s.redComponent > 0.9, s.greenComponent > 0.9, s.blueComponent > 0.9 else { return c }
+        return .labelColor
+    }
+
     private func drawNetwork(in r: NSRect, up: [Double], down: [Double], upText: String, downText: String,
                              label: NSColor, font: NSFont) {
+        let upColor = traceColor(self.upColor), downColor = traceColor(self.downColor)
         let g = NSRect(x: r.minX, y: 3, width: Self.graphWidth, height: r.height - 6)
         label.withAlphaComponent(0.12).setFill()
         NSBezierPath(roundedRect: g, xRadius: 2, yRadius: 2).fill()
