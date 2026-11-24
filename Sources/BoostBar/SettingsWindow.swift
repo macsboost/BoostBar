@@ -610,7 +610,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      caption: "1 a second … 60 a second")
             p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.")
             p.divider()
-            p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It starts at the far right; move it in General ▸ Menu Bar Layout.")
+            p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It sits between the battery and the disk lights; move it in General ▸ Menu Bar Layout.")
         })
 
         // Disks

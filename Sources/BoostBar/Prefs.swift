@@ -153,7 +153,11 @@ enum Prefs {
             let saved = (d.stringArray(forKey: K.segmentOrder) ?? []).compactMap(StatusGraphView.Segment.init(rawValue:))
             var out: [StatusGraphView.Segment] = []
             for s in saved where !out.contains(s) { out.append(s) }
-            for s in StatusGraphView.defaultOrder where !out.contains(s) { out.append(s) }   // add any new pieces
+            // add any new pieces where the default order has them (the CPU gauge goes just before the disk lights)
+            for s in StatusGraphView.defaultOrder where !out.contains(s) {
+                if let i = StatusGraphView.defaultOrder.firstIndex(of: s), i + 1 < StatusGraphView.defaultOrder.count,
+                   let at = out.firstIndex(of: StatusGraphView.defaultOrder[i + 1]) { out.insert(s, at: at) } else { out.append(s) }
+            }
             return out
         }
         set { d.set(newValue.map(\.rawValue), forKey: K.segmentOrder) }

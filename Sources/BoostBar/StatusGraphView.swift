@@ -9,7 +9,7 @@ final class StatusGraphView: NSView {
 
     /// The reorderable pieces of the status item.
     enum Segment: String, CaseIterable { case eyes, network, battery, disks, cpu }
-    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .disks, .cpu]
+    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .cpu, .disks]
 
     /// Left-to-right order of the segments (drag one to change it).
     var order: [Segment] = StatusGraphView.defaultOrder
