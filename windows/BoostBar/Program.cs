@@ -18,6 +18,9 @@ namespace BoostBar
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (s, e) => Log(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => Log(e.ExceptionObject as Exception);
 
             var snap = Array.IndexOf(args, "--snapshot");
             if (snap >= 0 && snap + 1 < args.Length) return Snapshot(args[snap + 1]);
@@ -47,6 +50,18 @@ namespace BoostBar
                 GC.KeepAlive(mutex);
             }
             return 0;
+        }
+
+        /// Problems go to %LOCALAPPDATA%\BoostBar\BoostBar.log instead of a crash dialog.
+        public static void Log(Exception e)
+        {
+            try
+            {
+                var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BoostBar");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(Path.Combine(dir, "BoostBar.log"), DateTime.Now.ToString("s") + "  " + Updater.CurrentVersion + "\r\n" + e + "\r\n\r\n");
+            }
+            catch { }
         }
 
         /// CI layout check: renders the strip (fake readings, several looks) and every window to PNGs, then exits.

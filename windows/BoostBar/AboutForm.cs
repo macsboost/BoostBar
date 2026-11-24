@@ -45,7 +45,7 @@ namespace BoostBar
             Font = new Font("Segoe UI", 9.5f);
             BackColor = Color.FromArgb(18, 19, 18);
             ForeColor = Color.White;
-            ClientSize = new Size(520, 640);
+            ClientSize = new Size(530, 720);
 
             var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20, 16, 20, 16), AutoScroll = true };
             Controls.Add(flow);

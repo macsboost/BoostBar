@@ -111,8 +111,9 @@ namespace BoostBar
             {
                 var tp = c.Top.Values.Length > 0 ? c.Top.Values.Max() : 0;
                 var bp = c.Bottom.Values.Length > 0 ? c.Bottom.Values.Max() : 0;
-                g.DrawString("peak " + c.Top.Format(tp), SmallFont, b, r.Right - 96, r.Y + 4);
-                g.DrawString("peak " + c.Bottom.Format(bp), SmallFont, b, r.Right - 96, r.Bottom - 16);
+                var t1 = "peak " + c.Top.Format(tp); var t2 = "peak " + c.Bottom.Format(bp);
+                g.DrawString(t1, SmallFont, b, r.Right - 8 - g.MeasureString(t1, SmallFont).Width, r.Y + 4);
+                g.DrawString(t2, SmallFont, b, r.Right - 8 - g.MeasureString(t2, SmallFont).Width, r.Bottom - 16);
                 g.DrawString(c.Timespan, SmallFont, b, r.X + 6, r.Bottom - 16);
                 g.DrawString("now", SmallFont, b, r.Right - 26, mid + 3);
             }

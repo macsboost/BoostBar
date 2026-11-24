@@ -217,7 +217,7 @@ namespace BoostBar
             p.Check("Check for updates when BoostBar starts", () => Prefs.CheckOnLaunch, v => Prefs.CheckOnLaunch = v);
             p.Check("Install updates automatically", () => Prefs.AutoUpdate, v => Prefs.AutoUpdate = v);
             p.Note("A newer version found at startup is downloaded, checked against its published SHA-256 checksum, installed and relaunched — no prompt.");
-            p.Header("Menu Bar Layout");
+            p.Header("Taskbar Layout");
             p.Check("Label the pieces with stacked text: NET, BAT, CPU, HDD", () => Prefs.VerticalLabels, v => Prefs.VerticalLabels = v);
             p.Note("Order of the pieces — the top of the list is leftmost. Select a row and use Up / Down, or drag a piece along the taskbar itself.");
             var list = new ListBox { Width = 260, Height = 110, Margin = new Padding(2, 2, 0, 2) };
@@ -306,7 +306,7 @@ namespace BoostBar
                 v => Math.Abs(v) < 0.04 ? "Off" : (v < 0 ? "Dark " : "Light ") + (Math.Abs(v) * 100).ToString("0") + "%");
             p.Slider("Peak hold", 0, 10, () => Prefs.CpuPeakHold, v => Prefs.CpuPeakHold = v, v => v < 0.2 ? "Off" : v.ToString("0.0") + " s");
             p.Note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.");
-            p.Note("The meter is green at idle, through yellow and orange, to red at full load. Hover it for a 5-minute chart. Move it in General ▸ Menu Bar Layout.");
+            p.Note("The meter is green at idle, through yellow and orange, to red at full load. Hover it for a 5-minute chart. Move it in General ▸ Taskbar Layout.");
         }
 
         void BuildDisks(Pane p)
