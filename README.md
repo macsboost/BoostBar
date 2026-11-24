@@ -103,7 +103,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 
 ## CPU boost gauge
 
-A tiny half-round boost gauge at the right end of BoostBar reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Prefer bars? **Settings ▸ CPU ▸ Style** switches to one slim vertical bar per core. The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU (1–10 times a second) — the needle's damping follows it automatically.
+A tiny half-round boost gauge at the right end of BoostBar reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Prefer bars? **Settings ▸ CPU ▸ Style** switches to one slim vertical bar per core. The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU, from once a second to 60 times a second on a logarithmic slider — the needle's damping follows it automatically.
 
 ## Updates
 

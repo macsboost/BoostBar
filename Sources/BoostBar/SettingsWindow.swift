@@ -598,9 +598,17 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Show CPU meter", get: { Prefs.showCPU }, set: { Prefs.showCPU = $0; app.applySettings() })
             p.popup("Style", items: ["Boost gauge (half-round, with a needle)", "Bars (one per core)"],
                     get: { Prefs.cpuStyle }, set: { Prefs.cpuStyle = $0; app.applySettings() })
-            p.slider("Update rate", min: 1, max: 10, get: { Prefs.cpuRate }, set: { Prefs.cpuRate = $0.rounded() },
-                     value: { String(format: "%.0f/s", $0) }, caption: "readings per second")
-            p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates, so the meter never jumps or jitters.")
+            // a logarithmic scale: each step along the slider multiplies the rate, so 1–5 Hz gets as much room as 10–60 Hz
+            let lo = 1.0, hi = 60.0
+            let fromSlider: (Double) -> Double = { s in
+                let r = lo * pow(hi / lo, s)
+                return r < 2 ? (r * 4).rounded() / 4 : r < 10 ? (r * 2).rounded() / 2 : r.rounded()
+            }
+            p.slider("Update rate", min: 0, max: 1, get: { log(Prefs.cpuRate / lo) / log(hi / lo) },
+                     set: { Prefs.cpuRate = fromSlider($0); app.applySettings() },
+                     value: { s in let r = fromSlider(s); return r == r.rounded() ? String(format: "%.0f Hz", r) : String(format: "%g Hz", r) },
+                     caption: "1 a second … 60 a second")
+            p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.")
             p.divider()
             p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It starts at the far right; move it in General ▸ Menu Bar Layout.")
         })

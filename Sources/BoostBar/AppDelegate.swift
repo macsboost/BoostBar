@@ -12,22 +12,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// sweep; fast ones a quick one), with a floor so the kernel's coarse tick counts don't make the needle jitter.
     private var cpuTimer: Timer?
     private var cpuSince = 1.0
+    private var cpuFrameInterval = 0.05
+    private var cpuLastFrame = ProcessInfo.processInfo.systemUptime
     private var cpuShown = 0.0, cpuCoresShown: [Double] = []
 
     private func setCPUMeterRunning(_ on: Bool) {
         if !on { cpuTimer?.invalidate(); cpuTimer = nil; return }
-        guard cpuTimer == nil else { return }
-        let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.cpuStep() }
-        t.tolerance = 0.01
+        // animate at 20 fps, or as fast as the readings come in, up to 60 fps
+        let interval = 1 / min(60, max(20, Prefs.cpuRate))
+        if cpuTimer != nil && abs(interval - cpuFrameInterval) < 0.0005 { return }
+        cpuTimer?.invalidate()
+        cpuFrameInterval = interval
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.cpuStep() }
+        t.tolerance = interval * 0.2
         RunLoop.main.add(t, forMode: .common)
         cpuTimer = t
     }
 
     private func cpuStep() {
-        let dt = 0.05, rate = Prefs.cpuRate
+        let now = ProcessInfo.processInfo.systemUptime
+        let dt = min(0.1, max(0.001, now - cpuLastFrame)), rate = Prefs.cpuRate
+        cpuLastFrame = now
         cpuSince += dt
-        if cpuSince >= 1 / rate - 0.001 { cpuSince = 0; cpu.sample() }
-        let k = 1 - exp(-dt / max(0.1, 0.65 / rate))
+        if cpuSince >= 1 / rate - 0.004 { cpuSince = 0; cpu.sample() }
+        // automatic damping: a glide of about two-thirds of a reading's interval, never shorter than 60 ms (the
+        // kernel counts CPU time in 10 ms ticks, so very fast readings of one core are coarse and need smoothing)
+        let k = 1 - exp(-dt / max(0.06, 0.65 / rate))
         var moved = abs(cpu.total - cpuShown) > 0.002
         cpuShown += (cpu.total - cpuShown) * k
         if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores; moved = true }

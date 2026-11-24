@@ -112,10 +112,10 @@ enum Prefs {
     static var showEyes: Bool { get { bool(K.showEyes) } set { set(newValue, K.showEyes) } }
     static var showCPU: Bool { get { bool(K.showCPU) } set { set(newValue, K.showCPU) } }
     /// 0 = half-round boost gauge, 1 = a vertical bar per core
-    /// CPU readings per second, 1…10.
+    /// CPU readings per second, 1…60.
     static var cpuRate: Double {
-        get { min(10, max(1, d.double(forKey: K.cpuRate))) }
-        set { d.set(min(10, max(1, newValue)), forKey: K.cpuRate) }
+        get { min(60, max(1, d.double(forKey: K.cpuRate))) }
+        set { d.set(min(60, max(1, newValue)), forKey: K.cpuRate) }
     }
     static var cpuStyle: Int { get { d.integer(forKey: K.cpuStyle) } set { d.set(newValue, forKey: K.cpuStyle) } }
     /// 0 = small, 1 = medium, 2 = large
