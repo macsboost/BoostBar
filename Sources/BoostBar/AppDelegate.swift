@@ -273,6 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.netUnit = Prefs.netUnit
         graphView.netBits = Prefs.useBits
         graphView.cpuStyle = Prefs.cpuStyle
+        graphView.cpuBackdrop = Prefs.cpuBackdrop
         if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores }
         graphView.cpu = cpuShown
         graphView.cpuCores = cpuCoresShown

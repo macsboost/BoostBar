@@ -22,6 +22,7 @@ enum Prefs {
         static let showCPU = "showCPU"
         static let cpuStyle = "cpuStyle"
         static let cpuRate = "cpuUpdatesPerSecond"
+        static let cpuBackdrop = "cpuBackdrop"
         static let eyeSize = "eyeSize"
         static let singleEye = "singleEye"
         static let googly = "googlyEyes"
@@ -116,6 +117,11 @@ enum Prefs {
     static var cpuRate: Double {
         get { min(60, max(1, d.double(forKey: K.cpuRate))) }
         set { d.set(min(60, max(1, newValue)), forKey: K.cpuRate) }
+    }
+    /// Backdrop behind the CPU meter: -1 (strong dark) … 0 (none) … +1 (strong light).
+    static var cpuBackdrop: Double {
+        get { min(1, max(-1, d.double(forKey: K.cpuBackdrop))) }
+        set { d.set(abs(newValue) < 0.04 ? 0 : min(1, max(-1, newValue)), forKey: K.cpuBackdrop) }
     }
     static var cpuStyle: Int { get { d.integer(forKey: K.cpuStyle) } set { d.set(newValue, forKey: K.cpuStyle) } }
     /// 0 = small, 1 = medium, 2 = large

@@ -66,6 +66,8 @@ final class StatusGraphView: NSView {
     var cpu: Double = 0
     var cpuCores: [Double] = []
     var cpuStyle = 0
+    /// A translucent plate behind the meter so it stands out on a busy bar: below 0 dark, above 0 light, 0 none.
+    var cpuBackdrop: Double = 0
     private(set) var cpuRect = NSRect.zero
     private static let gaugeWidth: CGFloat = 27
 
@@ -571,6 +573,9 @@ final class StatusGraphView: NSView {
 
     /// Is the menu bar light (dark text) right now? It follows the wallpaper, not just Light/Dark mode.
     private var barIsLight: Bool { effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) != .darkAqua }
+    /// What the CPU meter is drawn against: the bar, or its backdrop once that is strong enough to take over.
+    private var meterOnLight: Bool { cpuBackdrop > 0.35 ? true : cpuBackdrop < -0.35 ? false : barIsLight }
+    private var meterInk: NSColor { meterOnLight == barIsLight ? .labelColor : (meterOnLight ? NSColor(white: 0.1, alpha: 1) : NSColor(white: 0.95, alpha: 1)) }
 
     /// Boost-gauge colours: green, lime, yellow, orange, red — as on the X1 sim's loading gauge. On a light menu
     /// bar they're deepened so the yellow and lime still read against white.
@@ -582,8 +587,12 @@ final class StatusGraphView: NSView {
         let (a, ca) = stops[i - 1], (b, cb) = stops[i]
         let k = min(1, max(0, (x - a) / (b - a)))
         var c = (0..<3).map { (ca[$0] + (cb[$0] - ca[$0]) * k) / 255 }
-        if barIsLight { c = [c[0] * 0.80, c[1] * 0.66, c[2] * 0.62] }
+        if meterOnLight { c = [c[0] * 0.80, c[1] * 0.66, c[2] * 0.62] }
         return NSColor(srgbRed: c[0], green: c[1], blue: c[2], alpha: 1)
+    }
+
+    private var backdropColor: NSColor {
+        (cpuBackdrop < 0 ? NSColor.black : NSColor.white).withAlphaComponent(CGFloat(min(1, abs(cpuBackdrop))) * 0.7)
     }
 
     /// The tiny half-round boost gauge: a crescent that thickens toward full boost, cut by gaps, lit up to the
@@ -592,6 +601,20 @@ final class StatusGraphView: NSView {
         let x = min(1, max(0, cpu))
         let c = NSPoint(x: r.midX, y: r.midY - 5.5)
         let R = min(r.width / 2 - 0.5, r.height - 8)
+        if cpuBackdrop != 0 {
+            // a dome: round over the top of the dial, with a short rounded foot under the needle's hub
+            let pr = R + 1.6, foot: CGFloat = 3.4
+            let plate = NSBezierPath()
+            plate.move(to: NSPoint(x: c.x - pr, y: c.y))
+            plate.appendArc(withCenter: c, radius: pr, startAngle: 180, endAngle: 0, clockwise: true)
+            plate.line(to: NSPoint(x: c.x + pr, y: c.y - foot + 2))
+            plate.appendArc(withCenter: NSPoint(x: c.x + pr - 2, y: c.y - foot + 2), radius: 2, startAngle: 0, endAngle: 270, clockwise: true)
+            plate.line(to: NSPoint(x: c.x - pr + 2, y: c.y - foot))
+            plate.appendArc(withCenter: NSPoint(x: c.x - pr + 2, y: c.y - foot + 2), radius: 2, startAngle: 270, endAngle: 180, clockwise: true)
+            plate.close()
+            backdropColor.setFill()
+            plate.fill()
+        }
         // from 9 o'clock over the top to 3 o'clock
         func ang(_ t: Double) -> CGFloat { CGFloat(180 - 180 * t) }
         let gaps = [0.16, 0.36, 0.56, 0.74, 0.88]
@@ -604,7 +627,7 @@ final class StatusGraphView: NSView {
             p.appendArc(withCenter: c, radius: R, startAngle: ang(t0), endAngle: ang(t1) - 0.6, clockwise: true)
             p.appendArc(withCenter: c, radius: R - w, startAngle: ang(t1) - 0.6, endAngle: ang(t0), clockwise: false)
             p.close()
-            if tm <= x + 0.002 { boostColor(tm).setFill() } else { label.withAlphaComponent(barIsLight ? 0.2 : 0.24).setFill() }
+            if tm <= x + 0.002 { boostColor(tm).setFill() } else { meterInk.withAlphaComponent(meterOnLight ? 0.2 : 0.24).setFill() }
             p.fill()
         }
         // needle
@@ -617,7 +640,7 @@ final class StatusGraphView: NSView {
         needle.line(to: tip)
         needle.line(to: NSPoint(x: c.x - side.x, y: c.y - side.y))
         needle.close()
-        label.setFill()
+        meterInk.setFill()
         needle.fill()
         NSBezierPath(ovalIn: NSRect(x: c.x - 1.8, y: c.y - 1.8, width: 3.6, height: 3.6)).fill()
     }
@@ -627,9 +650,13 @@ final class StatusGraphView: NSView {
         let cores = cpuCores.isEmpty ? [cpu] : cpuCores
         let pitch = Self.cpuBarPitch(cores.count)
         let g = NSRect(x: r.minX, y: 3, width: r.width, height: r.height - 6)
+        if cpuBackdrop != 0 {
+            backdropColor.setFill()
+            NSBezierPath(roundedRect: g.insetBy(dx: -1.5, dy: -1.5), xRadius: 3, yRadius: 3).fill()
+        }
         for (i, v) in cores.enumerated() {
             let slot = NSRect(x: g.minX + CGFloat(i) * pitch + 0.5, y: g.minY, width: pitch - 1, height: g.height)
-            label.withAlphaComponent(0.14).setFill()
+            meterInk.withAlphaComponent(0.14).setFill()
             NSBezierPath(rect: slot).fill()
             let hgt = max(1, slot.height * CGFloat(min(1, max(0, v))))
             boostColor(v).setFill()

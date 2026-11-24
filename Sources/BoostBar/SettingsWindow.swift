@@ -422,7 +422,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                     v.showNetwork = true; v.showBattery = true; v.showDisks = true; v.showEyes = true; v.eyeSize = 2
                     v.battery = BatteryReading(watts: [-8.4, 42, -23.5][k], percent: 70, externalConnected: k == 1, isCharging: k == 1, fullyCharged: false); v.leds = [.init(key: "a", color: .systemGreen)]; v.ledSize = 1
-                    v.showCPU = true; v.cpuStyle = style; v.cpu = load
+                    v.showCPU = true; v.cpuStyle = style; v.cpu = load; v.cpuBackdrop = [-0.7, 0, 0.7][k]
                     v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
                     v.verticalLabels = k == 1
                     v.up = (0..<30).map { 2000 + 9000 * abs(sin(Double($0) * 0.4)) }; v.down = (0..<30).map { 40000 * abs(cos(Double($0) * 0.3)) }
@@ -608,6 +608,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      set: { Prefs.cpuRate = fromSlider($0); app.applySettings() },
                      value: { s in let r = fromSlider(s); return r == r.rounded() ? String(format: "%.0f Hz", r) : String(format: "%g Hz", r) },
                      caption: "1 a second … 60 a second")
+            p.slider("Backdrop", min: -1, max: 1, get: { Prefs.cpuBackdrop }, set: { Prefs.cpuBackdrop = $0; app.applySettings() },
+                     value: { abs($0) < 0.04 ? "Off" : String(format: "%@ %.0f%%", $0 < 0 ? "Dark" : "Light", abs($0) * 100) },
+                     caption: "dark ← off → light")
             p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.")
             p.divider()
             p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It sits between the battery and the disk lights; move it in General ▸ Menu Bar Layout.")
