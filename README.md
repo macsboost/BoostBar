@@ -33,6 +33,10 @@
   <br><sub>Real menu bar: googly eyes · network · battery watts · CPU boost gauge · disk light</sub>
 </p>
 <p align="center">
+  <img src="docs/media/menubar-cores.png" width="440" alt="BoostBar with the CPU meter in bars style: one bar per core, like a spectrum analyzer, on a dark backdrop">
+  <br><sub>CPU spectrum analyzer: one bar per core, here with the dark backdrop. Looks very cool on Apple silicon!</sub>
+</p>
+<p align="center">
   <img src="docs/media/menubar-hover.png" width="520" alt="Hovering the disk light opens a 60-second read/write chart for the drive">
   <br><sub>Hover any piece for its chart — here the disk light: the drive, free space, and the last minute of reads and writes</sub>
 </p>
@@ -103,7 +107,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 
 ## CPU boost gauge
 
-A tiny half-round boost gauge between the battery readout and the disk light reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Prefer bars? **Settings ▸ CPU ▸ Style** switches to one slim vertical bar per core. The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU, from once a second to 60 times a second on a logarithmic slider — the needle's damping follows it automatically.
+A tiny half-round boost gauge between the battery readout and the disk light reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Or turn it into a **CPU spectrum analyzer**: **Settings ▸ CPU ▸ Style ▸ Bars** gives every core its own slim bar, bouncing like an equalizer — on Apple silicon you can watch the efficiency and performance cores trade the load. A **Backdrop** slider puts a translucent dark or light plate behind either style. The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU, from once a second to 60 times a second on a logarithmic slider — the needle's damping follows it automatically.
 
 ## Updates
 

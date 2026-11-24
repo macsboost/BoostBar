@@ -596,7 +596,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         list.append(Pane(title: "CPU", symbol: "gauge.with.needle") { p in
             p.header("Menu Bar")
             p.check("Show CPU meter", get: { Prefs.showCPU }, set: { Prefs.showCPU = $0; app.applySettings() })
-            p.popup("Style", items: ["Boost gauge (half-round, with a needle)", "Bars (one per core)"],
+            p.popup("Style", items: ["Boost gauge (half-round, with a needle)", "Spectrum analyzer (a bar per core)"],
                     get: { Prefs.cpuStyle }, set: { Prefs.cpuStyle = $0; app.applySettings() })
             // a logarithmic scale: each step along the slider multiplies the rate, so 1–5 Hz gets as much room as 10–60 Hz
             let lo = 1.0, hi = 60.0
