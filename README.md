@@ -36,10 +36,6 @@
   <img src="docs/media/menubar-hover.png" width="520" alt="Hovering the disk light opens a 60-second read/write chart for the drive">
   <br><sub>Hover any piece for its chart — here the disk light: the drive, free space, and the last minute of reads and writes</sub>
 </p>
-<p align="center">
-  <img src="docs/media/menubar-sample.png" width="820" alt="BoostBar's menu bar pieces on a dark and a light menu bar, plain and with the stacked NET / BAT / HDD / CPU labels, with the CPU as a boost gauge or as bars">
-  <br><sub>Dark and light menu bars · plain, and with stacked labels · CPU as a boost gauge or as bars</sub>
-</p>
 
 <h3 align="center">Three Flying Bread–style screen savers included</h3>
 <table align="center">
