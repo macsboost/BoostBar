@@ -30,7 +30,7 @@
 
 <p align="center">
   <img src="docs/media/menubar.png" width="420" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts, the CPU boost gauge and a disk LED">
-  <br><sub>Real menu bar: googly eyes · network · battery watts · CPU boost gauge · disk light</sub>
+  <br><sub>Real menu bar: googly eyes · network · battery watts · CPU meter (boost gauge style) · disk light</sub>
 </p>
 <p align="center">
   <a href="docs/media/cpu-spectrum.mp4"><img src="docs/media/cpu-spectrum.gif" width="458" alt="Screen recording of BoostBar in the menu bar: the eyes look around, the network graph scrolls, and the CPU spectrum analyzer's per-core bars bounce on a dark backdrop"></a>
@@ -105,9 +105,9 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 
 **BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen Flying Bread style. The bus is the loaf; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V1.5** (which creeps along in straight lines like an inchworm), **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. Turn on **Crossing orbits** to send them along two sets of lanes that cross in an X, each leg at its own altitude, and **Laser links** for red, shimmering inter-satellite lasers that hop between neighbours — on screen and off — making each new link before breaking an old one. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
 
-## CPU boost gauge
+## CPU spectrum analyzer and boost gauge
 
-A tiny half-round boost gauge between the battery readout and the disk light reads the load on all CPU cores: a crescent that thickens from green through yellow and orange to red, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. Or turn it into a **CPU spectrum analyzer**: **Settings ▸ CPU ▸ Style ▸ Bars** gives every core its own slim bar, bouncing like an equalizer — on Apple silicon you can watch the efficiency and performance cores trade the load. **Peak hold** leaves a thin cap at the top of each core's last surge for as long as you set (up to 10 s) before it falls. A **Backdrop** slider puts a translucent dark or light plate behind either style. The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU, from once a second to 60 times a second on a logarithmic slider — the needle's damping follows it automatically.
+Between the battery readout and the disk light sits a **CPU spectrum analyzer**: every core gets its own slim bar, bouncing like an equalizer on a dark plate, coloured green through yellow and orange to red — on Apple silicon you can watch the efficiency and performance cores trade the load. **Peak hold** leaves a thin cap at the top of each core's last surge (1.5 s by default, up to 10 s) before it falls. Prefer a dial? **Settings ▸ CPU ▸ Style ▸ Boost gauge** swaps in a tiny half-round gauge for all cores together: a crescent that thickens toward full boost, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. The **Backdrop** slider sets the translucent dark or light plate behind either style (or turns it off). The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU, from once a second to 60 times a second on a logarithmic slider — the damping follows it automatically.
 
 ## Updates
 

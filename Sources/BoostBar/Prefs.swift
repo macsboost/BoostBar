@@ -63,8 +63,10 @@ enum Prefs {
             K.downColor: "White",
             K.showEyes: false,
             K.showCPU: true,
-            K.cpuStyle: 0,
+            K.cpuStyle: 1,          // spectrum analyzer: a bar per core
             K.cpuRate: 5.0,
+            K.cpuBackdrop: -0.6,    // a dark plate behind it
+            K.cpuPeakHold: 1.5,
             K.eyeSize: 1,
             K.singleEye: false,
             K.googly: true,
