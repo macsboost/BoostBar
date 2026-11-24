@@ -423,13 +423,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     v.showNetwork = true; v.showBattery = true; v.showDisks = true; v.showEyes = true; v.eyeSize = 2
                     v.battery = BatteryReading(watts: [-8.4, 42, -23.5][k], percent: 70, externalConnected: k == 1, isCharging: k == 1, fullyCharged: false); v.leds = [.init(key: "a", color: .systemGreen)]; v.ledSize = 1
                     v.showCPU = true; v.cpuStyle = style; v.cpu = load; v.cpuBackdrop = [-0.7, 0, 0.7][k]
+                    v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
                     if style == 1 {
                         v.cpuPeaks = v.cpuCores.enumerated().map { i, c -> Double in
                             let extra: Double = 0.12 + 0.1 * Double(i % 3)
                             return min(1.0, c + extra)
                         }
                     }
-                    v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
                     v.verticalLabels = k == 1
                     v.up = (0..<30).map { 2000 + 9000 * abs(sin(Double($0) * 0.4)) }; v.down = (0..<30).map { 40000 * abs(cos(Double($0) * 0.3)) }
                     v.upText = "12 KB/s"; v.downText = "340 KB/s"
