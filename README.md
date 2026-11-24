@@ -16,6 +16,13 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/macsboost/BoostBar/releases/latest/download/BoostBar-Setup.exe">
+    <img src="https://img.shields.io/badge/⬇%20Download%20BoostBar-FREE%20for%20Windows-0078D4?style=for-the-badge&labelColor=0e0f0e" height="44" alt="Download BoostBar — free for Windows">
+  </a><br>
+  <sub><b><a href="https://github.com/macsboost/BoostBar/releases/latest/download/BoostBar-Setup.exe">BoostBar-Setup.exe</a></b> · Windows 10 (1809+) and 11 · <a href="#boostbar-for-windows">details</a></sub>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/github/v/release/macsboost/BoostBar?label=latest&color=74FB4C&labelColor=0e0f0e" alt="Latest version">
   <img src="https://img.shields.io/github/downloads/macsboost/BoostBar/total?color=56BE37&labelColor=0e0f0e" alt="Downloads">
 </p>
@@ -73,6 +80,21 @@ A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It ha
 - **Self-updating:** checks GitHub Releases at launch, or when you pick **Check for Updates…**. It can download, swap, and relaunch in one click.
 
 The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so you can tell at a glance — they clear up again when Keep Awake turns off (Settings ▸ Eyes ▸ Bloodshot while keeping the Mac awake).
+
+## BoostBar for Windows 🪟
+
+The same strip — googly eyes, network graph, battery watts, CPU meter and disk lights — sits **on the Windows taskbar**, just left of the clock and tray icons. It follows the taskbar's light or dark theme, hovering any piece opens its chart, left-click opens the menu (click the eyes for About), and you can drag a piece along the taskbar to reorder it. Prefer it elsewhere? **Settings ▸ General ▸ Show BoostBar ▸ As a floating bar** gives a bar you can drag anywhere. There's also a tray icon with the same menu.
+
+- **Install:** download [BoostBar-Setup.exe](https://github.com/macsboost/BoostBar/releases/latest/download/BoostBar-Setup.exe) and run it. It installs just for you in `%LOCALAPPDATA%\Programs\BoostBar` — no admin prompt — and can start BoostBar when you sign in. The installer isn't code-signed, so Windows SmartScreen may say it "protected your PC": click **More info ▸ Run anyway**.
+- **Keep Awake** keeps the PC (and optionally the display) awake, indefinitely or for 15 min to 8 h.
+- **Stay awake with the lid closed** (laptops) sets the power plan's lid action to *Do nothing*, plugged in and on battery, and puts your old setting back when you turn it off. Like on the Mac it stays on after quitting until you turn it off.
+- **Reverse mouse scrolling** in every app, with no permission needed. (Touchpads keep their own setting in Windows Settings.)
+- **Hot corners** for Keep Awake, Sleep now and the screen saver.
+- **Screen savers:** Flying Cars, Starships and Starlink are installed too. In **Settings ▸ Screen Saver** pick one, set its options, **Preview** it, and click **Use as My Screen Saver** — Windows lets apps set it directly. They need the Microsoft Edge WebView2 Runtime, which is built into Windows 11 and nearly every Windows 10 PC.
+- **Updates:** BoostBar checks this page at startup. The download is checked against the SHA-256 checksum published with each release before it installs (silently, if you turn on automatic updates).
+- Settings live in `HKEY_CURRENT_USER\Software\MacsBoost\BoostBar`. Not on Windows: the dizzy (shake) eyes, which need the MacBook's motion sensor.
+
+Build it yourself on Windows with the .NET SDK, Python 3 and Inno Setup 6: `pwsh windows/build.ps1` → `build/win/out/BoostBar-Setup.exe`. Source is in [`windows/`](windows); GitHub Actions builds it and attaches the installer to each release.
 
 ## Flying Cars screen saver ✈️
 

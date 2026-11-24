@@ -75,6 +75,9 @@ Request body (JSON):
 ```
 Reply **204 No Content** (any 2xx works).
 
+The Windows version sends the same request with `"platform": "windows"`, `"channel": "windows"`, `"macos": null` and
+`"windows": "10.0.22631"` (major.minor.build); `arch` is `x86_64`, `arm64` or `x86`. Mac builds send `"channel": "direct"` or `"appstore"`.
+
 Storage (Postgres example):
 ```sql
 create table boostbar_installs (
