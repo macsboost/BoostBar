@@ -29,12 +29,16 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/menubar-sample.png" width="820" alt="BoostBar's menu bar pieces on a dark and a light menu bar: googly eyes, network graph with upload/download speeds, battery watts, a disk LED and the CPU boost gauge; on the right, with the stacked NET / BAT / HDD / CPU labels and the CPU bars">
-  <br><sub>Dark and light menu bars · plain, and with stacked labels · CPU as a boost gauge or as bars</sub>
+  <img src="docs/media/menubar.png" width="420" alt="BoostBar in the macOS menu bar: googly eyes, network graph with upload/download speeds, battery watts, the CPU boost gauge and a disk LED">
+  <br><sub>Real menu bar: googly eyes · network · battery watts · CPU boost gauge · disk light</sub>
 </p>
 <p align="center">
-  <img src="docs/media/menubar-hover.png" width="600" alt="Hovering the network graph opens a 5-minute upload/download chart">
-  <br><sub>Hover any piece for a 5-minute chart. Shown here next to the CPU meter from Dave Plummer's <a href="https://tmog.org">TMOG</a> — they make a great combo.</sub>
+  <img src="docs/media/menubar-hover.png" width="520" alt="Hovering the disk light opens a 60-second read/write chart for the drive">
+  <br><sub>Hover any piece for its chart — here the disk light: the drive, free space, and the last minute of reads and writes</sub>
+</p>
+<p align="center">
+  <img src="docs/media/menubar-sample.png" width="820" alt="BoostBar's menu bar pieces on a dark and a light menu bar, plain and with the stacked NET / BAT / HDD / CPU labels, with the CPU as a boost gauge or as bars">
+  <br><sub>Dark and light menu bars · plain, and with stacked labels · CPU as a boost gauge or as bars</sub>
 </p>
 
 <h3 align="center">Three Flying Bread–style screen savers included</h3>
