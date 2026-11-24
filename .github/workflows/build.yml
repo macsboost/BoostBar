@@ -14,6 +14,8 @@ on:
       - ".github/workflows/counter.yml"
       - ".github/workflows/saver-video.yml"
       - ".github/workflows/saver-preview.yml"
+      - "windows/**"
+      - ".github/workflows/windows.yml"
   pull_request:
   workflow_dispatch:
 
@@ -120,6 +122,9 @@ jobs:
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+              gh release upload "$TAG" dist/BoostBar.zip --clobber
+            elif ! gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "BoostBar.zip"; then
+              # the Windows workflow got there first: add the Mac app to its release
               gh release upload "$TAG" dist/BoostBar.zip --clobber
             else
               echo "Release $TAG already exists; bump VERSION to publish a new one."

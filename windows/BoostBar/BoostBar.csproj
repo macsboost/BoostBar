@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BoostBar for Windows: .NET Framework 4.8 is built into Windows 10 (1903+) and 11, so nothing extra to install. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>BoostBar</AssemblyName>
+    <RootNamespace>BoostBar</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\Shared\BoostBar.ico</ApplicationIcon>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Version>0.0.0</Version>
+    <Company>MacsBoost</Company>
+    <Product>BoostBar</Product>
+    <Authors>Mac McAlpine</Authors>
+    <Copyright>© 2026 MacsBoost / X1 Racing. MIT License.</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS1591;CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\SaverConfig.cs" Link="SaverConfig.cs" />
+    <Compile Include="..\Shared\Json.cs" Link="Json.cs" />
+    <EmbeddedResource Include="..\Shared\BoostBar.ico" LogicalName="BoostBar.ico" />
+    <EmbeddedResource Include="..\..\Resources\SupportBanner.jpg" LogicalName="SupportBanner.jpg" />
+  </ItemGroup>
+</Project>

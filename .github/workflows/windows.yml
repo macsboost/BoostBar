@@ -1,0 +1,97 @@
+name: Windows Build & Release
+
+# Builds BoostBar for Windows (app + screen savers + Inno Setup installer) and attaches BoostBar-Setup.exe and its
+# SHA-256 to the same v<VERSION> release as the Mac zip. Also renders the strip and every window to PNGs for review.
+on:
+  push:
+    branches: [main, windows]
+    tags: ["v*"]
+    paths:
+      - "windows/**"
+      - "Saver/src/**"
+      - "Saver/thumbs/**"
+      - "tools/build_saver_html.py"
+      - "Resources/SupportBanner.jpg"
+      - "LICENSE"
+      - "VERSION"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue) -and -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") { $v = $env:GITHUB_REF_NAME.TrimStart("v") } else { $v = (Get-Content VERSION -Raw).Trim() }
+          ./windows/build.ps1 -Version $v
+
+      - name: Render snapshots
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force snapshots | Out-Null
+          $p = Start-Process -FilePath build/win/app/BoostBar.exe -ArgumentList "--snapshot", "$PWD\snapshots" -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Warning "snapshot timed out" }
+          Get-ChildItem snapshots | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BoostBar-Windows
+          path: |
+            build/win/out/BoostBar-Setup.exe
+            build/win/out/BoostBar-Setup.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-snapshots
+          path: snapshots/
+          if-no-files-found: ignore
+
+      - name: Attach to GitHub release
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then TAG="$GITHUB_REF_NAME"
+          elif [[ "$GITHUB_REF_NAME" == "main" ]]; then TAG="v$(tr -d '[:space:]' < VERSION)"
+          else echo "Not a release ref"; exit 0; fi
+          A=build/win/out/BoostBar-Setup.exe
+          # The Mac workflow normally creates the release; give it time, then create it ourselves if it never shows.
+          for i in $(seq 1 60); do gh release view "$TAG" >/dev/null 2>&1 && break; sleep 60; done
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" "$A" "$A.sha256" --target "$GITHUB_SHA" --title "BoostBar $TAG" --generate-notes \
+              || gh release upload "$TAG" "$A" "$A.sha256" --clobber
+            exit 0
+          fi
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]] || ! gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "BoostBar-Setup.exe"; then
+            gh release upload "$TAG" "$A" "$A.sha256" --clobber
+          else
+            echo "Release $TAG already has the Windows installer; bump VERSION to publish a new one."
+          fi

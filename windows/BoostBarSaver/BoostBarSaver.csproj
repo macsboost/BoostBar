@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BoostBar's screen savers for Windows: one program, installed three times as BoostBarFlyingCars.scr,
+       BoostBarStarships.scr and BoostBarStarlink.scr (the file name picks the scene). The scenes are the same
+       three.js pages the Mac version uses for its preview, shown full screen in WebView2. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>BoostBarSaver</AssemblyName>
+    <RootNamespace>BoostBar</RootNamespace>
+    <ApplicationManifest>..\BoostBar\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\Shared\BoostBar.ico</ApplicationIcon>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Version>0.0.0</Version>
+    <Company>MacsBoost</Company>
+    <Product>BoostBar Screen Savers</Product>
+    <Copyright>© 2026 MacsBoost / X1 Racing. MIT License.</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2651.64" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\SaverConfig.cs" Link="SaverConfig.cs" />
+    <Compile Include="..\Shared\Json.cs" Link="Json.cs" />
+    <EmbeddedResource Include="..\..\Saver\thumbs\cars\thumbnail@2x.png" LogicalName="thumb_cars.png" />
+    <EmbeddedResource Include="..\..\Saver\thumbs\starships\thumbnail@2x.png" LogicalName="thumb_starships.png" />
+    <EmbeddedResource Include="..\..\Saver\thumbs\starlink\thumbnail@2x.png" LogicalName="thumb_starlink.png" />
+  </ItemGroup>
+</Project>
