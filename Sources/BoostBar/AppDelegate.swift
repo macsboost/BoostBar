@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var cpuFrameInterval = 0.05
     private var cpuLastFrame = ProcessInfo.processInfo.systemUptime
     private var cpuShown = 0.0, cpuCoresShown: [Double] = []
+    /// Peak hold: each core's marker jumps up with the bar, stays for the hold time, then falls.
+    private var cpuPeaks: [Double] = [], cpuPeakAt: [TimeInterval] = []
 
     private func setCPUMeterRunning(_ on: Bool) {
         if !on { cpuTimer?.invalidate(); cpuTimer = nil; return }
@@ -45,6 +47,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if abs(cpu.cores[i] - cpuCoresShown[i]) > 0.004 { moved = true }
             cpuCoresShown[i] += (cpu.cores[i] - cpuCoresShown[i]) * k
         }
+        let hold = Prefs.cpuStyle == 1 ? Prefs.cpuPeakHold : 0
+        if hold > 0 {
+            if cpuPeaks.count != cpuCoresShown.count {
+                cpuPeaks = cpuCoresShown; cpuPeakAt = Array(repeating: now, count: cpuCoresShown.count)
+            }
+            for i in cpuPeaks.indices {
+                if cpuCoresShown[i] >= cpuPeaks[i] { cpuPeaks[i] = cpuCoresShown[i]; cpuPeakAt[i] = now }
+                else if now - cpuPeakAt[i] > hold {
+                    cpuPeaks[i] = max(cpuCoresShown[i], cpuPeaks[i] - 0.9 * dt)     // let go: fall at 90% a second
+                    moved = true
+                }
+            }
+        } else if !cpuPeaks.isEmpty { cpuPeaks = []; moved = true }
+        graphView.cpuPeaks = cpuPeaks
         guard moved else { return }
         graphView.cpu = cpuShown
         graphView.cpuCores = cpuCoresShown

@@ -68,6 +68,8 @@ final class StatusGraphView: NSView {
     var cpuStyle = 0
     /// A translucent plate behind the meter so it stands out on a busy bar: below 0 dark, above 0 light, 0 none.
     var cpuBackdrop: Double = 0
+    /// Spectrum analyzer peak markers, one per core (empty = none).
+    var cpuPeaks: [Double] = []
     private(set) var cpuRect = NSRect.zero
     private static let gaugeWidth: CGFloat = 27
 
@@ -661,6 +663,12 @@ final class StatusGraphView: NSView {
             let hgt = max(1, slot.height * CGFloat(min(1, max(0, v))))
             boostColor(v).setFill()
             NSBezierPath(rect: NSRect(x: slot.minX, y: slot.minY, width: slot.width, height: hgt)).fill()
+            if i < cpuPeaks.count, cpuPeaks[i] > v + 0.03 {
+                // the peak-hold cap: a thin line left at the top of the last surge
+                let py = slot.minY + slot.height * CGFloat(min(1, cpuPeaks[i]))
+                meterInk.withAlphaComponent(0.9).setFill()
+                NSBezierPath(rect: NSRect(x: slot.minX, y: min(slot.maxY, py) - 1, width: slot.width, height: 1)).fill()
+            }
         }
     }
 

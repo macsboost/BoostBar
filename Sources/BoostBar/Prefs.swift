@@ -23,6 +23,7 @@ enum Prefs {
         static let cpuStyle = "cpuStyle"
         static let cpuRate = "cpuUpdatesPerSecond"
         static let cpuBackdrop = "cpuBackdrop"
+        static let cpuPeakHold = "cpuPeakHoldSeconds"
         static let eyeSize = "eyeSize"
         static let singleEye = "singleEye"
         static let googly = "googlyEyes"
@@ -122,6 +123,11 @@ enum Prefs {
     static var cpuBackdrop: Double {
         get { min(1, max(-1, d.double(forKey: K.cpuBackdrop))) }
         set { d.set(abs(newValue) < 0.04 ? 0 : min(1, max(-1, newValue)), forKey: K.cpuBackdrop) }
+    }
+    /// Spectrum analyzer: seconds each core's peak marker stays up before it falls; 0 = no peak markers.
+    static var cpuPeakHold: Double {
+        get { min(10, max(0, d.double(forKey: K.cpuPeakHold))) }
+        set { d.set(newValue < 0.2 ? 0 : min(10, newValue), forKey: K.cpuPeakHold) }
     }
     static var cpuStyle: Int { get { d.integer(forKey: K.cpuStyle) } set { d.set(newValue, forKey: K.cpuStyle) } }
     /// 0 = small, 1 = medium, 2 = large
