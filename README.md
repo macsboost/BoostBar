@@ -33,8 +33,8 @@
   <br><sub>Real menu bar: googly eyes · network · battery watts · CPU boost gauge · disk light</sub>
 </p>
 <p align="center">
-  <img src="docs/media/menubar-cores.png" width="440" alt="BoostBar with the CPU meter in bars style: one bar per core, like a spectrum analyzer, on a dark backdrop">
-  <br><sub>CPU spectrum analyzer: one bar per core, here with the dark backdrop. Looks very cool on Apple silicon!</sub>
+  <img src="docs/media/cpu-spectrum.gif" width="458" alt="Screen recording of BoostBar in the menu bar: the eyes look around, the network graph scrolls, and the CPU spectrum analyzer's per-core bars bounce on a dark backdrop">
+  <br><sub>Live: the CPU spectrum analyzer, one bar per core, here with the dark backdrop. Looks very cool on Apple silicon!</sub>
 </p>
 <p align="center">
   <img src="docs/media/menubar-hover.png" width="520" alt="Hovering the disk light opens a 60-second read/write chart for the drive">
