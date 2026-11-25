@@ -750,7 +750,7 @@ const CORE = (() => {
       const r = racers[i], vf = clamp(k.v / CORE.V_TOP, 0, 1.2);
       const idle = 1 - clamp(k.v / 4, 0, 1);
       const chop = vf * (0.035 * Math.sin(now * 11 + r.ph) + 0.025 * Math.sin(now * 17.3 + r.ph * 2));
-      const y = -0.25 + 0.2 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed
+      const y = -0.25 + 0.2 * Math.min(vf, 1) + chop * 0.6 + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed; the bounce is kept small enough that the keel stays wet
       r.pos.set(k.x, 0, -k.y);
       r.fwd.set(Math.cos(k.th), 0, -Math.sin(k.th)); r.left.set(-Math.sin(k.th), 0, -Math.cos(k.th));
       r.vel.copy(r.fwd).multiplyScalar(k.v);
@@ -915,7 +915,7 @@ const CORE = (() => {
     hud.win = w1 ? { id: w1.id, name: RACERS[w1.id].name.toUpperCase(), chip: RACERS[w1.id].chip, sub: `${fmt(w1.ft)} · ${R.course.nB} buoys · ${R.laps} laps` } : null;
     if (NATIVE) { const key = JSON.stringify(hud); if (key !== hudKey) { hudKey = key; hudSerial++; } return; }
     $('board').style.display = hud.board ? 'block' : 'none'; $('cap').style.display = hud.capOn ? 'block' : 'none';
-    $('cap').textContent = hud.cap; $('lap').textContent = hud.lap; $('clock').textContent = hud.clock;
+    $('cap').textContent = hud.cap + (pace.fps ? `  ·  ${Math.round(pace.fps)} FPS  ·  ${Math.round((pace.pr / PR_MAX) * 100)}%` : ''); $('lap').textContent = hud.lap; $('clock').textContent = hud.clock;
     $('rows').innerHTML = hud.rows.map((r, i) =>
       `<div class="row"><span class="pos">${i + 1}</span><span class="chip" style="background:${r.chip[0]};color:${r.chip[1]}">${r.id}</span><span class="nm">${r.name}${r.hs ? ' <b class="hs" title="Holeshot">HS</b>' : ''}</span><span class="gap">${r.gap}</span></div>`).join('');
     const w = $('win');
@@ -976,7 +976,9 @@ const CORE = (() => {
     buildCourse();
     racers.forEach((r) => { r.trail.length = 0; r.lean = r.pitch = r.steer = 0; });
     pLife.fill(0); ff = false; shot = null; lastTypes = []; hudT = 0;
+    if (renderer && racesRun++) betweenRaces();
   }
+  let racesRun = 0;
   function restart() { if (!fading) fading = 0.0001; }
   let now = 0, accT = 0;
   function tick(dt) {
@@ -1046,10 +1048,11 @@ const CORE = (() => {
   const clock = new THREE.Clock();
   /* Keeping up. The water is worked out for every pixel, so a big window on modest graphics can drop frames, most of
      all in the close, low shots. When the frame rate sags the picture is drawn at a lower resolution (and stretched to
-     fit), and it creeps back up while there is room. If a step down buys nothing, the slowness isn't the pixels (a
-     30 Hz display, a throttled window): the resolution is put back and left alone. */
+     fit). Each change of resolution is itself a small hitch, so it only ever goes back up between races, while the
+     screen is black, and only after a race that never sagged. If a step down buys nothing, the slowness isn't the
+     pixels (a 30 Hz display, a throttled window): the resolution is put back and left alone. */
   const PR_MAX = Math.min(devicePixelRatio || 1, 1.75), PR_MIN = 0.5;
-  const pace = { pr: PR_MAX, ceil: PR_MAX, fps: 0, t: 0, n: 0, warm: 3, hold: 0, before: null, noGain: 0, on: true };
+  const pace = { pr: PR_MAX, ceil: PR_MAX, fps: 0, low: 99, t: 0, n: 0, warm: 3, before: null, noGain: 0, on: true };
   function setPR(v) { pace.pr = v; renderer.setPixelRatio(v); resize(); }
   function keepUp(raw) { // raw: the real time since the last frame
     if (raw > 0.5) { pace.t = pace.n = 0; return; } // a hitch or a hidden window says nothing about the pace
@@ -1057,16 +1060,21 @@ const CORE = (() => {
     if (pace.t < 1) return;
     const fps = (pace.fps = pace.n / pace.t); pace.t = pace.n = 0;
     if (pace.warm > 0) { pace.warm--; return; } // the first seconds include loading
-    if (!pace.on || fading) return;
-    if (pace.hold > 0) pace.hold--;
+    if (fading) return;
+    pace.low = Math.min(pace.low, fps);
+    if (!pace.on) return;
     if (pace.before) { // the second after a step down: did it help?
       const b = pace.before; pace.before = null;
       if (fps < b.fps * 1.06) { if (++pace.noGain >= 2) { pace.on = false; setPR(PR_MAX); return; } } else pace.noGain = 0;
     }
     if (fps < 48 && pace.pr > PR_MIN) {
-      pace.before = { fps }; pace.ceil = pace.pr * 0.96; pace.hold = 12;
+      pace.before = { fps }; pace.ceil = pace.pr * 0.96;
       setPR(Math.max(PR_MIN, pace.pr * clamp(Math.sqrt(fps / 58), 0.7, 0.9)));
-    } else if (fps > 57 && pace.hold <= 0 && pace.pr < pace.ceil - 0.01) { pace.hold = 8; setPR(Math.min(pace.ceil, pace.pr * 1.08)); }
+    }
+  }
+  function betweenRaces() { // called while the screen is black
+    if (pace.on && pace.low >= 57 && pace.pr < pace.ceil - 0.01) setPR(Math.min(pace.ceil, pace.pr * 1.1));
+    pace.low = 99;
   }
   function frame() {
     requestAnimationFrame(frame);
