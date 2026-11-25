@@ -271,7 +271,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(sky)
 
         // water: the X1 sim's water, with the two finer ripple layers the race cameras need close to the surface
-        waterMat = unlit(geometry: Self.worldPos, fragment: Self.noise + """
+        waterMat = unlit(geometry: Self.worldPos, fragment: Self.noise + "\n" + """
         float jrW(float2 p, float t, float4 ow, float2 ow2) {
           return jrN(p * 0.11 + t * 0.09) * ow.x + jrN(p * 0.27 - t * 0.13) * 0.55 * ow.y + jrN(p * 0.73 + t * 0.25) * 0.28 * ow.z
                + jrN(p * 1.9 - t * 0.42) * 0.13 * ow.w + jrN(p * 4.7 + t * 0.8) * 0.06 * ow2.x + jrN(p * 11.3 - t * 1.3) * 0.026 * ow2.y;
@@ -326,7 +326,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(water)
 
         // wakes: a ribbon of foam behind each ski (the ribbons are rebuilt every frame from the script's points)
-        foamMat = unlit(geometry: Self.passData, fragment: Self.noise + """
+        foamMat = unlit(geometry: Self.passData, fragment: Self.noise + "\n" + """
         #pragma arguments
         float uT;
         #pragma varyings

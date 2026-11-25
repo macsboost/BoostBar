@@ -107,5 +107,42 @@ for cam in ["chase", "onboard", "side", "front", "heli", "blimp", "buoy", "orbit
     let k = Take("cam_\(cam)", c)
     k.run(1); k.skip(34, settle: 2.5); k.shot("a")
 }
+// PROBE (temporary): which per-vertex channels reach a fragment shader modifier on an unlit material?
+do {
+    let scene = SCNScene(); scene.background.contents = NSColor.black
+    let cam = SCNNode(); cam.camera = SCNCamera(); cam.camera?.usesOrthographicProjection = true; cam.camera?.orthographicScale = 2.2
+    cam.simdPosition = SIMD3(0, 0, 10); scene.rootNode.addChildNode(cam)
+    func src(_ a: [Float], _ sem: SCNGeometrySource.Semantic, _ n: Int) -> SCNGeometrySource {
+        SCNGeometrySource(data: a.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: sem, vectorCount: 4, usesFloatComponents: true, componentsPerVector: n, bytesPerComponent: 4, dataOffset: 0, dataStride: 4 * n)
+    }
+    let frag = "#pragma varyings\nfloat3 pdat;\n#pragma body\n{\n_output.color = float4(in.pdat, 1.0);\n}\n"
+    let frag2 = "#pragma varyings\nfloat3 wpos;\nfloat3 pdat;\n#pragma body\n{\n_output.color = float4(in.pdat, 1.0);\n}\n"
+    let variants: [(String, SCNGeometrySource, String, String)] = [
+        ("color", src([0, 0, 0.5, 1, 1, 0, 0.5, 1, 1, 1, 0.5, 1, 0, 1, 0.5, 1], .color, 4), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = _geometry.color.rgb;\n", frag),
+        ("normal", src([0, 0, 0.5, 1, 0, 0.5, 1, 1, 0.5, 0, 1, 0.5], .normal, 3), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = _geometry.normal;\n", frag),
+        ("texcoord", src([0, 0, 1, 0, 1, 1, 0, 1], .texcoord, 2), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = float3(_geometry.texcoords[0], 0.5);\n", frag),
+        ("color2", src([0, 0, 0.5, 1, 1, 0, 0.5, 1, 1, 1, 0.5, 1, 0, 1, 0.5, 1], .color, 4), "#pragma varyings\nfloat3 wpos;\nfloat3 pdat;\n#pragma body\nout.wpos = (scn_node.modelTransform * _geometry.position).xyz;\nout.pdat = _geometry.color.rgb;\n", frag2),
+        ("broken", src([0, 0, 0.5, 1, 1, 0, 0.5, 1, 1, 1, 0.5, 1, 0, 1, 0.5, 1], .color, 4), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = _geometry.color.rgb;\n", "#pragma varyings\nfloat3 pdat;\n#pragma body\nPROBE_BROKEN_ON_PURPOSE;\n"),
+    ]
+    for (i, v) in variants.enumerated() {
+        for blend in [false, true] {
+            let pos: [Float] = [-0.4, -0.4, 0, 0.4, -0.4, 0, 0.4, 0.4, 0, -0.4, 0.4, 0]
+            let idx: [UInt32] = [0, 1, 2, 0, 2, 3]
+            let g = SCNGeometry(sources: [src(pos, .vertex, 3), v.1], elements: [SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles, primitiveCount: 2, bytesPerIndex: 4)])
+            let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = NSColor.white; m.isDoubleSided = true
+            m.shaderModifiers = [.geometry: v.2, .fragment: v.3]
+            if blend { m.blendMode = .alpha; m.writesToDepthBuffer = false }
+            g.materials = [m]
+            let n = SCNNode(geometry: g); n.simdPosition = SIMD3(Float(i) * 0.9 - 1.8, blend ? -0.5 : 0.5, 0)
+            scene.rootNode.addChildNode(n)
+        }
+    }
+    let r = SCNRenderer(device: device, options: nil); r.scene = scene; r.pointOfView = cam
+    let img = r.snapshot(atTime: 0, with: size, antialiasingMode: .none)
+    if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) {
+        try? jpg.write(to: outDir.appendingPathComponent("probe.jpg"))
+    }
+    print("PROBE: colour, normal, texcoord, colour with two varyings, broken on purpose; top row opaque, bottom row blended")
+}
 print(failed ? "FAILED" : "DONE")
 exit(failed ? 1 : 0)
