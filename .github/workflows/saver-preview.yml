@@ -45,6 +45,8 @@ jobs:
           cp Saver/src/jetrace/*.glb Saver/src/jetrace/rigs.json Saver/src/jetrace.js build/saver/three.min.js build/jet_res/
           swiftc -O tools/jetrace_check/main.swift Saver/native/GLB.swift Saver/native/JetRace.swift -o build/jetrace_check
           ./build/jetrace_check build/jet_res out/jetrace || echo "::error::the native Jet Racers check failed"
+          # anything SceneKit or Metal complained about while it ran (a shader that failed to compile shows up here)
+          log show --last 4m --style compact --predicate 'process == "jetrace_check"' 2>/dev/null | grep -i -B1 -A14 "error\|fail" | cut -c1-400 | head -80 || true
           for f in out/jetrace/*.jpg; do
             sips -s format jpeg -s formatOptions 55 --resampleWidth 640 "$f" --out "build/jet_s.jpg" >/dev/null 2>&1 || continue
             echo "IMG_BEGIN $(basename "$f")"; base64 -b 4000 -i build/jet_s.jpg; echo "IMG_END"

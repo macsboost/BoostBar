@@ -165,15 +165,28 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     #pragma body
     out.wpos = (scn_node.modelTransform * _geometry.position).xyz;
     """
-    /// Extra per-vertex numbers ride in the normal (these materials aren't lit, so it is free).
-    private static let passNormal = """
+    /// Extra per-vertex numbers (0…1 each) ride in the vertex colour; these materials replace their colour anyway.
+    private static let passData = """
     #pragma varyings
     float3 wpos;
     float3 vdat;
     #pragma body
     out.wpos = (scn_node.modelTransform * _geometry.position).xyz;
-    out.vdat = _geometry.normal;
+    out.vdat = _geometry.color.rgb;
     """
+
+    /// Positions plus one RGBA "colour" of data per vertex, as a triangle mesh.
+    private static func dataMesh(positions: [Float], data: [Float], indices: [UInt32], material: SCNMaterial) -> SCNGeometry {
+        let n = positions.count / 3
+        let g = SCNGeometry(sources: [
+            SCNGeometrySource(data: positions.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .vertex, vectorCount: n, usesFloatComponents: true,
+                              componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
+            SCNGeometrySource(data: data.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .color, vectorCount: n, usesFloatComponents: true,
+                              componentsPerVector: 4, bytesPerComponent: 4, dataOffset: 0, dataStride: 16),
+        ], elements: [SCNGeometryElement(data: indices.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles, primitiveCount: indices.count / 3, bytesPerIndex: 4)])
+        g.materials = [material]
+        return g
+    }
 
     private func unlit(geometry: String, fragment: String) -> SCNMaterial {
         let m = SCNMaterial()
@@ -313,7 +326,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(water)
 
         // wakes: a ribbon of foam behind each ski (the ribbons are rebuilt every frame from the script's points)
-        foamMat = unlit(geometry: Self.passNormal, fragment: Self.noise + """
+        foamMat = unlit(geometry: Self.passData, fragment: Self.noise + """
         #pragma arguments
         float uT;
         #pragma varyings
@@ -323,7 +336,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         {
         float2 wp = in.wpos.xz;
         float a = clamp(in.vdat.y, 0.0, 1.0);
-        float x = abs(in.vdat.x);
+        float x = abs(in.vdat.x * 2.0 - 1.0);
         float edge = smoothstep(0.45, 0.85, x) * (1.0 - smoothstep(0.85, 1.0, x));
         float core = (1.0 - smoothstep(0.0, 0.55, x)) * (1.0 - a) * (1.0 - a);
         float2 fw = fwidth(wp);
@@ -338,7 +351,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         foamMat.readsFromDepthBuffer = false   // flat on the water and drawn straight after it, so nothing can be in front
 
         // spray: soft round flecks that face the camera
-        sprayMat = unlit(geometry: Self.passNormal, fragment: """
+        sprayMat = unlit(geometry: Self.passData, fragment: """
         #pragma varyings
         float3 wpos;
         float3 vdat;
@@ -621,15 +634,11 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
 
     private func buildTrail(_ r: Racer, count: Int, p: [Float]?, u: [Float]?) {
         guard let p, let u, count >= 2, p.count >= count * 6, u.count >= count * 6 else { r.trail.geometry = nil; return }
-        let pd = p.withUnsafeBufferPointer { Data(buffer: $0) }, ud = u.withUnsafeBufferPointer { Data(buffer: $0) }
+        var data = [Float](); data.reserveCapacity(count * 8)   // per vertex: which edge (0 or 1), age 0…1, how hard the ski was running
+        for i in 0..<(count * 2) { data.append(u[i * 3] * 0.5 + 0.5); data.append(u[i * 3 + 1]); data.append(u[i * 3 + 2]); data.append(1) }
         var idx = [UInt32](); idx.reserveCapacity((count - 1) * 6)
         for i in 0..<UInt32(count - 1) { idx += [i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2] }
-        let g = SCNGeometry(sources: [
-            SCNGeometrySource(data: pd, semantic: .vertex, vectorCount: count * 2, usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
-            SCNGeometrySource(data: ud, semantic: .normal, vectorCount: count * 2, usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
-        ], elements: [SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles, primitiveCount: idx.count / 3, bytesPerIndex: 4)])
-        g.materials = [foamMat]
-        r.trail.geometry = g
+        r.trail.geometry = Self.dataMesh(positions: Array(p[0..<(count * 6)]), data: data, indices: idx, material: foamMat)
     }
 
     private func buildSpray(camPos: SIMD3<Float>, camQ: simd_quatf, fov: Float) {
@@ -637,7 +646,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         let right = camQ.act(SIMD3<Float>(1, 0, 0)), up = camQ.act(SIMD3<Float>(0, 1, 0)), fwd = camQ.act(SIMD3<Float>(0, 0, -1))
         let sc = Float(viewSize.height * min(pixelScale, 1.75)) / (2 * tan(fov * .pi / 360))   // pixels per metre, one metre away
         var v = [Float](), d = [Float](), idx = [UInt32]()
-        v.reserveCapacity(4096 * 3); d.reserveCapacity(4096 * 3); idx.reserveCapacity(4096 * 2)
+        v.reserveCapacity(4096 * 3); d.reserveCapacity(4096 * 4); idx.reserveCapacity(4096 * 2)
         let corners: [(Float, Float)] = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
         var n: UInt32 = 0
         for i in 0..<np where alpha[i] > 0.004 {
@@ -652,18 +661,13 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
             for (cx, cy) in corners {
                 let q = p + right * (cx * half) + up * (cy * half)
                 v.append(q.x); v.append(q.y); v.append(q.z)
-                d.append(cx * 0.5 + 0.5); d.append(cy * 0.5 + 0.5); d.append(a)
+                d.append(cx * 0.5 + 0.5); d.append(cy * 0.5 + 0.5); d.append(a); d.append(1)
             }
             idx += [n, n + 1, n + 2, n, n + 2, n + 3]
             n += 4
         }
         guard n > 0 else { spray.geometry = nil; return }
-        let g = SCNGeometry(sources: [
-            SCNGeometrySource(data: v.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .vertex, vectorCount: Int(n), usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
-            SCNGeometrySource(data: d.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .normal, vectorCount: Int(n), usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
-        ], elements: [SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles, primitiveCount: idx.count / 3, bytesPerIndex: 4)])
-        g.materials = [sprayMat]
-        spray.geometry = g
+        spray.geometry = Self.dataMesh(positions: v, data: d, indices: idx, material: sprayMat)
     }
 
     private func smooth(_ a: Float, _ b: Float, _ x: Float) -> Float { let t = max(0, min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
@@ -724,7 +728,14 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
 
         let rows = H["rows"] as? [[String: Any]] ?? []
         if H["board"] as? Bool ?? true, !rows.isEmpty {
-            let w: CGFloat = 214 * z, head: CGFloat = 30 * z, rowH: CGFloat = 32 * z
+            let head: CGFloat = 30 * z, rowH: CGFloat = 32 * z
+            var w: CGFloat = 214 * z   // wider if a row needs it: number, chip, name, holeshot badge, gap
+            for r in rows {
+                let name = Self.line(r["name"] as? String ?? "", Self.font(bold, 11 * z), white, kern: 1.1 * z)
+                let gap = Self.line(r["gap"] as? String ?? "", Self.font(medium, 12 * z), white)
+                let badge: CGFloat = (r["hs"] as? Bool ?? false) ? 30 * z : 0
+                w = max(w, 78 * z + name.width + badge + 12 * z + gap.width + 12 * z)
+            }
             boardSize = CGSize(width: w, height: head + rowH * CGFloat(rows.count))
             show(boardNode, card(boardSize) { c in
                 c.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: self.boardSize), cornerWidth: 8 * z, cornerHeight: 8 * z, transform: nil)); c.clip()
