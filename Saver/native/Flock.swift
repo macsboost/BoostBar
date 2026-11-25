@@ -56,7 +56,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     /// How far the flock angle turns all the traffic from the default (used for the Starlink lanes).
     private var rot: Float { Float(((cfg.heading ?? Self.defaultHeading) - Self.defaultHeading) * .pi / 180) }
     private func rot2(_ x: Float, _ y: Float) -> SIMD3<Float> {
-        simd_normalize(SIMD3(x * cos(rot) - y * sin(rot), x * sin(rot) + y * cos(rot), 0))
+        let c: Float = cos(rot), s: Float = sin(rot)
+        let rx: Float = x * c - y * s
+        let ry: Float = x * s + y * c
+        return simd_normalize(SIMD3<Float>(rx, ry, 0))
     }
     private var perp: SIMD3<Float> { SIMD3(-dir.y, dir.x, 0) }
     /// Half the view box (plus margins) along the flight direction and across it.
@@ -64,12 +67,17 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     private func acrossHalf(_ w: Float, _ h: Float) -> Float { abs(perp.x) * w + abs(perp.y) * h }
     /// Past the downstream edge (or drifted far out to the side).
     private func offDownstream(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bool {
-        x * dir.x + y * dir.y > alongHalf(w, h) || abs(x * perp.x + y * perp.y) > acrossHalf(w, h) + 6
+        let along: Float = x * dir.x + y * dir.y
+        let side: Float = x * perp.x + y * perp.y
+        return along > alongHalf(w, h) || abs(side) > acrossHalf(w, h) + 6
     }
     /// A point just past the upstream edge, anywhere across the flock's path.
     private func upstreamPoint(_ w: Float, _ h: Float, spread: Float) -> SIMD2<Float> {
-        let u = Float.random(in: -1...1) * acrossHalf(w, h) * spread, a = alongHalf(w, h)
-        return SIMD2(perp.x * u - dir.x * a, perp.y * u - dir.y * a)
+        let u: Float = Float.random(in: -1...1) * acrossHalf(w, h) * spread
+        let a: Float = alongHalf(w, h)
+        let x: Float = perp.x * u - dir.x * a
+        let y: Float = perp.y * u - dir.y * a
+        return SIMD2(x, y)
     }
     private var lat: SIMD3<Float> { simd_normalize(perp * 0.45 + SIMD3(0, 0, 0.9)) }
     private let fov: Float = 28
@@ -443,10 +451,21 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for (k, d) in [a, b].enumerated() {
             // each leg at its own altitude band, its lanes spread evenly through it (no two lanes at one depth)
             let (lo, hi) = Self.legZ[k]
-            let depths = (0..<perDir).map { lo + 1 + (Float($0) + 0.5) / Float(perDir) * (hi - lo - 2) }.shuffled()
+            let span: Float = hi - lo - 2, nf = Float(perDir)
+            var depths: [Float] = []
             for i in 0..<perDir {
-                let off = perDir == 1 ? Float.random(in: -0.25...0.25) : (Float(i) / Float(perDir - 1) * 2 - 1) * 0.8 + .random(in: -0.06...0.06)
-                lanes.append(Lane(d: d, leg: k, off: off, z: depths[i], speed: (6 + .random(in: 0...3)) * Float(cfg.speed)))
+                let f: Float = (Float(i) + 0.5) / nf
+                depths.append(lo + 1 + f * span)
+            }
+            depths.shuffle()
+            for i in 0..<perDir {
+                var off: Float = Float.random(in: -0.25...0.25)
+                if perDir > 1 {
+                    let f: Float = Float(i) / Float(perDir - 1)
+                    off = (f * 2 - 1) * 0.8 + Float.random(in: -0.06...0.06)
+                }
+                let speed: Float = (6 + Float.random(in: 0...3)) * Float(cfg.speed)
+                lanes.append(Lane(d: d, leg: k, off: off, z: depths[i], speed: speed))
             }
         }
         lanes.shuffle()
@@ -575,8 +594,11 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             }
         } else {
             // upstream of its own direction of travel, anywhere across the view's width
-            let u = Float.random(in: -1...1) * (abs(d.y) * w + abs(d.x) * h + 30), a = abs(d.x) * w + abs(d.y) * h + band
-            x = -d.y * u - d.x * a; y = d.x * u - d.y * a
+            let across: Float = abs(d.y) * w + abs(d.x) * h + 30
+            let u: Float = Float.random(in: -1...1) * across
+            let a: Float = abs(d.x) * w + abs(d.y) * h + band
+            x = -d.y * u - d.x * a
+            y = d.x * u - d.y * a
         }
         g.p = SIMD3(x, y, z)
         g.v = d * (6 + .random(in: 0...3)) * Float(cfg.speed)
@@ -595,8 +617,9 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             let (w, h) = viewHalf(p.z)
             let inside = abs(p.x) < w + 4 && abs(p.y) < h + 4
             let d = simd_normalize(ghosts[k].v)
-            let gone = p.x * d.x + p.y * d.y > abs(d.x) * w + abs(d.y) * h + 48
-                || abs(-p.x * d.y + p.y * d.x) > abs(d.y) * w + abs(d.x) * h + 48
+            let along: Float = p.x * d.x + p.y * d.y, side: Float = p.y * d.x - p.x * d.y
+            let alongMax: Float = abs(d.x) * w + abs(d.y) * h + 48, sideMax: Float = abs(d.y) * w + abs(d.x) * h + 48
+            let gone = along > alongMax || abs(side) > sideMax
             if inside || gone { placeGhost(&ghosts[k], anywhere: false) }
         }
         // the mesh's nodes: satellites first, then ghosts
@@ -920,7 +943,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         for o in craft where o !== c && o.lvl >= 0 && o.lvl < n && o.inch.isEmpty == c.inch.isEmpty { count[o.lvl] += 1 }
         let least = count.min() ?? 0
         c.lvl = count.indices.filter { count[$0] == least }.randomElement() ?? 0
-        return (n == 1 ? (lo + hi) / 2 : lo + Float(c.lvl) * (hi - lo) / Float(n - 1)) + .random(in: -0.2...0.2)
+        let jitter = Float.random(in: -0.2...0.2)
+        if n == 1 { return (lo + hi) / 2 + jitter }
+        let step: Float = (hi - lo) / Float(n - 1)
+        return lo + Float(c.lvl) * step + jitter
     }
 
     private func spawn(_ c: Craft, initial: Bool) {
