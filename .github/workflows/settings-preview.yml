@@ -26,7 +26,7 @@ jobs:
           for f in snaps/*.png; do
             n=$(basename "$f" .png)
             sips -s format jpeg -s formatOptions 70 "$f" --out "snaps/$n.jpg" >/dev/null 2>&1 || true
-            echo "IMG_BEGIN ${n}.jpg"; base64 -i "snaps/$n.jpg" | tr -d '\n'; echo; echo "IMG_END"
+            echo "IMG_BEGIN ${n}.jpg"; base64 -b 4000 -i "snaps/$n.jpg"; echo "IMG_END"   # wrapped: very long log lines get dropped
           done
       - name: Menu bar samples (PNG)
         run: |
