@@ -150,7 +150,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     }
 
     /// Value noise shared by the water and the wake foam (the same hash the web version uses).
-    private static let noise = """
+    static let noise = """
     float jrH(float2 p) { float3 p3 = fract(float3(p.x, p.y, p.x) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
     float jrN(float2 p) {
       float2 i = floor(p);
@@ -166,7 +166,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     out.wpos = (scn_node.modelTransform * _geometry.position).xyz;
     """
     /// Extra per-vertex numbers (0…1 each) ride in the vertex colour; these materials replace their colour anyway.
-    private static let passData = """
+    static let passData = """
     #pragma varyings
     float3 wpos;
     float3 vdat;
@@ -176,7 +176,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     """
 
     /// Positions plus one RGBA "colour" of data per vertex, as a triangle mesh.
-    private static func dataMesh(positions: [Float], data: [Float], indices: [UInt32], material: SCNMaterial) -> SCNGeometry {
+    static func dataMesh(positions: [Float], data: [Float], indices: [UInt32], material: SCNMaterial) -> SCNGeometry {
         let n = positions.count / 3
         let g = SCNGeometry(sources: [
             SCNGeometrySource(data: positions.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .vertex, vectorCount: n, usesFloatComponents: true,
@@ -188,14 +188,64 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         return g
     }
 
-    private func unlit(geometry: String, fragment: String) -> SCNMaterial {
+    static let foamFragment = noise + "\n" + """
+    #pragma arguments
+    float uT;
+    #pragma varyings
+    float3 wpos;
+    float3 vdat;
+    #pragma body
+    {
+    float2 wp = in.wpos.xz;
+    float a = clamp(in.vdat.y, 0.0, 1.0);
+    float x = abs(in.vdat.x * 2.0 - 1.0);
+    float edge = smoothstep(0.45, 0.85, x) * (1.0 - smoothstep(0.85, 1.0, x));
+    float core = (1.0 - smoothstep(0.0, 0.55, x)) * (1.0 - a) * (1.0 - a);
+    float2 fw = fwidth(wp);
+    float fp = max(fw.x, fw.y);
+    float f = mix(jrN(wp * 2.1 + uT * 0.5), 0.5, smoothstep(0.3, 0.75, fp * 2.1)) * 0.6 + mix(jrN(wp * 5.7 - uT * 0.8), 0.5, smoothstep(0.3, 0.75, fp * 5.7)) * 0.4;
+    float al = (edge * 0.5 + core) * smoothstep(0.3, 0.72, f + 0.42 * (1.0 - a)) * pow(1.0 - a, 1.4) * in.vdat.z * 0.9;
+    _output.color = float4(float3(0.79, 0.89, 0.91) * al, al);
+    }
+    """
+    static let sprayFragment = """
+    #pragma varyings
+    float3 wpos;
+    float3 vdat;
+    #pragma body
+    {
+    float d = length(in.vdat.xy - float2(0.5, 0.5));
+    float al = in.vdat.z * (1.0 - smoothstep(0.12, 0.5, d));
+    _output.color = float4(float3(0.85, 0.91, 0.96) * al, al);
+    }
+    """
+
+    static func unlit(geometry: String, fragment: String, entry: SCNShaderModifierEntryPoint = .fragment) -> SCNMaterial {
         let m = SCNMaterial()
         m.lightingModel = .constant
         m.diffuse.contents = NSColor.white
         m.isDoubleSided = true
-        m.shaderModifiers = [.geometry: geometry, .fragment: fragment]
+        m.shaderModifiers = [.geometry: geometry, entry: fragment]
         return m
     }
+
+    /// TEMPORARY (checks): JETRACE_FX picks how the wake and spray hand their colour over.
+    static var fx: String { ProcessInfo.processInfo.environment["JETRACE_FX"] ?? "fragment" }
+    static func fxMaterial(_ fragment: String, _ mode: String) -> SCNMaterial {
+        var f = fragment
+        var entry = SCNShaderModifierEntryPoint.fragment
+        if mode.hasPrefix("surface") {
+            entry = .surface
+            f = f.replacingOccurrences(of: "_output.color = ", with: "_surface.diffuse = ")
+            if mode == "surface" { f = f.replacingOccurrences(of: ") * al, al);", with: "), al);") }
+        }
+        let m = unlit(geometry: passData, fragment: f, entry: entry)
+        m.blendMode = .alpha
+        m.writesToDepthBuffer = false
+        return m
+    }
+    static func makeFoam(_ mode: String = fx) -> SCNMaterial { fxMaterial(foamFragment, mode) }
+    static func makeSpray(_ mode: String = fx) -> SCNMaterial { fxMaterial(sprayFragment, mode) }
 
     private func setUpStage() {
         scene.background.contents = NSColor.black
@@ -223,7 +273,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(ambNode)
 
         // sky: a dome that follows the camera, with the X1 sim's daytime sky and drifting clouds
-        skyMat = unlit(geometry: """
+        skyMat = Self.unlit(geometry: """
         #pragma varyings
         float3 sdir;
         #pragma body
@@ -271,7 +321,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(sky)
 
         // water: the X1 sim's water, with the two finer ripple layers the race cameras need close to the surface
-        waterMat = unlit(geometry: Self.worldPos, fragment: Self.noise + "\n" + """
+        waterMat = Self.unlit(geometry: Self.worldPos, fragment: Self.noise + "\n" + """
         float jrW(float2 p, float t, float4 ow, float2 ow2) {
           return jrN(p * 0.11 + t * 0.09) * ow.x + jrN(p * 0.27 - t * 0.13) * 0.55 * ow.y + jrN(p * 0.73 + t * 0.25) * 0.28 * ow.z
                + jrN(p * 1.9 - t * 0.42) * 0.13 * ow.w + jrN(p * 4.7 + t * 0.8) * 0.06 * ow2.x + jrN(p * 11.3 - t * 1.3) * 0.026 * ow2.y;
@@ -326,44 +376,11 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(water)
 
         // wakes: a ribbon of foam behind each ski (the ribbons are rebuilt every frame from the script's points)
-        foamMat = unlit(geometry: Self.passData, fragment: Self.noise + "\n" + """
-        #pragma arguments
-        float uT;
-        #pragma varyings
-        float3 wpos;
-        float3 vdat;
-        #pragma body
-        {
-        float2 wp = in.wpos.xz;
-        float a = clamp(in.vdat.y, 0.0, 1.0);
-        float x = abs(in.vdat.x * 2.0 - 1.0);
-        float edge = smoothstep(0.45, 0.85, x) * (1.0 - smoothstep(0.85, 1.0, x));
-        float core = (1.0 - smoothstep(0.0, 0.55, x)) * (1.0 - a) * (1.0 - a);
-        float2 fw = fwidth(wp);
-        float fp = max(fw.x, fw.y);
-        float f = mix(jrN(wp * 2.1 + uT * 0.5), 0.5, smoothstep(0.3, 0.75, fp * 2.1)) * 0.6 + mix(jrN(wp * 5.7 - uT * 0.8), 0.5, smoothstep(0.3, 0.75, fp * 5.7)) * 0.4;
-        float al = (edge * 0.5 + core) * smoothstep(0.3, 0.72, f + 0.42 * (1.0 - a)) * pow(1.0 - a, 1.4) * in.vdat.z * 0.9;
-        _output.color = float4(float3(0.79, 0.89, 0.91) * al, al);
-        }
-        """)
-        foamMat.blendMode = .alpha
-        foamMat.writesToDepthBuffer = false
+        foamMat = Self.makeFoam()
         foamMat.readsFromDepthBuffer = false   // flat on the water and drawn straight after it, so nothing can be in front
 
         // spray: soft round flecks that face the camera
-        sprayMat = unlit(geometry: Self.passData, fragment: """
-        #pragma varyings
-        float3 wpos;
-        float3 vdat;
-        #pragma body
-        {
-        float d = length(in.vdat.xy - float2(0.5, 0.5));
-        float al = in.vdat.z * (1.0 - smoothstep(0.12, 0.5, d));
-        _output.color = float4(float3(0.85, 0.91, 0.96) * al, al);
-        }
-        """)
-        sprayMat.blendMode = .alpha
-        sprayMat.writesToDepthBuffer = false
+        sprayMat = Self.makeSpray()
         spray.renderingOrder = 30
         scene.rootNode.addChildNode(spray)
 

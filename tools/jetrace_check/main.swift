@@ -107,42 +107,45 @@ for cam in ["chase", "onboard", "side", "front", "heli", "blimp", "buoy", "orbit
     let k = Take("cam_\(cam)", c)
     k.run(1); k.skip(34, settle: 2.5); k.shot("a")
 }
-// PROBE (temporary): which per-vertex channels reach a fragment shader modifier on an unlit material?
+// PROBE (temporary): which way of handing the wake's and spray's colour to SceneKit blends properly?
 do {
     let scene = SCNScene(); scene.background.contents = NSColor.black
     let cam = SCNNode(); cam.camera = SCNCamera(); cam.camera?.usesOrthographicProjection = true; cam.camera?.orthographicScale = 2.2
     cam.simdPosition = SIMD3(0, 0, 10); scene.rootNode.addChildNode(cam)
-    func src(_ a: [Float], _ sem: SCNGeometrySource.Semantic, _ n: Int) -> SCNGeometrySource {
-        SCNGeometrySource(data: a.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: sem, vectorCount: 4, usesFloatComponents: true, componentsPerVector: n, bytesPerComponent: 4, dataOffset: 0, dataStride: 4 * n)
-    }
-    let frag = "#pragma varyings\nfloat3 pdat;\n#pragma body\n{\n_output.color = float4(in.pdat, 1.0);\n}\n"
-    let frag2 = "#pragma varyings\nfloat3 wpos;\nfloat3 pdat;\n#pragma body\n{\n_output.color = float4(in.pdat, 1.0);\n}\n"
-    let variants: [(String, SCNGeometrySource, String, String)] = [
-        ("color", src([0, 0, 0.5, 1, 1, 0, 0.5, 1, 1, 1, 0.5, 1, 0, 1, 0.5, 1], .color, 4), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = _geometry.color.rgb;\n", frag),
-        ("normal", src([0, 0, 0.5, 1, 0, 0.5, 1, 1, 0.5, 0, 1, 0.5], .normal, 3), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = _geometry.normal;\n", frag),
-        ("texcoord", src([0, 0, 1, 0, 1, 1, 0, 1], .texcoord, 2), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = float3(_geometry.texcoords[0], 0.5);\n", frag),
-        ("color2", src([0, 0, 0.5, 1, 1, 0, 0.5, 1, 1, 1, 0.5, 1, 0, 1, 0.5, 1], .color, 4), "#pragma varyings\nfloat3 wpos;\nfloat3 pdat;\n#pragma body\nout.wpos = (scn_node.modelTransform * _geometry.position).xyz;\nout.pdat = _geometry.color.rgb;\n", frag2),
-        ("broken", src([0, 0, 0.5, 1, 1, 0, 0.5, 1, 1, 1, 0.5, 1, 0, 1, 0.5, 1], .color, 4), "#pragma varyings\nfloat3 pdat;\n#pragma body\nout.pdat = _geometry.color.rgb;\n", "#pragma varyings\nfloat3 pdat;\n#pragma body\nPROBE_BROKEN_ON_PURPOSE;\n"),
+    let back = SCNPlane(width: 9, height: 1.2)
+    let bm = SCNMaterial(); bm.lightingModel = .constant; bm.diffuse.contents = NSColor(srgbRed: 0.1, green: 0.25, blue: 0.7, alpha: 1); back.materials = [bm]
+    let bn = SCNNode(geometry: back); bn.simdPosition = SIMD3(0, 0, -1); scene.rootNode.addChildNode(bn)
+    let pos: [Float] = [-0.4, -0.4, 0, 0.4, -0.4, 0, 0.4, 0.4, 0, -0.4, 0.4, 0]
+    let idx: [UInt32] = [0, 1, 2, 0, 2, 3]
+    let dot: [Float] = [0, 0, 0.4, 1, 1, 0, 0.4, 1, 1, 1, 0.4, 1, 0, 1, 0.4, 1]            // u, v, alpha
+    let ribbon: [Float] = [0, 0.1, 1, 1, 1, 0.1, 1, 1, 1, 0.7, 1, 1, 0, 0.7, 1, 1]          // edge, age, strength
+    let simple = JetRace.unlit(geometry: JetRace.passData, fragment: "#pragma varyings\nfloat3 wpos;\nfloat3 vdat;\n#pragma body\n{\n_output.color = float4(in.vdat * 0.4, 0.4);\n}\n")
+    simple.blendMode = .alpha; simple.writesToDepthBuffer = false
+    let list: [(SCNMaterial, [Float])] = [
+        (simple, dot), (JetRace.makeSpray("fragment"), dot), (JetRace.makeSpray("surface"), dot), (JetRace.makeSpray("surfacepm"), dot),
+        (JetRace.makeFoam("fragment"), ribbon), (JetRace.makeFoam("surface"), ribbon), (JetRace.makeFoam("surfacepm"), ribbon),
     ]
-    for (i, v) in variants.enumerated() {
-        for blend in [false, true] {
-            let pos: [Float] = [-0.4, -0.4, 0, 0.4, -0.4, 0, 0.4, 0.4, 0, -0.4, 0.4, 0]
-            let idx: [UInt32] = [0, 1, 2, 0, 2, 3]
-            let g = SCNGeometry(sources: [src(pos, .vertex, 3), v.1], elements: [SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles, primitiveCount: 2, bytesPerIndex: 4)])
-            let m = SCNMaterial(); m.lightingModel = .constant; m.diffuse.contents = NSColor.white; m.isDoubleSided = true
-            m.shaderModifiers = [.geometry: v.2, .fragment: v.3]
-            if blend { m.blendMode = .alpha; m.writesToDepthBuffer = false }
-            g.materials = [m]
-            let n = SCNNode(geometry: g); n.simdPosition = SIMD3(Float(i) * 0.9 - 1.8, blend ? -0.5 : 0.5, 0)
-            scene.rootNode.addChildNode(n)
-        }
+    for (i, v) in list.enumerated() {
+        v.0.setValue(NSNumber(value: 1.5), forKey: "uT")
+        let n = SCNNode(geometry: JetRace.dataMesh(positions: pos, data: v.1, indices: idx, material: v.0))
+        n.simdPosition = SIMD3(Float(i) * 0.9 - 2.7, 0, 0)
+        scene.rootNode.addChildNode(n)
     }
     let r = SCNRenderer(device: device, options: nil); r.scene = scene; r.pointOfView = cam
     let img = r.snapshot(atTime: 0, with: size, antialiasingMode: .none)
     if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) {
         try? jpg.write(to: outDir.appendingPathComponent("probe.jpg"))
     }
-    print("PROBE: colour, normal, texcoord, colour with two varyings, broken on purpose; top row opaque, bottom row blended")
+    print("PROBE over blue: plain alpha 0.4 | spray: fragment, surface, surface premultiplied | wake: fragment, surface, surface premultiplied")
 }
+for mode in ["surface", "surfacepm"] {
+    setenv("JETRACE_FX", mode, 1)
+    let a = Take("fx_\(mode)", JetRaceConfig())
+    var n = 0
+    while (a.state["phase"] as? String) == "grid" && n < 400 { a.run(1.0 / 30); n += 1 }
+    a.run(1.8); a.shot("start")
+    a.skip(12); a.shot("lap")
+}
+unsetenv("JETRACE_FX")
 print(failed ? "FAILED" : "DONE")
 exit(failed ? 1 : 0)
