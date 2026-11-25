@@ -15,6 +15,18 @@ print("METAL:", device.name)
 let size = CGSize(width: 1280, height: 720)
 var failed = false
 
+/// A frame as JPEG, showing what reaches the screen. The frame buffer's alpha is dropped rather than flattened: a
+/// screen saver's view is opaque, and JPEG conversion would otherwise wash every see-through thing (spray, wakes, the
+/// scoreboard) towards white.
+func jpeg(_ img: NSImage, quality: Double = 0.8) -> Data? {
+    guard let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil), let space = cg.colorSpace, let provider = cg.dataProvider else { return nil }
+    let first = [CGImageAlphaInfo.premultipliedFirst, .first, .noneSkipFirst].contains(cg.alphaInfo)
+    let info = (cg.bitmapInfo.rawValue & ~CGBitmapInfo.alphaInfoMask.rawValue) | (first ? CGImageAlphaInfo.noneSkipFirst : CGImageAlphaInfo.noneSkipLast).rawValue
+    guard let opaque = CGImage(width: cg.width, height: cg.height, bitsPerComponent: cg.bitsPerComponent, bitsPerPixel: cg.bitsPerPixel, bytesPerRow: cg.bytesPerRow,
+                               space: space, bitmapInfo: CGBitmapInfo(rawValue: info), provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { return nil }
+    return NSBitmapImageRep(cgImage: opaque).representation(using: .jpeg, properties: [.compressionFactor: quality])
+}
+
 final class Take {
     let name: String
     let race: JetRace
@@ -55,8 +67,7 @@ final class Take {
 
     func shot(_ label: String) {
         let img = renderer.snapshot(atTime: t, with: size, antialiasingMode: .multisampling4X)
-        guard let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
-              let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) else { print("NO IMAGE \(name)_\(label)"); failed = true; return }
+        guard let jpg = jpeg(img) else { print("NO IMAGE \(name)_\(label)"); failed = true; return }
         try? jpg.write(to: outDir.appendingPathComponent("\(name)_\(label).jpg"))
         let s = state
         print("\(name)_\(label): phase \(s["phase"] ?? "?") t \(s["t"] ?? 0) shot \(s["shot"] ?? "?") order \(order) celebration \(s["celeb"] ?? "?")")
@@ -133,9 +144,7 @@ do {
     }
     let r = SCNRenderer(device: device, options: nil); r.scene = scene; r.pointOfView = cam
     let img = r.snapshot(atTime: 0, with: size, antialiasingMode: .none)
-    if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) {
-        try? jpg.write(to: outDir.appendingPathComponent("probe.jpg"))
-    }
+    if let jpg = jpeg(img, quality: 0.9) { try? jpg.write(to: outDir.appendingPathComponent("probe.jpg")) }
     print("PROBE over blue: plain alpha 0.4 | spray: fragment, surface, surface premultiplied | wake: fragment, surface, surface premultiplied")
 }
 for mode in ["surface", "surfacepm"] {
