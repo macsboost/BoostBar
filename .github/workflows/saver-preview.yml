@@ -57,6 +57,8 @@ jobs:
         run: |
           swift tools/webkit_check.swift out/starships.html '{"count":4,"oxidation":0.8}' || true
           swift tools/webkit_check.swift out/saver.html '{"count":5}' | grep -v "^IMG\|^[A-Za-z0-9+/=]\{200,\}" || true
+          # the Jet Racers page, as BoostBar's Preview window shows it (frames are wrapped: very long log lines get dropped)
+          swift tools/webkit_check.swift out/jetrace.html '{"winner":"8","celebration":"dab"}' | fold -w 4000 | sed 's/^IMG_BEGIN webkit.jpg/IMG_BEGIN webkit_jetrace.jpg/' || true
       - name: Screenshots
         run: |
           npm install --no-save --silent puppeteer-core@23

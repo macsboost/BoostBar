@@ -277,7 +277,7 @@ const CORE = (() => {
   const NATIVE = typeof document === 'undefined';
   const errors = [];
   const $ = (id) => document.getElementById(id);
-  const fail = (m) => { errors.push(String(m)); if (NATIVE) return; const e = $('err'); e.style.display = 'block'; e.textContent += m + '\n'; };
+  const fail = (m) => { errors.push(String(m)); if (NATIVE) return; console.error(m); const e = $('err'); e.style.display = 'block'; e.textContent += m + '\n'; };
   if (!NATIVE) {
     window.addEventListener('error', (e) => fail((e.message || 'error') + ' @' + (e.lineno || '')));
     window.addEventListener('unhandledrejection', (e) => fail('promise: ' + (e.reason && e.reason.message ? e.reason.message : e.reason)));
