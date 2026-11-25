@@ -750,7 +750,7 @@ const CORE = (() => {
       const r = racers[i], vf = clamp(k.v / CORE.V_TOP, 0, 1.2);
       const idle = 1 - clamp(k.v / 4, 0, 1);
       const chop = vf * (0.035 * Math.sin(now * 11 + r.ph) + 0.025 * Math.sin(now * 17.3 + r.ph * 2));
-      const y = -0.25 + 0.135 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed
+      const y = -0.25 + 0.2 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed
       r.pos.set(k.x, 0, -k.y);
       r.fwd.set(Math.cos(k.th), 0, -Math.sin(k.th)); r.left.set(-Math.sin(k.th), 0, -Math.cos(k.th));
       r.vel.copy(r.fwd).multiplyScalar(k.v);
