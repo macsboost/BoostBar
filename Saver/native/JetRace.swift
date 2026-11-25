@@ -150,7 +150,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     }
 
     /// Value noise shared by the water and the wake foam (the same hash the web version uses).
-    static let noise = """
+    private static let noise = """
     float jrH(float2 p) { float3 p3 = fract(float3(p.x, p.y, p.x) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
     float jrN(float2 p) {
       float2 i = floor(p);
@@ -166,7 +166,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     out.wpos = (scn_node.modelTransform * _geometry.position).xyz;
     """
     /// Extra per-vertex numbers (0…1 each) ride in the vertex colour; these materials replace their colour anyway.
-    static let passData = """
+    private static let passData = """
     #pragma varyings
     float3 wpos;
     float3 vdat;
@@ -176,7 +176,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     """
 
     /// Positions plus one RGBA "colour" of data per vertex, as a triangle mesh.
-    static func dataMesh(positions: [Float], data: [Float], indices: [UInt32], material: SCNMaterial) -> SCNGeometry {
+    private static func dataMesh(positions: [Float], data: [Float], indices: [UInt32], material: SCNMaterial) -> SCNGeometry {
         let n = positions.count / 3
         let g = SCNGeometry(sources: [
             SCNGeometrySource(data: positions.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .vertex, vectorCount: n, usesFloatComponents: true,
@@ -188,7 +188,8 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         return g
     }
 
-    static let foamFragment = noise + "\n" + """
+    private static let foamFragment = noise + "\n" + """
+    #pragma transparent
     #pragma arguments
     float uT;
     #pragma varyings
@@ -208,7 +209,8 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     _output.color = float4(float3(0.79, 0.89, 0.91) * al, al);
     }
     """
-    static let sprayFragment = """
+    private static let sprayFragment = """
+    #pragma transparent
     #pragma varyings
     float3 wpos;
     float3 vdat;
@@ -220,33 +222,23 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     }
     """
 
-    static func unlit(geometry: String, fragment: String, entry: SCNShaderModifierEntryPoint = .fragment) -> SCNMaterial {
+    private static func unlit(geometry: String, fragment: String) -> SCNMaterial {
         let m = SCNMaterial()
         m.lightingModel = .constant
         m.diffuse.contents = NSColor.white
         m.isDoubleSided = true
-        m.shaderModifiers = [.geometry: geometry, entry: fragment]
+        m.shaderModifiers = [.geometry: geometry, .fragment: fragment]
         return m
     }
 
-    /// TEMPORARY (checks): JETRACE_FX picks how the wake and spray hand their colour over.
-    static var fx: String { ProcessInfo.processInfo.environment["JETRACE_FX"] ?? "fragment" }
-    static func fxMaterial(_ fragment: String, _ mode: String) -> SCNMaterial {
-        var f = fragment
-        var entry = SCNShaderModifierEntryPoint.fragment
-        if mode.hasPrefix("surface") {
-            entry = .surface
-            f = f.replacingOccurrences(of: "_output.color = ", with: "_surface.diffuse = ")
-            if mode == "surface" { f = f.replacingOccurrences(of: ") * al, al);", with: "), al);") }
-        }
-        let m = unlit(geometry: passData, fragment: f, entry: entry)
+    /// A see-through unlit material whose fragment modifier sets the final (premultiplied) colour itself. The modifier
+    /// must carry `#pragma transparent`: without it SceneKit draws the material solid, whatever alpha it writes.
+    private static func blended(_ fragment: String) -> SCNMaterial {
+        let m = unlit(geometry: passData, fragment: fragment)
         m.blendMode = .alpha
-        m.transparency = 0.999   // SceneKit only blends a material it takes to be see-through; an opaque white one is drawn solid
         m.writesToDepthBuffer = false
         return m
     }
-    static func makeFoam(_ mode: String = fx) -> SCNMaterial { fxMaterial(foamFragment, mode) }
-    static func makeSpray(_ mode: String = fx) -> SCNMaterial { fxMaterial(sprayFragment, mode) }
 
     private func setUpStage() {
         scene.background.contents = NSColor.black
@@ -377,11 +369,11 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(water)
 
         // wakes: a ribbon of foam behind each ski (the ribbons are rebuilt every frame from the script's points)
-        foamMat = Self.makeFoam()
+        foamMat = Self.blended(Self.foamFragment)
         foamMat.readsFromDepthBuffer = false   // flat on the water and drawn straight after it, so nothing can be in front
 
         // spray: soft round flecks that face the camera
-        sprayMat = Self.makeSpray()
+        sprayMat = Self.blended(Self.sprayFragment)
         spray.renderingOrder = 30
         scene.rootNode.addChildNode(spray)
 

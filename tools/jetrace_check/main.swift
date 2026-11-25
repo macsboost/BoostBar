@@ -118,43 +118,5 @@ for cam in ["chase", "onboard", "side", "front", "heli", "blimp", "buoy", "orbit
     let k = Take("cam_\(cam)", c)
     k.run(1); k.skip(34, settle: 2.5); k.shot("a")
 }
-// PROBE (temporary): which way of handing the wake's and spray's colour to SceneKit blends properly?
-do {
-    let scene = SCNScene(); scene.background.contents = NSColor.black
-    let cam = SCNNode(); cam.camera = SCNCamera(); cam.camera?.usesOrthographicProjection = true; cam.camera?.orthographicScale = 2.2
-    cam.simdPosition = SIMD3(0, 0, 10); scene.rootNode.addChildNode(cam)
-    let back = SCNPlane(width: 9, height: 1.2)
-    let bm = SCNMaterial(); bm.lightingModel = .constant; bm.diffuse.contents = NSColor(srgbRed: 0.1, green: 0.25, blue: 0.7, alpha: 1); back.materials = [bm]
-    let bn = SCNNode(geometry: back); bn.simdPosition = SIMD3(0, 0, -1); scene.rootNode.addChildNode(bn)
-    let pos: [Float] = [-0.4, -0.4, 0, 0.4, -0.4, 0, 0.4, 0.4, 0, -0.4, 0.4, 0]
-    let idx: [UInt32] = [0, 1, 2, 0, 2, 3]
-    let dot: [Float] = [0, 0, 0.4, 1, 1, 0, 0.4, 1, 1, 1, 0.4, 1, 0, 1, 0.4, 1]            // u, v, alpha
-    let ribbon: [Float] = [0, 0.1, 1, 1, 1, 0.1, 1, 1, 1, 0.7, 1, 1, 0, 0.7, 1, 1]          // edge, age, strength
-    let simple = JetRace.unlit(geometry: JetRace.passData, fragment: "#pragma varyings\nfloat3 wpos;\nfloat3 vdat;\n#pragma body\n{\n_output.color = float4(in.vdat * 0.4, 0.4);\n}\n")
-    simple.blendMode = .alpha; simple.writesToDepthBuffer = false; simple.transparency = 0.999
-    let list: [(SCNMaterial, [Float])] = [
-        (simple, dot), (JetRace.makeSpray("fragment"), dot), (JetRace.makeSpray("surface"), dot), (JetRace.makeSpray("surfacepm"), dot),
-        (JetRace.makeFoam("fragment"), ribbon), (JetRace.makeFoam("surface"), ribbon), (JetRace.makeFoam("surfacepm"), ribbon),
-    ]
-    for (i, v) in list.enumerated() {
-        v.0.setValue(NSNumber(value: 1.5), forKey: "uT")
-        let n = SCNNode(geometry: JetRace.dataMesh(positions: pos, data: v.1, indices: idx, material: v.0))
-        n.simdPosition = SIMD3(Float(i) * 0.9 - 2.7, 0, 0)
-        scene.rootNode.addChildNode(n)
-    }
-    let r = SCNRenderer(device: device, options: nil); r.scene = scene; r.pointOfView = cam
-    let img = r.snapshot(atTime: 0, with: size, antialiasingMode: .none)
-    if let jpg = jpeg(img, quality: 0.9) { try? jpg.write(to: outDir.appendingPathComponent("probe.jpg")) }
-    print("PROBE over blue: plain alpha 0.4 | spray: fragment, surface, surface premultiplied | wake: fragment, surface, surface premultiplied")
-}
-for mode in ["surface", "surfacepm"] {
-    setenv("JETRACE_FX", mode, 1)
-    let a = Take("fx_\(mode)", JetRaceConfig())
-    var n = 0
-    while (a.state["phase"] as? String) == "grid" && n < 400 { a.run(1.0 / 30); n += 1 }
-    a.run(1.8); a.shot("start")
-    a.skip(12); a.shot("lap")
-}
-unsetenv("JETRACE_FX")
 print(failed ? "FAILED" : "DONE")
 exit(failed ? 1 : 0)

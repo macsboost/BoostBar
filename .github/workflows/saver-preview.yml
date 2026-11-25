@@ -48,7 +48,6 @@ jobs:
           # anything SceneKit or Metal complained about while it ran (a shader that failed to compile shows up here)
           log show --last 4m --style compact --predicate 'process == "jetrace_check"' 2>/dev/null > build/jet_log.txt || true
           grep -i "error:\|failed compiling" build/jet_log.txt | cut -c1-300 | sort | uniq -c | head -40 || true
-          grep "SceneKit\] [0-9]*: " build/jet_log.txt | grep -i "#define\|USE_\|_geometry\|pdat\|vertexColor\|a_color\|PROBE" | cut -c60-320 | head -220 || true
           for f in out/jetrace/*.jpg; do
             sips -s format jpeg -s formatOptions 55 --resampleWidth 640 "$f" --out "build/jet_s.jpg" >/dev/null 2>&1 || continue
             echo "IMG_BEGIN $(basename "$f")"; base64 -b 4000 -i build/jet_s.jpg; echo "IMG_END"
