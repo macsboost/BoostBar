@@ -48,6 +48,7 @@ Source: "{#BuildDir}\saver\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarFlyingCars.scr"; Flags: ignoreversion
 Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarStarships.scr"; Flags: ignoreversion
 Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarStarlink.scr"; Flags: ignoreversion
+Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarJetRacers.scr"; Flags: ignoreversion
 Source: "{#BuildDir}\savers\*.html"; DestDir: "{app}\savers"; Flags: ignoreversion
 
 [Icons]

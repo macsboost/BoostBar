@@ -6,7 +6,7 @@ using Microsoft.Win32;
 
 namespace BoostBar
 {
-    /// The three screen savers installed next to BoostBar.exe: preview, make active, start.
+    /// The four screen savers installed next to BoostBar.exe: preview, make active, start.
     /// Unlike on the Mac, Windows lets an app choose the screen saver, so "Use as My Screen Saver" is one click.
     static class ScreenSavers
     {
@@ -21,6 +21,7 @@ namespace BoostBar
             {
                 case "starships": return "Starships glide across the screen, flaps beating like wings, Raptors glowing.";
                 case "starlink": return "Starlink V2 and V3 satellites beat their solar wings like birds; some arrive folded and unfurl their arrays.";
+                case "jetrace": return "Three jet racers (#16, #8 and #3) race a new buoy course every two minutes. The winner spins out and celebrates.";
                 default: return "X1 SkyRacers fly across the screen in a loose flock, rotors and thruster fans spinning.";
             }
         }

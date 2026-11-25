@@ -97,8 +97,18 @@ jobs:
           Start-Sleep 25
           Shot "smoke_starlink_45"
           if (-not $s2.HasExited) { $s2.Kill() }
+          # Jet Racers with #8 set to win: on the start line, then out on the course
+          '{"jetrace":{"winner":"8","celebration":"backflip","captions":true}}' | Set-Content -Encoding utf8 "$env:APPDATA\BoostBar\Screen Savers.json"
+          Copy-Item build/win/saver/BoostBarSaver.exe build/win/saver/BoostBarJetRacers.scr
+          $s3 = Start-Process build/win/saver/BoostBarJetRacers.scr -ArgumentList "/w" -PassThru
+          Start-Sleep 20
+          Shot "smoke_jetrace_start"
+          Start-Sleep 25
+          Shot "smoke_jetrace_race"
+          "Jet Racers running after 45 s: $(-not $s3.HasExited)" | Add-Content snapshots/smoke.txt
+          if (-not $s3.HasExited) { $s3.Kill() }
           if (-not $app.HasExited) { $app.Kill() }
-          Remove-Item build/win/saver/BoostBarFlyingCars.scr, build/win/saver/BoostBarStarlink.scr, build/win/saver/savers -Recurse -Force
+          Remove-Item build/win/saver/BoostBarFlyingCars.scr, build/win/saver/BoostBarStarlink.scr, build/win/saver/BoostBarJetRacers.scr, build/win/saver/savers -Recurse -Force
           $log = "$env:LOCALAPPDATA\BoostBar\BoostBar.log"
           if (Test-Path $log) { Copy-Item $log snapshots/BoostBar.log; Get-Content $log }
 

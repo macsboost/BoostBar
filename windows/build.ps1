@@ -20,7 +20,7 @@ if ($LASTEXITCODE) { throw "screen saver build failed" }
 $three = "build/saver/three.min.js"; $gltf = "build/saver/GLTFLoader.js"
 if (-not (Test-Path $three)) { Invoke-WebRequest https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js -OutFile $three }
 if (-not (Test-Path $gltf)) { Invoke-WebRequest https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js -OutFile $gltf }
-foreach ($scene in "cars", "starships", "starlink") {
+foreach ($scene in "cars", "starships", "starlink", "jetrace") {
   python tools/build_saver_html.py $three $gltf "$B/savers/$scene.html" $scene
   if ($LASTEXITCODE) { throw "scene page $scene failed" }
 }

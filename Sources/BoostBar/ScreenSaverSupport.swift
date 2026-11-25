@@ -20,7 +20,36 @@ struct SaverOptions: Codable {
     var clouds: Bool? = nil   // Flying Cars: daytime sky with clouds
     var roadster: Bool? = nil // Starships: the red roadster with a spacesuited driver
     var roadsterStable: Bool? = nil // …flying level with the ships instead of tumbling
+    // Jet Racers: who wins ("random", or a racer's number: that racer wins every race), how the winner celebrates,
+    // and how the race is shown. The values are the ones Saver/src/jetrace.js understands (see JetRaceChoices).
+    var winner: String? = nil
+    var celebration: String? = nil
+    var camera: String? = nil
+    var follow: String? = nil
+    var board: Bool? = nil
+    var captions: Bool? = nil
     var savedAt: Double = 0
+}
+
+/// The Jet Racers screen saver's choices: the value the race script understands, and the name shown in Settings.
+enum JetRaceChoices {
+    typealias Choice = (id: String, name: String)
+    static let winners: [Choice] = [
+        ("random", "Random (a fair race)"), ("16", "Skeeter (#16) always wins"), ("8", "Skison (#8) always wins"), ("3", "Jorge (#3) always wins"),
+    ]
+    static let celebrations: [Choice] = [
+        ("random", "Random"), ("shake", "Stand and shake arms"), ("bow", "Take a bow"), ("bow2", "Formal bow, one arm up"),
+        ("backflip", "Backflip off the seat"), ("dab", "Dab"), ("cart", "Shopping cart dance"), ("mower", "Lawn mower"),
+    ]
+    static let cameras: [Choice] = [
+        ("director", "Director (cinematic)"), ("chase", "Chase"), ("onboard", "Onboard"), ("side", "Trackside boat"), ("front", "Lead boat"),
+        ("heli", "Helicopter"), ("blimp", "Overhead"), ("buoy", "Buoy cam"), ("orbit", "Drone orbit"), ("finish", "Finish line"),
+    ]
+    static let follows: [Choice] = [
+        ("leader", "Race leader"), ("16", "Skeeter (#16)"), ("8", "Skison (#8)"), ("3", "Jorge (#3)"),
+    ]
+    static func index(_ list: [Choice], _ id: String?) -> Int { list.firstIndex { $0.id == id } ?? 0 }
+    static func valid(_ list: [Choice], _ id: String?) -> String { list[index(list, id)].id }
 }
 
 enum SaverConfig {
@@ -35,6 +64,7 @@ enum SaverConfig {
         switch scene {
         case "starships": return SaverOptions(count: 6, liveries: [], roadster: true)
         case "starlink": return SaverOptions(count: 5, liveries: ["v15", "v2", "v3", "deploy"], crossing: true, lasers: true)
+        case "jetrace": return SaverOptions(count: 3, liveries: [], winner: "random", celebration: "random", camera: "director", follow: "leader", board: true, captions: false)
         default: return SaverOptions(count: 7, liveries: ["macsboost", "yonder", "xxone"])
         }
     }
@@ -72,6 +102,10 @@ enum SaverConfig {
     /// `window.SAVER_CONFIG = …` for a page.
     static func script(for scene: String) -> String {
         let o = options(for: scene)
+        if scene == "jetrace" {
+            let J = JetRaceChoices.self
+            return "window.SAVER_CONFIG={winner:\"\(J.valid(J.winners, o.winner))\",celebration:\"\(J.valid(J.celebrations, o.celebration))\",camera:\"\(J.valid(J.cameras, o.camera))\",follow:\"\(J.valid(J.follows, o.follow))\",board:\(o.board ?? true),captions:\(o.captions ?? false),preview:false};"
+        }
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
         return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? (scene == "starlink")),lasers:\(o.lasers ?? (scene == "starlink")),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? (scene == "starships")),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),heading:\(o.heading ?? defaultHeading),preview:false};"
     }
@@ -80,16 +114,18 @@ enum SaverConfig {
 /// The screen savers shipped inside BoostBar.app (direct edition): preview, install, start.
 struct BundledSaver {
     let name: String          // bundle name, as shown in System Settings ▸ Screen Saver
-    let scene: String         // "cars" | "starships"
+    let scene: String         // "cars" | "starships" | "starlink" | "jetrace"
     static let flyingCars = BundledSaver(name: "BoostBar Flying Cars", scene: "cars")
     static let starships = BundledSaver(name: "BoostBar Starships", scene: "starships")
     static let starlink = BundledSaver(name: "BoostBar Starlink", scene: "starlink")
-    static let all: [BundledSaver] = [.flyingCars, .starships, .starlink]
+    static let jetRacers = BundledSaver(name: "BoostBar Jet Racers", scene: "jetrace")
+    static let all: [BundledSaver] = [.flyingCars, .starships, .starlink, .jetRacers]
 
     var about: String {
         switch scene {
         case "starships": return "Starships glide across the screen, flaps beating like wings, Raptors glowing."
         case "starlink": return "Starlink V2 and V3 satellites beat their solar wings like birds; some arrive folded and unfurl their arrays."
+        case "jetrace": return "Three jet racers (#16, #8 and #3) race a new buoy course every two minutes. The winner spins out and celebrates."
         default: return "X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries, fans spinning."
         }
     }

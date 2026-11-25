@@ -366,6 +366,23 @@ namespace BoostBar
                       ("Start Now", () => ScreenSavers.Run(scene)), ("Screen Saver Settings…", ScreenSavers.OpenWindowsSettings));
             p.Popup("Hot corner", CornerNames, () => (int)Prefs.CornerSaver, i => Prefs.CornerSaver = (Corner)i);
             p.Note("Rest the pointer there to start your screen saver. Pick a corner Keep Awake and Sleep now don't use.");
+            if (scene == "jetrace")
+            {
+                void Choice(string label, (string Id, string Name)[] list, Func<SaverOptions, string> get, Action<SaverOptions, string> set) =>
+                    p.Popup(label, list.Select(x => x.Name).ToArray(), () => JetRace.Index(list, get(SaverConfig.Load(scene))), i => Change(x => set(x, list[i].Id)));
+                p.Header("Race");
+                Choice("Winner", JetRace.Winners, x => x.Winner, (x, v) => x.Winner = v);
+                p.Note("Random runs a fair race: any of the three can win. Pick a racer and every race is one that racer wins.", small: true);
+                Choice("Winner celebration", JetRace.Celebrations, x => x.Celebration, (x, v) => x.Celebration = v);
+                p.Note("After the finish the winner spins out, then celebrates. Random picks a different celebration each race.", small: true);
+                p.Header("Coverage");
+                Choice("Camera", JetRace.Cameras, x => x.Camera, (x, v) => x.Camera = v);
+                Choice("Follow", JetRace.Follows, x => x.Follow, (x, v) => x.Follow = v);
+                p.Check("Leaderboard", () => SaverConfig.Load(scene).Board, v => Change(x => x.Board = v));
+                p.Check("Camera captions", () => SaverConfig.Load(scene).Captions, v => Change(x => x.Captions = v));
+                p.Note("Changes apply the next time the screen saver starts, and in Preview.", small: true);
+                return;
+            }
             p.Header("Flight");
             p.Slider("How many", 1, scene == "starlink" ? 69 : 20, () => SaverConfig.Load(scene).Count, v => Change(x => x.Count = (int)Math.Round(v)), v => Math.Round(v).ToString("0"));
             p.Slider("Speed", 0.25, 3, () => SaverConfig.Load(scene).Speed, v => Change(x => x.Speed = Math.Round(v, 2)), v => v.ToString("0.00") + "×");

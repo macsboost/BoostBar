@@ -37,6 +37,8 @@ private final class Pane: NSViewController {
 
     private let stack = NSStackView()
     private var card: NSStackView?
+    /// When the section being built only shows some of the time (see `header`).
+    private var sectionVisible: (() -> Bool)?
     private var refreshers: [() -> Void] = []
     private var boxes: [ActionBox] = []
     private let build: (Pane) -> Void
@@ -105,9 +107,10 @@ private final class Pane: NSViewController {
 
     // MARK: Structure
 
-    /// Starts a new card, under a title.
-    func header(_ text: String) {
+    /// Starts a new card, under a title. With `visible`, the title and its card only show while that holds.
+    func header(_ text: String, visible: (() -> Bool)? = nil) {
         card = nil
+        sectionVisible = visible
         let t = NSTextField(labelWithString: text)
         t.font = .systemFont(ofSize: 13, weight: .semibold)
         if let last = stack.arrangedSubviews.last { stack.setCustomSpacing(18, after: last) }
@@ -115,11 +118,13 @@ private final class Pane: NSViewController {
         r.edgeInsets = NSEdgeInsets(top: 0, left: 4, bottom: 0, right: 0)
         stack.addArrangedSubview(r)
         stack.setCustomSpacing(6, after: r)
+        if let visible { refreshers.append { [weak r] in r?.isHidden = !visible() } }
     }
 
     /// Small print under the cards.
     func footnote(_ text: String) {
         card = nil
+        sectionVisible = nil
         let t = NSTextField(wrappingLabelWithString: text)
         t.font = .systemFont(ofSize: 11)
         t.textColor = .tertiaryLabelColor
@@ -150,6 +155,7 @@ private final class Pane: NSViewController {
             box.widthAnchor.constraint(equalToConstant: Self.width - 2 * Self.margin),
         ])
         stack.addArrangedSubview(box)
+        if let visible = sectionVisible { refreshers.append { [weak box] in box?.isHidden = !visible() } }
         card = inner
         return inner
     }
@@ -686,7 +692,23 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     set: { Prefs.cornerSaver = Corner(rawValue: $0) ?? .none; app.applySettings() })
             p.note("Rest the pointer there to start the screen saver chosen in System Settings. Pick a corner Keep Awake and Sleep now don't use.")
 
-            p.header("Flight")
+            // Jet Racers: who wins, how they celebrate, and how the race is covered
+            let isRace = { current.scene == "jetrace" }, J = JetRaceChoices.self
+            func choice(_ label: String, _ list: [JetRaceChoices.Choice], _ key: WritableKeyPath<SaverOptions, String?>) {
+                p.popup(label, items: list.map(\.name), get: { J.index(list, o[keyPath: key]) }, set: { i in change { $0[keyPath: key] = list[i].id } })
+            }
+            p.header("Race", visible: isRace)
+            choice("Winner", J.winners, \.winner)
+            p.note("Random runs a fair race: any of the three can win. Pick a racer and every race is one that racer wins.")
+            choice("Celebration", J.celebrations, \.celebration)
+            p.note("After the finish the winner spins out, then celebrates. Random picks a different celebration each race.")
+            p.header("Coverage", visible: isRace)
+            choice("Camera", J.cameras, \.camera)
+            choice("Follow", J.follows, \.follow)
+            p.check("Leaderboard", get: { o.board ?? true }, set: { v in change { $0.board = v } })
+            p.check("Camera captions", get: { o.captions ?? false }, set: { v in change { $0.captions = v } })
+
+            p.header("Flight", visible: { !isRace() })
             // the choice boxes are liveries (Flying Cars) or satellites (Starlink); Starships has none
             let maxChoices = BundledSaver.all.map(\.choices.count).max() ?? 0
             let boxes = (0..<maxChoices).map { _ in NSButton(checkboxWithTitle: "", target: nil, action: nil) }
@@ -737,7 +759,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      trailing: p.makeButton("Default") { change { $0.heading = nil }; p.refresh() })
             p.check("Stunts (barrel rolls, veers, climbs and dives)", get: { o.stunts }, set: { v in change { $0.stunts = v } })
 
-            p.header("Scene")
+            p.header("Scene", visible: { !isRace() })
             p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
                      value: { String(format: "%.0f%%", $0 * 100) }, caption: "fresh tiles → after re-entry",
                      visible: { current.scene == "starships" })
