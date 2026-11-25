@@ -87,14 +87,6 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         if let u = c.url { NSWorkspace.shared.open(u) }
     }
 
-    @objc private func payAppleCash() {
-        // Apple Cash is sent from Messages: open a conversation to the recipient,
-        // then the $ (Apple Cash) button sends the amount.
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(Self.amount, forType: .string)
-        Self.open("imessage:\(Self.payEmail)")
-    }
-
 #endif
 
 #if APPSTORE
@@ -186,8 +178,6 @@ final class SupportWindow: NSObject, NSWindowDelegate {
 
 #else
         let pays: [(String, Selector, NSColor, String)] = [
-            ("Apple Cash  $\(Self.amount)", #selector(payAppleCash), .systemGreen,
-             "Opens Messages to \(Self.payEmail). Tap the Apple Cash (＄) button and send $\(Self.amount) — the amount is on your clipboard."),
             ("PayPal  $\(Self.amount)", #selector(payPayPal), NSColor(srgbRed: 0, green: 0.44, blue: 0.73, alpha: 1),
              "Pay $\(Self.amount) to \(Self.payEmail) with PayPal"),
             ("Venmo  $\(Self.amount)", #selector(payVenmo), NSColor(srgbRed: 0.0, green: 0.55, blue: 1.0, alpha: 1),
@@ -211,7 +201,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         }
 
         y -= 26
-        let hint = NSTextField(labelWithString: "Card payments are processed by Stripe on biz-cord.com. Apple Cash opens Messages — tap ＄ and send $\(Self.amount).")
+        let hint = NSTextField(labelWithString: "Card payments are processed by Stripe on biz-cord.com.")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
         hint.alignment = .center

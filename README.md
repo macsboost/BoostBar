@@ -206,7 +206,6 @@ Without them, builds fall back to ad-hoc signing.
 BoostBar is free. If you like it, buy me an energy drink ($4.95):
 [PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=mac@supermac.net&item_name=BoostBar%20energy%20drink&amount=4.95&currency_code=USD&no_shipping=1) ·
 [Venmo](https://venmo.com/u/john-mcalpine-16) ·
-Apple Cash to mac@supermac.net ·
 [Card (Stripe)](https://biz-cord.com/boostbar/donate)
 
 More from MacsBoost: [macsboost.com](https://macsboost.com) · [ssi-d.com](https://ssi-d.com) · [x1racing.com](https://x1racing.com) · [buildflyingcars.com](https://buildflyingcars.com) · [biz-cord.com](https://biz-cord.com)
