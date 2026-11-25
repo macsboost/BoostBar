@@ -7,7 +7,10 @@ import Metal
 import SceneKit
 
 let res = URL(fileURLWithPath: CommandLine.arguments[1]), outDir = URL(fileURLWithPath: CommandLine.arguments[2])
-guard let device = MTLCreateSystemDefaultDevice() else { print("NO METAL DEVICE"); exit(1) }
+let device: MTLDevice = {
+    guard let d = MTLCreateSystemDefaultDevice() else { print("NO METAL DEVICE"); exit(1) }
+    return d
+}()
 print("METAL:", device.name)
 let size = CGSize(width: 1280, height: 720)
 var failed = false
