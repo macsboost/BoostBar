@@ -185,6 +185,34 @@ namespace BoostBar
             rebarOriginalRight = -1;
         }
 
+        // Reused between frames so a 60 Hz redraw doesn't allocate: a GDI+ back buffer and a DIB section of the same
+        // size, selected into a memory DC. Each frame draws into the back buffer, copies its pixels into the DIB and
+        // hands that to UpdateLayeredWindow.
+        Bitmap back;
+        IntPtr memDC, dib, dibBits, oldObj;
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct BITMAPINFOHEADER { public int biSize, biWidth, biHeight; public short biPlanes, biBitCount; public int biCompression, biSizeImage, biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant; }
+        [DllImport("gdi32.dll")] static extern IntPtr CreateDIBSection(IntPtr dc, ref BITMAPINFOHEADER bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
+
+        void EnsureBuffers(int w, int h)
+        {
+            if (back != null && back.Width == w && back.Height == h) return;
+            FreeBuffers();
+            back = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
+            memDC = Native.CreateCompatibleDC(IntPtr.Zero);
+            var bmi = new BITMAPINFOHEADER { biSize = Marshal.SizeOf(typeof(BITMAPINFOHEADER)), biWidth = w, biHeight = -h, biPlanes = 1, biBitCount = 32 };
+            dib = CreateDIBSection(memDC, ref bmi, 0, out dibBits, IntPtr.Zero, 0);
+            oldObj = Native.SelectObject(memDC, dib);
+        }
+
+        void FreeBuffers()
+        {
+            if (memDC != IntPtr.Zero) { Native.SelectObject(memDC, oldObj); Native.DeleteDC(memDC); memDC = IntPtr.Zero; }
+            if (dib != IntPtr.Zero) { Native.DeleteObject(dib); dib = IntPtr.Zero; }
+            back?.Dispose(); back = null;
+        }
+
         /// Draws the strip into the window (per-pixel alpha).
         public void Render(StripRenderer r, float widthUnits)
         {
@@ -192,49 +220,49 @@ namespace BoostBar
             var w = Math.Max(4, (int)Math.Ceiling(widthUnits * Zoom));
             var sizeChanged = w != widthPx;
             widthPx = w;
-            using (var bmp = RenderBitmap(r, Zoom, w, HeightPx))
-                Blit(bmp);
+            EnsureBuffers(w, HeightPx);
+            using (var g = Graphics.FromImage(back)) Paint(g, r, Zoom, w, HeightPx);
+            Blit();
             if (sizeChanged) Reposition(true);
+        }
+
+        static void Paint(Graphics g, StripRenderer r, float zoom, int w, int h)
+        {
+            g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+            g.Clear(Color.FromArgb(1, 0, 0, 0));   // alpha 1: invisible, but still takes the mouse
+            g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
+            g.ScaleTransform(zoom, zoom);
+            g.TranslateTransform(0, (h / zoom - StripRenderer.BandHeight) / 2);
+            r.Draw(g);
         }
 
         public static Bitmap RenderBitmap(StripRenderer r, float zoom, int w, int h)
         {
             var bmp = new Bitmap(w, h, PixelFormat.Format32bppPArgb);
-            using (var g = Graphics.FromImage(bmp))
-            {
-                g.Clear(Color.FromArgb(1, 0, 0, 0));   // alpha 1: invisible, but still takes the mouse
-                g.ScaleTransform(zoom, zoom);
-                g.TranslateTransform(0, (h / zoom - StripRenderer.BandHeight) / 2);
-                r.Draw(g);
-            }
+            using (var g = Graphics.FromImage(bmp)) Paint(g, r, zoom, w, h);
             return bmp;
         }
 
-        void Blit(Bitmap bmp)
+        unsafe void Blit()
         {
-            var screen = Native.GetDC(IntPtr.Zero);
-            var mem = Native.CreateCompatibleDC(screen);
-            var hbmp = IntPtr.Zero; var old = IntPtr.Zero;
+            if (dibBits == IntPtr.Zero) return;
+            var rect = new Rectangle(0, 0, back.Width, back.Height);
+            var data = back.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
             try
             {
-                hbmp = bmp.GetHbitmap(Color.FromArgb(0));
-                old = Native.SelectObject(mem, hbmp);
-                var size = new Native.SIZE(bmp.Width, bmp.Height);
-                var src = new Native.POINT(0, 0);
-                var blend = new Native.BLENDFUNCTION { BlendOp = 0, BlendFlags = 0, SourceConstantAlpha = 255, AlphaFormat = 1 };
-                if (Embedded) Native.UpdateLayeredWindow(Handle, screen, IntPtr.Zero, ref size, mem, ref src, 0, ref blend, Native.ULW_ALPHA);
-                else
-                {
-                    var dst = new Native.POINT(floatPos.X, floatPos.Y);
-                    Native.UpdateLayeredWindow(Handle, screen, ref dst, ref size, mem, ref src, 0, ref blend, Native.ULW_ALPHA);
-                }
+                var rowBytes = back.Width * 4;
+                for (var y = 0; y < back.Height; y++)
+                    Buffer.MemoryCopy((byte*)data.Scan0 + (long)y * data.Stride, (byte*)dibBits + (long)y * rowBytes, rowBytes, rowBytes);
             }
-            finally
+            finally { back.UnlockBits(data); }
+            var size = new Native.SIZE(back.Width, back.Height);
+            var src = new Native.POINT(0, 0);
+            var blend = new Native.BLENDFUNCTION { BlendOp = 0, BlendFlags = 0, SourceConstantAlpha = 255, AlphaFormat = 1 };
+            if (Embedded) Native.UpdateLayeredWindow(Handle, IntPtr.Zero, IntPtr.Zero, ref size, memDC, ref src, 0, ref blend, Native.ULW_ALPHA);
+            else
             {
-                if (old != IntPtr.Zero) Native.SelectObject(mem, old);
-                if (hbmp != IntPtr.Zero) Native.DeleteObject(hbmp);
-                Native.DeleteDC(mem);
-                Native.ReleaseDC(IntPtr.Zero, screen);
+                var dst = new Native.POINT(floatPos.X, floatPos.Y);
+                Native.UpdateLayeredWindow(Handle, IntPtr.Zero, ref dst, ref size, memDC, ref src, 0, ref blend, Native.ULW_ALPHA);
             }
         }
 
@@ -278,6 +306,7 @@ namespace BoostBar
             watch.Stop();
             RestoreRebar();
             if (Handle != IntPtr.Zero) DestroyHandle();
+            FreeBuffers();
         }
     }
 }

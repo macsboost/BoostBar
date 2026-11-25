@@ -33,10 +33,26 @@ namespace BoostBar
         readonly NotifyIcon tray;
         readonly ContextMenuStrip menu = new ContextMenuStrip();
         readonly HoverPanel hover = new HoverPanel();
-        readonly Timer secondTimer = new Timer { Interval = 1000 }, cpuTimer = new Timer(), diskTimer = new Timer(), eyesTimer = new Timer { Interval = 33 },
-                       renderTimer = new Timer { Interval = 16 }, hoverTimer = new Timer();
+        readonly Timer secondTimer = new Timer { Interval = 1000 }, cpuTimer = new Timer(), diskTimer = new Timer(), eyesTimer = new Timer { Interval = FrameMs },
+                       renderTimer = new Timer(), hoverTimer = new Timer();
         readonly SynchronizationContext ui;
         bool dirty = true, menuOpen;
+        /// One frame at up to 60 Hz. WinForms timers tick on the 15.6 ms system clock, so 15 ms fires every tick (~64 Hz)
+        /// while 16 ms would round up to every other tick (~32 Hz). Asking for 1 ms timer resolution would cost battery.
+        const int FrameMs = 15;
+        double lastRender = -1;
+        int eyesIdleFrames;
+
+        /// Asks for a redraw: drawn on the next frame, no sooner than one frame after the last, and never while
+        /// nothing has changed (the render timer only runs while a redraw is pending).
+        void MarkDirty()
+        {
+            dirty = true;
+            if (renderTimer.Enabled) return;
+            var since = (clock.Elapsed.TotalSeconds - lastRender) * 1000;
+            renderTimer.Interval = Math.Max(1, FrameMs - (int)since);
+            MarkDirty();
+        }
         HoverTarget hoverTarget, pendingHover;
 
         // CPU meter animation
@@ -68,7 +84,7 @@ namespace BoostBar
             window.LeftDown += OnStripDown;
             window.LeftUp += OnStripUp;
             window.RightUp += p => ShowMenu(Cursor.Position);
-            window.LayoutChanged += () => { dirty = true; };
+            window.LayoutChanged += () => { MarkDirty(); };
             window.Start();
 
             Sleep.KeepDisplayAwake = Prefs.KeepDisplayAwake;
@@ -78,9 +94,9 @@ namespace BoostBar
 
             secondTimer.Tick += (s, e) => Tick();
             cpuTimer.Tick += (s, e) => CpuStep();
-            diskTimer.Tick += (s, e) => { if (Disk.FastTick()) { strip.LitKeys = new HashSet<string>(Disk.Lit); dirty = true; } };
+            diskTimer.Tick += (s, e) => { if (Disk.FastTick()) { strip.LitKeys = new HashSet<string>(Disk.Lit); MarkDirty(); } };
             eyesTimer.Tick += (s, e) => EyesStep();
-            renderTimer.Tick += (s, e) => { if (dirty) Render(); };
+            renderTimer.Tick += (s, e) => { renderTimer.Stop(); if (dirty) Render(); };
             hoverTimer.Tick += (s, e) => { hoverTimer.Stop(); if (pendingHover == null) HideHover(); else ShowHover(pendingHover); };
 
             LidDisabled = LidSleep.Available && LidSleep.IsDisabled;
@@ -177,7 +193,7 @@ namespace BoostBar
                 : new List<StripRenderer.NetRow>();
             strip.LitKeys = new HashSet<string>(Disk.Lit);
             strip.LightBar = window.Embedded ? Theme.TaskbarIsLight : false;
-            dirty = true;
+            MarkDirty();
         }
 
         void Tick()
@@ -193,6 +209,7 @@ namespace BoostBar
         void Render()
         {
             dirty = false;
+            lastRender = clock.Elapsed.TotalSeconds;
             if (dragging) strip.Dragging = downSeg; else strip.Dragging = null;
             var w = strip.Layout();
             window.Render(strip, w);
@@ -203,10 +220,11 @@ namespace BoostBar
         void SetCpuMeterRunning(bool on)
         {
             if (!on) { cpuTimer.Stop(); return; }
-            var interval = (int)Math.Round(1000 / Math.Min(60, Math.Max(20, Prefs.CpuRate)));
+            // animate at 20 fps, or as fast as readings come in, up to 60 fps (see FrameMs)
+            var hz = Math.Min(60, Math.Max(20, Prefs.CpuRate));
+            var interval = hz >= 55 ? FrameMs : (int)Math.Round(1000 / hz);
             if (cpuTimer.Enabled && cpuTimer.Interval == interval) return;
-            cpuTimer.Interval = Math.Max(10, interval);
-            renderTimer.Interval = Math.Max(10, Math.Min(33, interval));
+            cpuTimer.Interval = Math.Max(FrameMs, interval);
             cpuTimer.Start();
         }
 
@@ -242,7 +260,7 @@ namespace BoostBar
             if (!moved) return;
             strip.Cpu = cpuShown;
             strip.CpuCores = (double[])cpuCoresShown.Clone();
-            dirty = true;
+            MarkDirty();
         }
 
         // ---------------- eyes ----------------
@@ -256,7 +274,14 @@ namespace BoostBar
             var centers = strip.EyeRects.Select(r => new PointF(b.X + (r.X + r.Width / 2) * z, b.Y + (r.Y + r.Height / 2 + yOff) * z)).ToArray();
             eyes.Zoom = z;
             Native.GetCursorPos(out var p);
-            if (eyes.Step(strip, centers, new PointF(p.X, p.Y))) dirty = true;
+            if (eyes.Step(strip, centers, new PointF(p.X, p.Y)))
+            {
+                MarkDirty();
+                eyesIdleFrames = 0;
+                if (eyesTimer.Interval != FrameMs) eyesTimer.Interval = FrameMs;
+            }
+            else if (++eyesIdleFrames > 60 && eyesTimer.Interval != 100)
+                eyesTimer.Interval = 100;   // still for a second: check 10×/s (enough to catch a blink or the pointer moving)
         }
 
         // ---------------- mouse on the strip ----------------
@@ -280,7 +305,7 @@ namespace BoostBar
                         dragging = true; HideHover();
                         window.MoveFloatingBy(sp.X - dragLast.X, sp.Y - dragLast.Y);
                         dragLast = new Point(sp.X, sp.Y);
-                        dirty = true;
+                        MarkDirty();
                     }
                     return;
                 }
@@ -294,7 +319,7 @@ namespace BoostBar
                     others.Insert(index, downSeg.Value);
                     var newOrder = others.Concat(strip.Order.Where(s => !visible.Contains(s))).ToArray();
                     if (!newOrder.SequenceEqual(strip.Order)) strip.Order = newOrder;
-                    dirty = true;
+                    MarkDirty();
                     return;
                 }
                 return;
@@ -321,7 +346,7 @@ namespace BoostBar
             if (wasDragging)
             {
                 if (window.Embedded) Prefs.SegmentOrder = strip.Order; else window.SaveFloatingPosition();
-                dirty = true;
+                MarkDirty();
                 return;
             }
             if (seg == Segment.Eyes) { HideHover(); AboutForm.ShowShared(); }

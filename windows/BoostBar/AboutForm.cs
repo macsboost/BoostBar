@@ -45,7 +45,7 @@ namespace BoostBar
             Font = new Font("Segoe UI", 9.5f);
             BackColor = Color.FromArgb(18, 19, 18);
             ForeColor = Color.White;
-            ClientSize = new Size(530, 720);
+            ClientSize = new Size(662, 790);   // 25% wider than 1.3.73
 
             var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(20, 16, 20, 16), AutoScroll = true };
             Controls.Add(flow);
@@ -54,16 +54,16 @@ namespace BoostBar
                 if (st != null)
                 {
                     var img = Image.FromStream(st);
-                    var w = 480; var h = (int)(img.Height * (w / (double)img.Width));
+                    var w = 600; var h = (int)(img.Height * (w / (double)img.Width));
                     var pb = new PictureBox { Image = img, SizeMode = PictureBoxSizeMode.Zoom, Width = w, Height = h, Cursor = Cursors.Hand, Margin = new Padding(0, 0, 0, 10) };
                     pb.Click += (s, e) => Shell.Open("https://macsboost.com");
                     flow.Controls.Add(pb);
                 }
 
             flow.Controls.Add(new Label { Text = "BoostBar " + Updater.CurrentVersion + " is energydrinkware ⚡", Font = new Font("Segoe UI Semibold", 14f), AutoSize = true, ForeColor = Color.FromArgb(116, 251, 76) });
-            flow.Controls.Add(new Label { Text = "It's free. If you like it, buy me an energy drink — $" + Amount + " keeps the boost coming.\nBy Mac McAlpine · MacsBoost", AutoSize = true, MaximumSize = new Size(480, 0), Margin = new Padding(0, 6, 0, 10) });
+            flow.Controls.Add(new Label { Text = "It's free. If you like it, buy me an energy drink — $" + Amount + " keeps the boost coming.\nBy Mac McAlpine · MacsBoost", AutoSize = true, MaximumSize = new Size(600, 0), Margin = new Padding(0, 6, 0, 10) });
 
-            var pays = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(490, 0) };
+            var pays = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(612, 0) };
             void Pay(string text, Color c, string tip, Action act)
             {
                 var b = new Button { Text = text, BackColor = c, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Width = 150, Height = 40, Margin = new Padding(0, 0, 10, 8), Font = new Font("Segoe UI Semibold", 10f) };
@@ -80,22 +80,22 @@ namespace BoostBar
             Pay("Card  $" + Amount, Color.FromArgb(99, 91, 255), "Pay $" + Amount + " by card (Stripe) on biz-cord.com", () =>
                 Shell.Open(StripeUrl + "?amount=" + Amount + "&app=BoostBar&version=" + Esc(Updater.CurrentVersion) + "&platform=windows"));
             flow.Controls.Add(pays);
-            flow.Controls.Add(new Label { Text = "Card payments are processed by Stripe on biz-cord.com. Apple Cash works too, from an iPhone: send $" + Amount + " to " + PayEmail + ".", AutoSize = true, MaximumSize = new Size(480, 0), ForeColor = Color.FromArgb(170, 170, 170), Margin = new Padding(0, 0, 0, 12) });
+            flow.Controls.Add(new Label { Text = "Card payments are processed by Stripe on biz-cord.com. Apple Cash works too, from an iPhone: send $" + Amount + " to " + PayEmail + ".", AutoSize = true, MaximumSize = new Size(600, 0), ForeColor = Color.FromArgb(170, 170, 170), Margin = new Padding(0, 0, 0, 12) });
 
             flow.Controls.Add(new Label { Text = "More from MacsBoost", Font = new Font("Segoe UI Semibold", 10.5f), AutoSize = true, Margin = new Padding(0, 4, 0, 4) });
-            var links = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(490, 0) };
+            var links = new FlowLayoutPanel { AutoSize = true, WrapContents = true, MaximumSize = new Size(612, 0) };
             foreach (var (title, url) in Sites) links.Controls.Add(Link(title, url));
             foreach (var (title, url) in Socials) links.Controls.Add(Link(title, url));
             links.Controls.Add(Link("GitHub", Updater.RepoPage));
             flow.Controls.Add(links);
 
-            var credit = new LinkLabel { Text = "Thanks to Dave Plummer for the HDD LED inspiration — check out TMOG (Task Manager OG).", AutoSize = true, MaximumSize = new Size(480, 0),
+            var credit = new LinkLabel { Text = "Thanks to Dave Plummer for the HDD LED inspiration — check out TMOG (Task Manager OG).", AutoSize = true, MaximumSize = new Size(600, 0),
                 LinkColor = Color.FromArgb(116, 251, 76), ForeColor = Color.FromArgb(200, 200, 200), Margin = new Padding(0, 12, 0, 4) };
             credit.Links.Add(credit.Text.IndexOf("TMOG"), "TMOG (Task Manager OG)".Length, "https://tmog.org");
             credit.LinkClicked += (s, e) => Shell.Open((string)e.Link.LinkData);
             flow.Controls.Add(credit);
             flow.Controls.Add(new Label { Text = "Free to use either way — may the boost be with you!", AutoSize = true, Margin = new Padding(0, 8, 0, 4) });
-            flow.Controls.Add(new Label { Text = "BoostBar sends biz-cord.com one anonymous install count per version (no personal info). Turn it off in Settings ▸ General.", AutoSize = true, MaximumSize = new Size(480, 0), ForeColor = Color.FromArgb(150, 150, 150), Font = new Font("Segoe UI", 8.5f) });
+            flow.Controls.Add(new Label { Text = "BoostBar sends biz-cord.com one anonymous install count per version (no personal info). Turn it off in Settings ▸ General.", AutoSize = true, MaximumSize = new Size(600, 0), ForeColor = Color.FromArgb(150, 150, 150), Font = new Font("Segoe UI", 8.5f) });
             flow.Controls.Add(new Label { Text = "© 2026 MacsBoost / X1 Racing · Mac McAlpine · MIT License", AutoSize = true, ForeColor = Color.FromArgb(150, 150, 150), Font = new Font("Segoe UI", 8.5f), Margin = new Padding(0, 6, 0, 0) });
         }
 

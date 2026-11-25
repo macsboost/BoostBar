@@ -26,13 +26,75 @@ namespace BoostBar
 
         /// Advances one frame (call ~30×/s). `centers` are the eyes' centers on screen, `travel` how far a pupil may move
         /// (in strip units). Returns true when the strip needs redrawing.
+        // The springs were tuned per 1/30 s step (as on the Mac): physics runs in fixed 30 Hz steps and the pupils
+        // are drawn between the last two steps, so they move smoothly at 60 Hz and feel the same at any frame rate.
+        const double PhysicsDt = 1.0 / 30;
+        double acc, lastFrame;
+        PointF[] prevPos = new PointF[0], shown = new PointF[0];
+
         public bool Step(StripRenderer v, PointF[] centers, PointF mouse)
         {
             if (centers.Length == 0) return false;
-            if (pos.Length != centers.Length) { pos = new PointF[centers.Length]; vel = new PointF[centers.Length]; }
+            if (pos.Length != centers.Length)
+            {
+                pos = new PointF[centers.Length]; vel = new PointF[centers.Length];
+                prevPos = new PointF[centers.Length]; shown = new PointF[centers.Length];
+            }
             if (lazyTarget.Length != centers.Length) lazyTarget = (PointF[])pos.Clone();
+            var now = clock.Elapsed.TotalSeconds;
+            var dt = lastFrame == 0 ? PhysicsDt : Math.Min(0.25, now - lastFrame);
+            lastFrame = now;
+            acc += dt;
+            var steps = 0;
+            while (acc >= PhysicsDt && steps < 8)
+            {
+                prevPos = (PointF[])pos.Clone();
+                Physics(v, centers, mouse);
+                acc -= PhysicsDt;
+                steps++;
+            }
+            if (steps == 8) acc = 0;
+            var alpha = (float)Math.Min(1, acc / PhysicsDt);
+
+            var mid = new PointF(centers.Average(c => c.X), centers.Average(c => c.Y));
             var travel = v.PupilTravel;
-            var changed = mouse != lastMouse;
+            var halfSpan = (centers[centers.Length - 1].X - centers[0].X) / 2 + (travel.Width + 6) * Zoom;
+            lastMouse = mouse;
+            if (TrackCircles(mouse, mid, halfSpan, now))
+            {
+                v.WheelAngle = (float)wheelAngle;
+                v.PupilOffsets = (PointF[])pos.Clone();
+                return true;
+            }
+            var changed = false;
+            if (v.WheelAngle.HasValue)
+            {
+                v.WheelAngle = null;
+                for (var i = 0; i < vel.Length; i++) vel[i] = new PointF((float)(rnd.NextDouble() * 4 - 2), (float)(rnd.NextDouble() * 3 - 1.5));
+                changed = true;
+            }
+            for (var i = 0; i < pos.Length; i++)
+            {
+                var p = new PointF(prevPos[i].X + (pos[i].X - prevPos[i].X) * alpha, prevPos[i].Y + (pos[i].Y - prevPos[i].Y) * alpha);
+                if (Math.Abs(p.X - shown[i].X) > 0.01f || Math.Abs(p.Y - shown[i].Y) > 0.01f) { shown[i] = p; changed = true; }
+            }
+            var closed = false;
+            if (Blink)
+            {
+                if (nextBlink == 0) nextBlink = now + 3 + rnd.NextDouble() * 5;
+                if (now >= nextBlink) { blinkUntil = now + 0.13; nextBlink = now + 3.5 + rnd.NextDouble() * 5.5; }
+                closed = now < blinkUntil;
+            }
+            if (closed != v.EyesClosed) changed = true;
+            if (changed) { v.PupilOffsets = (PointF[])shown.Clone(); v.EyesClosed = closed; }
+            return changed;
+        }
+
+        /// One 1/30 s step of the pupil springs. Returns true while anything is still moving.
+        bool Physics(StripRenderer v, PointF[] centers, PointF mouse)
+        {
+            var travel = v.PupilTravel;
+            var moving = false;
             var mid = new PointF(centers.Average(c => c.X), centers.Average(c => c.Y));
             var z = Zoom;
             var betweenEyes = centers.Length > 1 && AllowCrossEye && mouse.X > centers[0].X && mouse.X < centers[centers.Length - 1].X && Math.Abs(mouse.Y - mid.Y) < 30 * z;
@@ -47,7 +109,7 @@ namespace BoostBar
                 {
                     lazyTarget[i].X += (target.X - lazyTarget[i].X) * 0.035f;
                     lazyTarget[i].Y += (target.Y - lazyTarget[i].Y) * 0.035f;
-                    if (Math.Abs(target.X - lazyTarget[i].X) + Math.Abs(target.Y - lazyTarget[i].Y) > 0.02f) changed = true;
+                    if (Math.Abs(target.X - lazyTarget[i].X) + Math.Abs(target.Y - lazyTarget[i].Y) > 0.02f) moving = true;
                     target = lazyTarget[i];
                 }
                 else lazyTarget[i] = target;
@@ -60,37 +122,11 @@ namespace BoostBar
                     var nx = pos[i].X / Math.Max(travel.Width, 0.1f); var ny = pos[i].Y / Math.Max(travel.Height, 0.1f);
                     var r = (float)Math.Sqrt(nx * nx + ny * ny);
                     if (r > 1) { pos[i].X /= r; pos[i].Y /= r; vel[i].X *= -0.5f; vel[i].Y *= -0.5f; }   // bounce off the rim
-                    if (Math.Abs(vel[i].X) > 0.01f || Math.Abs(vel[i].Y) > 0.01f) changed = true;
+                    if (Math.Abs(vel[i].X) > 0.01f || Math.Abs(vel[i].Y) > 0.01f) moving = true;
                 }
-                else if (pos[i] != target) { pos[i] = target; changed = true; }
+                else if (pos[i] != target) { pos[i] = target; moving = true; }
             }
-
-            var now = clock.Elapsed.TotalSeconds;
-            var halfSpan = (centers[centers.Length - 1].X - centers[0].X) / 2 + (travel.Width + 6) * z;
-            if (TrackCircles(mouse, mid, halfSpan, now))
-            {
-                v.WheelAngle = (float)wheelAngle;
-                v.PupilOffsets = (PointF[])pos.Clone();
-                lastMouse = mouse;
-                return true;
-            }
-            if (v.WheelAngle.HasValue)
-            {
-                v.WheelAngle = null;
-                for (var i = 0; i < vel.Length; i++) vel[i] = new PointF((float)(rnd.NextDouble() * 4 - 2), (float)(rnd.NextDouble() * 3 - 1.5));
-                changed = true;
-            }
-            var closed = false;
-            if (Blink)
-            {
-                if (nextBlink == 0) nextBlink = now + 3 + rnd.NextDouble() * 5;
-                if (now >= nextBlink) { blinkUntil = now + 0.13; nextBlink = now + 3.5 + rnd.NextDouble() * 5.5; }
-                closed = now < blinkUntil;
-            }
-            if (closed != v.EyesClosed) changed = true;
-            lastMouse = mouse;
-            if (changed) { v.PupilOffsets = (PointF[])pos.Clone(); v.EyesClosed = closed; }
-            return changed;
+            return moving;
         }
 
         bool TrackCircles(PointF mouse, PointF mid, float halfSpan, double now)
