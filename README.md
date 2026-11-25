@@ -66,7 +66,7 @@ A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It ha
    ▕▁▁▁▁▁▁▁▁▁▁▏ ▼ 1.3 MB/s
 ```
 
-- **Live bandwidth graph:** the last 30 seconds of traffic in one box. Upload (red) grows up from the center line and download (blue) grows down. The current rates sit beside the graph. You can switch between KB/s and Kb/s.
+- **Live bandwidth graph:** the last 30 seconds of traffic in one box. Upload grows up from the center line and download grows down, in MacsBoost green and lime by default (Settings ▸ Network ▸ Trace Colors has white, red/blue and any color you like). The current rates sit beside the graph. You can switch between KB/s and Kb/s.
 - **One graph per connection:** with Ethernet and Wi‑Fi (or an iPhone hotspot, USB LAN adapter…) connected at once, each gets its own little graph with an icon, and hovering one shows that connection's 5-minute chart. Prefer one combined graph? Settings ▸ Network ▸ Graphs.
 - **Battery power readout:** shows how many watts are going into the battery (green **IN**) or out of it (orange **OUT**). Hover over it to see the estimated time until full or empty, plus what the power adapter is supplying on Apple Silicon Macs.
 - **Googly eyes:** a pair of eyes (or a single cyclops eye) that follow your mouse from the menu bar, with springy pupils and the occasional blink. Small, medium or large.

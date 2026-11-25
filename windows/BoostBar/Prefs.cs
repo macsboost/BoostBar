@@ -60,8 +60,8 @@ namespace BoostBar
         public static bool NetSplit { get => GetBool("networkGraphPerConnection", true); set => SetBool("networkGraphPerConnection", value); }
         public static bool UseBits { get => GetBool("useBits", false); set => SetBool("useBits", value); }
         public static Fmt.NetUnit NetUnit { get => GetInt("networkUnit", 0) == 2 ? Fmt.NetUnit.Mega : Fmt.NetUnit.Auto; set => SetInt("networkUnit", (int)value); }
-        public static string UpColorName { get => GetString("netUpColor", "White"); set => SetString("netUpColor", value); }
-        public static string DownColorName { get => GetString("netDownColor", "White"); set => SetString("netDownColor", value); }
+        public static string UpColorName { get => GetString("netUpColor", "Boost Green"); set => SetString("netUpColor", value); }
+        public static string DownColorName { get => GetString("netDownColor", "Lime"); set => SetString("netDownColor", value); }
         public static Color UpColor => Palette.Resolve(UpColorName, Color.White);
         public static Color DownColor => Palette.Resolve(DownColorName, Color.White);
 

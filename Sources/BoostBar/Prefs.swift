@@ -59,8 +59,8 @@ enum Prefs {
             K.checkOnLaunch: true,
             K.showNetwork: true,
             K.showBattery: BatteryMonitor.hasBattery,
-            K.upColor: "White",
-            K.downColor: "White",
+            K.upColor: "Boost Green",   // MacsBoost Green preset
+            K.downColor: "Lime",
             K.showEyes: false,
             K.showCPU: true,
             K.cpuStyle: 1,          // spectrum analyzer: a bar per core
