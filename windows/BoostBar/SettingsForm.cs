@@ -41,8 +41,8 @@ namespace BoostBar
             Icon = App.AppIcon(32);
             AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Segoe UI", 9f);
-            ClientSize = new Size(600, 640);
-            MinimumSize = new Size(520, 420);
+            ClientSize = new Size(750, 680);   // 25% wider than 1.3.74
+            MinimumSize = new Size(640, 420);
             StartPosition = FormStartPosition.CenterScreen;
             Controls.Add(tabs);
             Add("General", BuildGeneral);
@@ -91,7 +91,7 @@ namespace BoostBar
             readonly SettingsForm form;
             public readonly FlowLayoutPanel Flow;
             public readonly List<Action> Refreshers = new List<Action>();
-            const int Width = 540;
+            const int Width = 675;
 
             public Pane(SettingsForm f, TabPage page)
             {
@@ -142,7 +142,7 @@ namespace BoostBar
                 return c;
             }
 
-            Panel Row(string label, Control control, int labelWidth = 170)
+            Panel Row(string label, Control control, int labelWidth = 200)
             {
                 var row = new Panel { Width = Width, Height = Math.Max(28, control.Height + 6), Margin = new Padding(0, 2, 0, 2) };
                 var l = new Label { Text = label, AutoSize = false, Width = labelWidth, Height = row.Height, TextAlign = ContentAlignment.MiddleLeft, Left = 2 };
@@ -155,7 +155,7 @@ namespace BoostBar
 
             public ComboBox Popup(string label, string[] items, Func<int> get, Action<int> set)
             {
-                var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 250 };
+                var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
                 c.Items.AddRange(items);
                 c.SelectedIndexChanged += (s, e) => { if (!Loading && c.SelectedIndex >= 0) { set(c.SelectedIndex); form.RefreshAll(); } };
                 Row(label, c);
@@ -166,9 +166,9 @@ namespace BoostBar
             /// A slider from `min` to `max` (optionally logarithmic), with a live value label.
             public void Slider(string label, double min, double max, Func<double> get, Action<double> set, Func<double, string> fmt, bool log = false)
             {
-                var host = new Panel { Width = 330, Height = 32 };
-                var t = new TrackBar { Minimum = 0, Maximum = 1000, TickStyle = TickStyle.None, Width = 250, Left = 0, Top = 0, AutoSize = false, Height = 30 };
-                var v = new Label { AutoSize = false, Width = 76, Left = 254, Top = 6, Height = 20 };
+                var host = new Panel { Width = 420, Height = 32 };
+                var t = new TrackBar { Minimum = 0, Maximum = 1000, TickStyle = TickStyle.None, Width = 320, Left = 0, Top = 0, AutoSize = false, Height = 30 };
+                var v = new Label { AutoSize = false, Width = 90, Left = 326, Top = 6, Height = 20 };
                 host.Controls.Add(t); host.Controls.Add(v);
                 double ToVal(int p) => log ? Math.Exp(Math.Log(min) + (Math.Log(max) - Math.Log(min)) * p / 1000.0) : min + (max - min) * p / 1000.0;
                 int ToPos(double x) => (int)Math.Round(Math.Max(0, Math.Min(1000, log ? (Math.Log(x) - Math.Log(min)) / (Math.Log(max) - Math.Log(min)) * 1000 : (x - min) / (max - min) * 1000)));
@@ -220,7 +220,7 @@ namespace BoostBar
             p.Header("Taskbar Layout");
             p.Check("Label the pieces with stacked text: NET, BAT, CPU, HDD", () => Prefs.VerticalLabels, v => Prefs.VerticalLabels = v);
             p.Note("Order of the pieces — the top of the list is leftmost. Select a row and use Up / Down, or drag a piece along the taskbar itself.");
-            var list = new ListBox { Width = 260, Height = 110, Margin = new Padding(2, 2, 0, 2) };
+            var list = new ListBox { Width = 320, Height = 110, Margin = new Padding(2, 2, 0, 2) };
             var names = new Dictionary<Segment, string> { { Segment.Eyes, "Googly eyes" }, { Segment.Network, "Network graph" }, { Segment.Battery, "Battery watts" }, { Segment.Cpu, "CPU meter" }, { Segment.Disks, "Disk lights" } };
             p.Add(list);
             p.Refreshers.Add(() =>
@@ -321,9 +321,9 @@ namespace BoostBar
             foreach (var d in drives)
             {
                 var key = d.Key; var isInternal = d.IsInternal;
-                var row = new Panel { Width = 540, Height = 30, Margin = new Padding(0, 1, 0, 1) };
-                var c = new CheckBox { Text = d.Name + "  ·  " + d.Kind + "  ·  " + Fmt.Bytes(d.Size), AutoSize = false, Width = 360, Height = 26, Left = 2, Top = 2 };
-                var col = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150, Left = 370, Top = 3 };
+                var row = new Panel { Width = 675, Height = 30, Margin = new Padding(0, 1, 0, 1) };
+                var c = new CheckBox { Text = d.Name + "  ·  " + d.Kind + "  ·  " + Fmt.Bytes(d.Size), AutoSize = false, Width = 470, Height = 26, Left = 2, Top = 2 };
+                var col = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, Left = 480, Top = 3 };
                 col.Items.AddRange(ColorNames);
                 c.CheckedChanged += (s, e) => { if (!loading) Prefs.SetDiskEnabled(key, c.Checked); };
                 col.SelectedIndexChanged += (s, e) => { if (!loading && col.SelectedIndex >= 0) Prefs.SetDiskColorName(key, Palette.Named[col.SelectedIndex].Name); };
@@ -363,7 +363,7 @@ namespace BoostBar
             p.Note(ScreenSavers.Blurb(scene));
             p.Dynamic(() => ScreenSavers.Status(scene));
             p.Buttons(("Preview", () => ScreenSavers.Preview(scene)), ("Use as My Screen Saver", () => ScreenSavers.Use(scene)),
-                      ("Start Now", () => ScreenSavers.Run(scene)), ("Windows Settings…", ScreenSavers.OpenWindowsSettings));
+                      ("Start Now", () => ScreenSavers.Run(scene)), ("Screen Saver Settings…", ScreenSavers.OpenWindowsSettings));
             p.Popup("Hot corner", CornerNames, () => (int)Prefs.CornerSaver, i => Prefs.CornerSaver = (Corner)i);
             p.Note("Rest the pointer there to start your screen saver. Pick a corner Keep Awake and Sleep now don't use.");
             p.Header("Flight");

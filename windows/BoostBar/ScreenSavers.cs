@@ -67,16 +67,23 @@ namespace BoostBar
             return "Your screen saver now: " + Path.GetFileNameWithoutExtension(a) + ".";
         }
 
+        /// Starts a screen saver program directly. Not through the shell: other apps (Autodesk EAGLE, for one) register
+        /// the .scr extension for their own script files, and the shell would open the file in them.
+        static void Launch(string path, string args)
+        {
+            Process.Start(new ProcessStartInfo(path, args) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(path) });
+        }
+
         public static void Preview(string scene)
         {
             if (!Installed(scene)) { Updater.Alert("Screen saver missing", Status(scene)); return; }
-            try { Process.Start(PathFor(scene), "/w"); } catch (Exception e) { Updater.Alert("Couldn't start the preview", e.Message); }
+            try { Launch(PathFor(scene), "/w"); } catch (Exception e) { Updater.Alert("Couldn't start the preview", e.Message); }
         }
 
         public static void Run(string scene)
         {
             if (!Installed(scene)) { Updater.Alert("Screen saver missing", Status(scene)); return; }
-            try { Process.Start(PathFor(scene), "/s"); } catch { }
+            try { Launch(PathFor(scene), "/s"); } catch { }
         }
 
         /// Starts whatever screen saver Windows has chosen (ours if none is set).
@@ -85,7 +92,7 @@ namespace BoostBar
             var a = Active;
             try
             {
-                if (a != null && File.Exists(a)) Process.Start(a, "/s");
+                if (a != null && File.Exists(a)) Launch(a, "/s");
                 else Run("cars");
             }
             catch { }
@@ -108,8 +115,13 @@ namespace BoostBar
             catch (Exception e) { Updater.Alert("Couldn't set the screen saver", e.Message); }
         }
 
-        public static void OpenWindowsSettings() => Shell.Open("control.exe");   // replaced below with the screen saver page
-
-        static ScreenSavers() { }
+        /// Windows' own Screen Saver Settings dialog (timeout, "On resume, display logon screen", its Preview button).
+        /// `control desk.cpl` alone lands in the Settings app instead.
+        public static void OpenWindowsSettings()
+        {
+            var sys = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            try { Process.Start(new ProcessStartInfo(Path.Combine(sys, "rundll32.exe"), "shell32.dll,Control_RunDLL desk.cpl,screensaver,@screensaver") { UseShellExecute = false }); }
+            catch { try { Process.Start(new ProcessStartInfo(Path.Combine(sys, "control.exe"), "desk.cpl,,@screensaver") { UseShellExecute = false }); } catch { } }
+        }
     }
 }

@@ -33,7 +33,7 @@ enum SaverConfig {
     static func defaults(for scene: String) -> SaverOptions {
         switch scene {
         case "starships": return SaverOptions(count: 6, liveries: [])
-        case "starlink": return SaverOptions(count: 5, liveries: ["v2", "v3", "deploy"])
+        case "starlink": return SaverOptions(count: 5, liveries: ["v15", "v2", "v3", "deploy"], crossing: true, lasers: true)
         default: return SaverOptions(count: 7, liveries: ["macsboost", "yonder", "xxone"])
         }
     }
@@ -62,7 +62,7 @@ enum SaverConfig {
     static func script(for scene: String) -> String {
         let o = options(for: scene)
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? false),lasers:\(o.lasers ?? false),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? false),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? (scene == "starlink")),lasers:\(o.lasers ?? (scene == "starlink")),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? false),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
     }
 }
 

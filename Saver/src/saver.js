@@ -20,6 +20,8 @@
   const SCENE = window.SAVER_SCENE || CFG.scene;
   const SHIPS = SCENE === 'starships';
   const SATS = SCENE === 'starlink';
+  // Starlink: crossing orbits and laser links are on unless turned off
+  if (SATS) { if (CFG.crossing == null) CFG.crossing = true; if (CFG.lasers == null) CFG.lasers = true; }
   // Angle (CFG.tilt, degrees): how far each craft is rolled about its flight path toward the viewer. Defaults:
   // cars -32° (shows the roof), Starships -11°, Starlink -66° (three-quarter top view of the wings).
   const TILT = (CFG.tilt != null && isFinite(+CFG.tilt) ? +CFG.tilt : SATS ? -66 : SHIPS ? -11.5 : -32) * (Math.PI / 180);

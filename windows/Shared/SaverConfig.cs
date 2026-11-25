@@ -47,7 +47,7 @@ namespace BoostBar
             switch (scene)
             {
                 case "starships": return new SaverOptions { Count = 6 };
-                case "starlink": return new SaverOptions { Count = 5, Liveries = new List<string> { "v2", "v3", "deploy" } };
+                case "starlink": return new SaverOptions { Count = 5, Liveries = new List<string> { "v15", "v2", "v3", "deploy" }, Crossing = true, Lasers = true };
                 default: return new SaverOptions { Count = 7, Liveries = new List<string> { "macsboost", "yonder", "xxone" } };
             }
         }
@@ -69,8 +69,8 @@ namespace BoostBar
                 o.Stunts = d.Bool("stunts") ?? o.Stunts;
                 o.Stars = d.Bool("stars") ?? o.Stars;
                 if (d.TryGetValue("tilt", out var t) && t != null) o.Tilt = d.Num("tilt", DefaultTilt(scene));
-                o.Crossing = d.Bool("crossing") ?? false;
-                o.Lasers = d.Bool("lasers") ?? false;
+                o.Crossing = d.Bool("crossing") ?? o.Crossing;
+                o.Lasers = d.Bool("lasers") ?? o.Lasers;
                 o.Clouds = d.Bool("clouds") ?? false;
                 o.Roadster = d.Bool("roadster") ?? false;
                 o.RoadsterStable = d.Bool("roadsterStable") ?? false;

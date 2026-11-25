@@ -102,8 +102,8 @@ class BoostBarSceneView: ScreenSaverView {
             c.stars = o["stars"] as? Bool ?? true
             c.oxidation = o["oxidation"] as? Double ?? 0.35
             c.tilt = o["tilt"] as? Double
-            c.crossing = o["crossing"] as? Bool ?? false
-            c.lasers = o["lasers"] as? Bool ?? false
+            c.crossing = o["crossing"] as? Bool ?? (Self.scene == "starlink")   // Starlink: on unless turned off
+            c.lasers = o["lasers"] as? Bool ?? (Self.scene == "starlink")
             c.clouds = o["clouds"] as? Bool ?? false
             c.roadster = o["roadster"] as? Bool ?? false
             c.roadsterStable = o["roadsterStable"] as? Bool ?? false
@@ -116,6 +116,8 @@ class BoostBarSceneView: ScreenSaverView {
             c.stunts = d.bool(forKey: "stunts")
             c.stars = d.bool(forKey: "stars")
             c.oxidation = d.double(forKey: "oxidation")
+            c.crossing = Self.scene == "starlink"
+            c.lasers = Self.scene == "starlink"
         }
         if isPreview { c.count = min(c.count, 5) }
         return c

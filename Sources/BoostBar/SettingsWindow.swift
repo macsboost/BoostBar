@@ -733,9 +733,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.slider("Oxidation", min: 0, max: 1, get: { o.oxidation }, set: { v in change { $0.oxidation = v } },
                      value: { String(format: "%.0f%%", $0 * 100) }, caption: "fresh tiles → after re-entry",
                      visible: { current.scene == "starships" })
-            p.check("Crossing orbits (strings of satellites in an X pattern)", get: { o.crossing ?? false },
+            p.check("Crossing orbits (strings of satellites in an X pattern)", get: { o.crossing ?? true },
                     set: { v in change { $0.crossing = v } }, visible: { current.scene == "starlink" })
-            p.check("Laser links between nearby satellites", get: { o.lasers ?? false },
+            p.check("Laser links between nearby satellites", get: { o.lasers ?? true },
                     set: { v in change { $0.lasers = v } }, visible: { current.scene == "starlink" })
             p.check("Roadster with Starman", get: { o.roadster ?? false },
                     set: { v in change { $0.roadster = v }; p.refresh() }, visible: { current.scene == "starships" })
