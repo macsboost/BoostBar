@@ -77,6 +77,10 @@ jobs:
           Shot "smoke_desktop"
           "BoostBar running after 15 s: $(-not $app.HasExited)" | Tee-Object snapshots/smoke.txt
           Get-Process | Where-Object { $_.ProcessName -in 'explorer','BoostBar' } | Format-Table ProcessName, Id | Out-String | Add-Content snapshots/smoke.txt
+          if ($app.HasExited) { "Exit code: $($app.ExitCode)" | Add-Content snapshots/smoke.txt }
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-3) } -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProviderName -in '.NET Runtime', 'Application Error', 'Windows Error Reporting' } |
+            ForEach-Object { "---- $($_.ProviderName)`n$($_.Message)" } | Add-Content snapshots/smoke.txt
           Copy-Item build/win/saver/BoostBarSaver.exe build/win/saver/BoostBarFlyingCars.scr
           New-Item -ItemType Directory -Force build/win/saver/savers | Out-Null
           Copy-Item build/win/savers/*.html build/win/saver/savers/
