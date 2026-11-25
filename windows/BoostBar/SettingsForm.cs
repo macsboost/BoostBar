@@ -370,7 +370,10 @@ namespace BoostBar
             p.Slider("How many", 1, 20, () => SaverConfig.Load(scene).Count, v => Change(x => x.Count = (int)Math.Round(v)), v => Math.Round(v).ToString("0"));
             p.Slider("Speed", 0.25, 3, () => SaverConfig.Load(scene).Speed, v => Change(x => x.Speed = Math.Round(v, 2)), v => v.ToString("0.00") + "×");
             p.Slider("Flap speed", 0.25, 3, () => SaverConfig.Load(scene).FlapSpeed, v => Change(x => x.FlapSpeed = Math.Round(v, 2)), v => v.ToString("0.00") + "×");
-            p.Slider("Angle", -90, 30, () => SaverConfig.Load(scene).Tilt ?? SaverConfig.DefaultTilt(scene), v => Change(x => x.Tilt = Math.Round(v, 1)), v => v.ToString("0") + "°");
+            p.Slider("Roll angle", -90, 90, () => SaverConfig.Load(scene).Tilt ?? SaverConfig.DefaultTilt(scene), v => Change(x => x.Tilt = Math.Round(v)), v => v.ToString("0") + "°");
+            p.Slider("Flock angle", 0, 360, () => SaverConfig.Load(scene).Heading ?? SaverConfig.DefaultHeading, v => Change(x => x.Heading = Math.Round(v)), SaverConfig.HeadingText);
+            p.Buttons(("Default Angles", () => Change(x => { x.Tilt = null; x.Heading = null; })));
+            p.Note("Roll angle: how far each craft is rolled toward you. Flock angle: the direction they fly across the screen.", small: true);
             p.Check("Stunts (barrel rolls, veers, climbs and dives)", () => SaverConfig.Load(scene).Stunts, v => Change(x => x.Stunts = v));
             p.Header("Scene");
             var choices = ScreenSavers.Choices(scene);

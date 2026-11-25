@@ -14,6 +14,7 @@ struct SaverOptions: Codable {
     var liveries: [String]
     var oxidation: Double = 0.35
     var tilt: Double? = nil   // degrees; nil = the scene's own default
+    var heading: Double? = nil // flock angle, degrees (0 = right, 90 = up); nil = the classic down-left
     var crossing: Bool? = nil // Starlink: crossing orbital lanes (X pattern)
     var lasers: Bool? = nil   // Starlink: laser links between nearby satellites
     var clouds: Bool? = nil   // Flying Cars: daytime sky with clouds
@@ -32,10 +33,20 @@ enum SaverConfig {
 
     static func defaults(for scene: String) -> SaverOptions {
         switch scene {
-        case "starships": return SaverOptions(count: 6, liveries: [])
+        case "starships": return SaverOptions(count: 6, liveries: [], roadster: true)
         case "starlink": return SaverOptions(count: 5, liveries: ["v15", "v2", "v3", "deploy"], crossing: true, lasers: true)
         default: return SaverOptions(count: 7, liveries: ["macsboost", "yonder", "xxone"])
         }
+    }
+
+    /// The flock's classic direction of travel, down and to the left like the flying bread (~207.5°).
+    static let defaultHeading: Double = atan2(-0.52, -1) * 180 / .pi + 360
+
+    /// "208° ↙": a flock angle with an arrow showing which way they fly.
+    static func headingText(_ deg: Double) -> String {
+        let a = (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        let arrows = ["→", "↗", "↑", "↖", "←", "↙", "↓", "↘"]
+        return String(format: "%.0f° ", a) + arrows[Int((a / 45).rounded()) % 8]
     }
 
     static func defaultTilt(for scene: String) -> Double {
@@ -62,7 +73,7 @@ enum SaverConfig {
     static func script(for scene: String) -> String {
         let o = options(for: scene)
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? (scene == "starlink")),lasers:\(o.lasers ?? (scene == "starlink")),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? false),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),preview:false};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? (scene == "starlink")),lasers:\(o.lasers ?? (scene == "starlink")),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? (scene == "starships")),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),heading:\(o.heading ?? defaultHeading),preview:false};"
     }
 }
 

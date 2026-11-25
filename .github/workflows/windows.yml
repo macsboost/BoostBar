@@ -89,8 +89,16 @@ jobs:
           Shot "smoke_saver"
           "Saver running after 20 s: $(-not $s.HasExited)" | Add-Content snapshots/smoke.txt
           if (-not $s.HasExited) { $s.Kill() }
+          # Starlink flying up and to the right (flock angle 45°), to check entry/exit at a non-default angle
+          New-Item -ItemType Directory -Force "$env:APPDATA\BoostBar" | Out-Null
+          '{"starlink":{"count":12,"heading":45}}' | Set-Content -Encoding utf8 "$env:APPDATA\BoostBar\Screen Savers.json"
+          Copy-Item build/win/saver/BoostBarSaver.exe build/win/saver/BoostBarStarlink.scr
+          $s2 = Start-Process build/win/saver/BoostBarStarlink.scr -ArgumentList "/w" -PassThru
+          Start-Sleep 25
+          Shot "smoke_starlink_45"
+          if (-not $s2.HasExited) { $s2.Kill() }
           if (-not $app.HasExited) { $app.Kill() }
-          Remove-Item build/win/saver/BoostBarFlyingCars.scr, build/win/saver/savers -Recurse -Force
+          Remove-Item build/win/saver/BoostBarFlyingCars.scr, build/win/saver/BoostBarStarlink.scr, build/win/saver/savers -Recurse -Force
           $log = "$env:LOCALAPPDATA\BoostBar\BoostBar.log"
           if (Test-Path $log) { Copy-Item $log snapshots/BoostBar.log; Get-Content $log }
 

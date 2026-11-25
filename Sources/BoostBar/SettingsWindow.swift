@@ -226,7 +226,7 @@ private final class Pane: NSViewController {
         let readout = NSTextField(labelWithString: "")
         readout.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         readout.alignment = .right
-        readout.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        readout.widthAnchor.constraint(equalToConstant: 58).isActive = true
         let bx = box { [weak s, weak readout] _ in
             guard let s else { return }
             set(s.doubleValue)
@@ -724,9 +724,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.slider("Speed", min: 0.3, max: 3, get: { o.speed }, set: { v in change { $0.speed = v } }, value: times)
             p.slider("Flap speed", min: 0.2, max: 3, get: { o.flapSpeed }, set: { v in change { $0.flapSpeed = v } },
                      value: times, caption: "flaps, wings, fans, wheels")
-            p.slider("Angle", min: -90, max: 90, get: { o.tilt ?? SaverConfig.defaultTilt(for: current.scene) },
+            p.slider("Roll angle", min: -90, max: 90, get: { o.tilt ?? SaverConfig.defaultTilt(for: current.scene) },
                      set: { v in change { $0.tilt = (v / 2).rounded() * 2 } }, value: { String(format: "%.0f°", $0) },
+                     caption: "how far each craft is rolled toward you",
                      trailing: p.makeButton("Default") { change { $0.tilt = nil }; p.refresh() })
+            p.slider("Flock angle", min: 0, max: 360, get: { o.heading ?? SaverConfig.defaultHeading },
+                     set: { v in change { $0.heading = v.rounded() } }, value: { SaverConfig.headingText($0) },
+                     caption: "the direction they fly across the screen",
+                     trailing: p.makeButton("Default") { change { $0.heading = nil }; p.refresh() })
             p.check("Stunts (barrel rolls, veers, climbs and dives)", get: { o.stunts }, set: { v in change { $0.stunts = v } })
 
             p.header("Scene")
@@ -737,11 +742,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     set: { v in change { $0.crossing = v } }, visible: { current.scene == "starlink" })
             p.check("Laser links between nearby satellites", get: { o.lasers ?? true },
                     set: { v in change { $0.lasers = v } }, visible: { current.scene == "starlink" })
-            p.check("Roadster with Starman", get: { o.roadster ?? false },
+            p.check("Roadster with Starman", get: { o.roadster ?? true },
                     set: { v in change { $0.roadster = v }; p.refresh() }, visible: { current.scene == "starships" })
             p.check("Stabilized (flies level with the ships instead of tumbling)", indent: true,
                     get: { o.roadsterStable ?? false }, set: { v in change { $0.roadsterStable = v } },
-                    enabled: { o.roadster ?? false }, visible: { current.scene == "starships" })
+                    enabled: { o.roadster ?? true }, visible: { current.scene == "starships" })
             p.check("Clouds (a blue daytime sky)", get: { o.clouds ?? false },
                     set: { v in change { $0.clouds = v }; p.refresh() }, visible: { current.scene == "cars" })
             p.check("Stars in the background", get: { o.stars }, set: { v in change { $0.stars = v } },

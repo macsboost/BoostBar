@@ -15,6 +15,8 @@ namespace BoostBar
         public bool Stunts = true, Stars = true;
         public List<string> Liveries = new List<string>();
         public double? Tilt;
+        /// Flock angle in degrees (0 = right, 90 = up); null = the classic down-left.
+        public double? Heading;
         public bool Crossing, Lasers, Clouds, Roadster, RoadsterStable;
     }
 
@@ -46,10 +48,21 @@ namespace BoostBar
         {
             switch (scene)
             {
-                case "starships": return new SaverOptions { Count = 6 };
+                case "starships": return new SaverOptions { Count = 6, Roadster = true };
                 case "starlink": return new SaverOptions { Count = 5, Liveries = new List<string> { "v15", "v2", "v3", "deploy" }, Crossing = true, Lasers = true };
                 default: return new SaverOptions { Count = 7, Liveries = new List<string> { "macsboost", "yonder", "xxone" } };
             }
+        }
+
+        /// The flock's classic direction of travel, down and to the left like the flying bread (~207.5°).
+        public static readonly double DefaultHeading = Math.Atan2(-0.52, -1) * 180 / Math.PI + 360;
+
+        /// "208° ↙": a flock angle with an arrow showing which way they fly.
+        public static string HeadingText(double deg)
+        {
+            var a = ((deg % 360) + 360) % 360;
+            string[] arrows = { "→", "↗", "↑", "↖", "←", "↙", "↓", "↘" };
+            return a.ToString("0") + "° " + arrows[(int)Math.Round(a / 45) % 8];
         }
 
         public static double DefaultTilt(string scene) => scene == "starships" ? -11.5 : scene == "starlink" ? -66 : -32;
@@ -69,10 +82,11 @@ namespace BoostBar
                 o.Stunts = d.Bool("stunts") ?? o.Stunts;
                 o.Stars = d.Bool("stars") ?? o.Stars;
                 if (d.TryGetValue("tilt", out var t) && t != null) o.Tilt = d.Num("tilt", DefaultTilt(scene));
+                if (d.TryGetValue("heading", out var hd) && hd != null) o.Heading = d.Num("heading", DefaultHeading);
                 o.Crossing = d.Bool("crossing") ?? o.Crossing;
                 o.Lasers = d.Bool("lasers") ?? o.Lasers;
                 o.Clouds = d.Bool("clouds") ?? false;
-                o.Roadster = d.Bool("roadster") ?? false;
+                o.Roadster = d.Bool("roadster") ?? o.Roadster;
                 o.RoadsterStable = d.Bool("roadsterStable") ?? false;
                 if (d.TryGetValue("liveries", out var l) && l is System.Collections.IEnumerable list)
                     o.Liveries = list.Cast<object>().Select(x => x?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList();
@@ -98,6 +112,7 @@ namespace BoostBar
                     ["savedAt"] = (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds,
                 };
                 if (o.Tilt.HasValue) d["tilt"] = o.Tilt.Value;
+                if (o.Heading.HasValue) d["heading"] = o.Heading.Value;
                 all[scene] = d;
                 var tmp = FilePath + ".tmp";
                 File.WriteAllText(tmp, Json.Write(all));
@@ -119,7 +134,7 @@ namespace BoostBar
                    ",flapSpeed:" + N(o.FlapSpeed) + ",stunts:" + B(o.Stunts) + ",stars:" + B(o.Stars) +
                    ",oxidation:" + N(o.Oxidation) + ",crossing:" + B(o.Crossing) + ",lasers:" + B(o.Lasers) +
                    ",clouds:" + B(o.Clouds) + ",roadster:" + B(o.Roadster) + ",roadsterStable:" + B(o.RoadsterStable) +
-                   ",tilt:" + N(o.Tilt ?? DefaultTilt(scene)) + ",preview:" + B(preview) + "};";
+                   ",tilt:" + N(o.Tilt ?? DefaultTilt(scene)) + ",heading:" + N(o.Heading ?? DefaultHeading) + ",preview:" + B(preview) + "};";
         }
     }
 }

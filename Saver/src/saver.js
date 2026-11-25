@@ -22,10 +22,39 @@
   const SATS = SCENE === 'starlink';
   // Starlink: crossing orbits and laser links are on unless turned off
   if (SATS) { if (CFG.crossing == null) CFG.crossing = true; if (CFG.lasers == null) CFG.lasers = true; }
-  // Angle (CFG.tilt, degrees): how far each craft is rolled about its flight path toward the viewer. Defaults:
+  if (SHIPS && CFG.roadster == null) CFG.roadster = true; // Starman rides along unless turned off
+  // Flock angle (CFG.heading, degrees, 0 = right, 90 = up): the direction the flock flies across the screen.
+  // The default, ~207.5°, is down and to the left, like the flying bread. Any angle works.
+  const HEAD0 = (Math.atan2(-0.52, -1) * 180) / Math.PI + 360;
+  const HEAD = CFG.heading != null && isFinite(+CFG.heading) ? +CFG.heading : HEAD0;
+  // Roll angle (CFG.tilt, degrees): how far each craft is rolled about its flight path toward the viewer. Defaults:
   // cars -32° (shows the roof), Starships -11°, Starlink -66° (three-quarter top view of the wings).
   const TILT = (CFG.tilt != null && isFinite(+CFG.tilt) ? +CFG.tilt : SATS ? -66 : SHIPS ? -11.5 : -32) * (Math.PI / 180);
   const $ = (id) => document.getElementById(id);
+
+  // ---------- flight direction ----------
+  // DIR: the flock's direction of travel in the screen plane (from the flock angle). Straight up or down is nudged a
+  // hair sideways so the craft's "look along the path" orientation stays well defined.
+  const DIR = (() => {
+    let x = Math.cos(HEAD * D2R), y = Math.sin(HEAD * D2R);
+    if (Math.abs(x) < 0.03) x = x < 0 ? -0.03 : 0.03;
+    return new THREE.Vector3(x, y, 0).normalize();
+  })();
+  const PERP = new THREE.Vector3(-DIR.y, DIR.x, 0); // in-screen sideways
+  const ROT = (HEAD - HEAD0) * D2R; // how far the flock angle turns the whole scene's traffic from the default
+  const rot2 = (x, y) => new THREE.Vector3(x * Math.cos(ROT) - y * Math.sin(ROT), x * Math.sin(ROT) + y * Math.cos(ROT), 0).normalize();
+  // Half the view box (plus margins) measured along the flight direction and across it.
+  const alongHalf = (W, H) => Math.abs(DIR.x) * W + Math.abs(DIR.y) * H;
+  const acrossHalf = (W, H) => Math.abs(PERP.x) * W + Math.abs(PERP.y) * H;
+  // Past the downstream edge (or drifted far out to the side): time to come back in upstream.
+  function offDownstream(x, y, W, H) {
+    return x * DIR.x + y * DIR.y > alongHalf(W, H) || Math.abs(x * PERP.x + y * PERP.y) > acrossHalf(W, H) + 6;
+  }
+  // A point just outside the upstream edge, anywhere across the flock's width (`spread` > 1 reaches past the corners).
+  function upstreamPoint(W, H, spread) {
+    const u = (Math.random() * 2 - 1) * acrossHalf(W, H) * spread, a = alongHalf(W, H);
+    return { x: PERP.x * u - DIR.x * a, y: PERP.y * u - DIR.y * a };
+  }
 
   // ---------- renderer / scene ----------
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
@@ -107,12 +136,12 @@
   function driftClouds(dt) {
     // clouds drift slowly down-left with the flock; one gone off the bottom or left comes back from the top or right
     for (const c of clouds) {
-      c.x += -0.887 * c.v * CFG.speed * dt;
-      c.y += -0.461 * c.v * CFG.speed * dt;
+      c.x += DIR.x * c.v * CFG.speed * dt;
+      c.y += DIR.y * c.v * CFG.speed * dt;
       const { w, h } = c.vh(c.z);
-      if (c.x < -w - c.w * 0.6 || c.y < -h - c.h * 0.7) {
-        if (Math.random() < 0.5) { c.x = w + c.w * 0.6; c.y = (Math.random() * 2 - 1) * h * 1.1; }
-        else { c.x = (Math.random() * 2 - 1) * w * 1.2; c.y = h + c.h * 0.7; }
+      if (offDownstream(c.x, c.y, w + c.w * 0.6, h + c.h * 0.7)) {
+        const p = upstreamPoint(w + c.w * 0.6, h + c.h * 0.7, 1.1);
+        c.x = p.x; c.y = p.y;
       }
       c.s.position.set(c.x, c.y, c.z);
     }
@@ -712,7 +741,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   const clock = () => (CFG.manual ? vt : performance.now() / 1000);
   window.__frame = (ms) => frame(ms);
   const craft = [];
-  const DIR = new THREE.Vector3(-1, -0.52, 0).normalize(); // toward lower-left, like the flying bread
+  // (DIR, PERP and the entry/exit helpers live near the top: the clouds use them too)
   function viewHalf(z) {
     const h = Math.tan((camera.fov * D2R) / 2) * (camera.position.z - z);
     return { w: h * camera.aspect, h };
@@ -721,24 +750,30 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   // Two sets of lanes cross on screen (ascending and descending passes): each lane is a straight line at one depth,
   // its satellites all at one speed so they keep their spacing, like the strings of Starlinks seen from the ground.
   const lanes = [];
+  // crossing orbits: each pass (leg) has its own altitude band, 50% deeper than before
+  const LEG_Z = [[-12, 3], [-40, -25]];
   const laneLen = (l) => { const { w, h } = viewHalf(l.z); return Math.hypot(w, h) + 24; };
   function lanePoint(l, s) {
     const { h } = viewHalf(l.z);
     return { x: -l.d.y * l.off * h + l.d.x * s, y: l.d.x * l.off * h + l.d.y * s };
   }
   function makeLanes() {
-    const dirs = [new THREE.Vector3(-1, -0.62, 0).normalize(), new THREE.Vector3(-1, 0.62, 0).normalize()];
-    const perDir = Math.max(1, Math.min(4, Math.round(craft.length / 4)));
+    // the two passes, turned with the flock angle (at the default they head down-left and up-left)
+    const dirs = [rot2(-1, -0.62), rot2(-1, 0.62)];
+    const perDir = Math.max(1, Math.min(6, Math.round(craft.length / 3)));
     dirs.forEach((d, k) => {
+      // each leg at its own altitude band, its lanes spread evenly through it (no two lanes at one depth)
+      const [lo, hi] = k === 0 ? LEG_Z[0] : LEG_Z[1];
+      const depths = Array.from({ length: perDir }, (_, i) => lo + 1 + ((i + 0.5) / perDir) * (hi - lo - 2)).sort(() => Math.random() - 0.5);
       for (let i = 0; i < perDir; i++) {
-        const off = perDir === 1 ? (Math.random() - 0.5) * 0.5 : ((i / (perDir - 1)) * 2 - 1) * 0.75 + (Math.random() - 0.5) * 0.2;
-        lanes.push({ d, off, z: (k === 0 ? -2 : -22) + (Math.random() * 2 - 1) * 4, speed: (6 + Math.random() * 3) * CFG.speed }); // each leg at its own altitude
+        const off = perDir === 1 ? (Math.random() - 0.5) * 0.5 : ((i / (perDir - 1)) * 2 - 1) * 0.8 + (Math.random() - 0.5) * 0.12;
+        lanes.push({ d, leg: k, off, z: depths[i], speed: (6 + Math.random() * 3) * CFG.speed });
       }
     });
     lanes.sort(() => Math.random() - 0.5);
     const members = lanes.map(() => []);
     // V2s and V3s round-robin over all the lanes; V1.5s alternate between the two legs of the X
-    const legLanes = [lanes.map((l, i) => (l.d.y < 0 ? i : -1)).filter((i) => i >= 0), lanes.map((l, i) => (l.d.y >= 0 ? i : -1)).filter((i) => i >= 0)];
+    const legLanes = [lanes.map((l, i) => (l.leg === 0 ? i : -1)).filter((i) => i >= 0), lanes.map((l, i) => (l.leg === 1 ? i : -1)).filter((i) => i >= 0)];
     let others = 0, v15 = 0;
     for (const c of craft) {
       if (!c.inch) members[others++ % lanes.length].push(c);
@@ -802,18 +837,22 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   }
   function placeGhost(g, anywhere) {
     const d = lanes.length ? lanes[(Math.random() * lanes.length) | 0].d : DIR;
-    const z = -40 + Math.random() * 44;
+    const z = -46 + Math.random() * 50;
     const { w, h } = viewHalf(z);
     const band = 6 + Math.random() * 34, r = () => Math.random() * 2 - 1;
     let x, y;
+    const ad = (W, H) => Math.abs(d.x) * W + Math.abs(d.y) * H, ac = (W, H) => Math.abs(d.y) * W + Math.abs(d.x) * H;
     if (anywhere) {
       const s = (Math.random() * 4) | 0;
       if (s === 0) { x = w + band; y = r() * (h + 30); }
       else if (s === 1) { x = -w - band; y = r() * (h + 30); }
       else if (s === 2) { x = r() * (w + 30); y = h + band; }
       else { x = r() * (w + 30); y = -h - band; }
-    } else if (Math.random() < 0.55) { x = w + band; y = r() * (h + 30); }
-    else { x = (Math.random() * 1.2 - 0.2) * (w + 30); y = d.y < 0 ? h + band : -h - band; }
+    } else {
+      // upstream of its own direction of travel, anywhere across the view's width
+      const u = r() * (ac(w, h) + 30), a = ad(w, h) + band;
+      x = -d.y * u - d.x * a; y = d.x * u - d.y * a;
+    }
     g.p = new THREE.Vector3(x, y, z);
     g.v = d.clone().multiplyScalar((6 + Math.random() * 3) * CFG.speed);
     g.gen = (g.gen || 0) + 1;
@@ -827,7 +866,9 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       g.p.addScaledVector(g.v, dt);
       const { w, h } = viewHalf(g.p.z);
       const inside = Math.abs(g.p.x) < w + 4 && Math.abs(g.p.y) < h + 4;
-      const gone = g.p.x < -w - 48 || Math.abs(g.p.y) > h + 48;
+      const d = g.v.clone().normalize();
+      const gone = g.p.x * d.x + g.p.y * d.y > Math.abs(d.x) * w + Math.abs(d.y) * h + 48 ||
+        Math.abs(-g.p.x * d.y + g.p.y * d.x) > Math.abs(d.y) * w + Math.abs(d.x) * h + 48;
       if (inside || gone) placeGhost(g, false);
     }
     const center = (i) => (i < n ? craft[i].g.position : ghosts[i - n].p);
@@ -922,12 +963,26 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   // Starlink shells: the V1.5s keep to their own altitude, a layer well behind the V2s and V3s, so the two never
   // meet; everything else shares the nearer layer.
   // With crossing orbits each leg of the X gets its own altitudes too, so nothing on one leg meets anything on the other.
-  const legOf = (c) => (c.lane === undefined ? null : lanes[c.lane].d.y < 0 ? 0 : 1);
+  // Flying Cars and Starlink have 50% more depth than before (1.3.75), split into flight levels; see levelZ.
+  const legOf = (c) => (c.lane === undefined ? null : lanes[c.lane].leg);
   function layer(c) {
-    if (!SATS) return [-45, 8];
+    if (!SATS) return SHIPS ? [-45, 8] : [-66, 8];
     const g = legOf(c);
-    if (!c.inch) return g === 0 ? [-7, 3] : g === 1 ? [-27, -17] : [-28, 8];
-    return g === 0 ? [-41.5, -38.5] : g === 1 ? [-48.5, -45.5] : [-47, -39];
+    if (!c.inch) return g === 0 ? LEG_Z[0] : g === 1 ? LEG_Z[1] : [-46, 8];
+    return g === 0 ? [-55, -50.5] : g === 1 ? [-66, -61.5] : [-72, -58];
+  }
+  // Flight levels: depths spaced a craft's width apart (plus a little); a new arrival takes the emptiest level, so
+  // craft at different levels pass in front of and behind each other instead of colliding.
+  function levelZ(c) {
+    if (SHIPS || c.roadster) return -40 + Math.random() * 45;
+    const [lo, hi] = SATS ? (c.inch ? [-71, -59] : [-45, 4]) : [-62.5, 5];
+    const gap = 2 * R + 0.6, n = Math.max(1, Math.floor((hi - lo) / gap) + 1);
+    const count = new Array(n).fill(0);
+    for (const o of craft) if (o !== c && o.lvl != null && !o.inch === !c.inch && o.lvl < n) count[o.lvl]++;
+    const least = Math.min(...count);
+    const pick = count.map((k, i) => (k === least ? i : -1)).filter((i) => i >= 0);
+    c.lvl = pick[(Math.random() * pick.length) | 0];
+    return (n === 1 ? (lo + hi) / 2 : lo + (c.lvl * (hi - lo)) / (n - 1)) + (Math.random() - 0.5) * 0.4;
   }
   function layerZ(c, z) {
     if (!SATS) return z;
@@ -937,20 +992,16 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
   }
 
   function spawn(c, initial) {
-    c.z = layerZ(c, -40 + Math.random() * 45);
+    c.z = levelZ(c);
     const { w, h } = viewHalf(c.z);
     c.speed = (6 + Math.random() * 4) * CFG.speed;
     if (initial) {
       c.x = (Math.random() * 2 - 1) * w * 1.1;
       c.y = (Math.random() * 2 - 1) * h * 1.1;
-    } else if (Math.random() < w / (w + h)) {
-      // enter along the top edge
-      c.x = (Math.random() * 2 - 0.6) * w;
-      c.y = h + (SATS ? 17 : SHIPS ? 10 : 6);
     } else {
-      // enter along the right edge
-      c.x = w + (SATS ? 19 : SHIPS ? 13 : 8);
-      c.y = (Math.random() * 2 - 0.6) * h;
+      // come in just past the upstream edge, anywhere across the flock's path
+      const p = upstreamPoint(w + (SATS ? 19 : SHIPS ? 13 : 8), h + (SATS ? 17 : SHIPS ? 10 : 6), 1);
+      c.x = p.x; c.y = p.y;
     }
     c.phase = Math.random() * Math.PI * 2;
     c.dep = initial ? Math.random() * 9 : 0; // Starlink "deploying": new arrivals come in stowed
@@ -964,7 +1015,6 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
 
   // ---------- stunts ----------
   // Every few seconds a car either barrel-rolls or veers left/right (banking into it) and back.
-  const PERP = new THREE.Vector3(-DIR.y, DIR.x, 0); // in-screen sideways
   const LAT = PERP.clone().multiplyScalar(0.45).add(new THREE.Vector3(0, 0, 0.9)).normalize(); // car's own left/right
   const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
   function stunt(c, t) {
@@ -1181,7 +1231,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
       if (c.lane !== undefined) { if (c.x * D.x + c.y * D.y > laneLen(lanes[c.lane])) relane(c); }
-      else if (c.x < -w - (SATS ? 22 : SHIPS ? 15 : 10) || c.y < -h - (SATS ? 20 : SHIPS ? 12 : 8)) spawn(c, false);
+      else if (offDownstream(c.x, c.y, w + (SATS ? 22 : SHIPS ? 15 : 10), h + (SATS ? 20 : SHIPS ? 12 : 8))) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const tumbling = !!c.roadster && !CFG.roadsterStable;
       const straight = !!c.inch || tumbling; // V1.5 and the tumbling roadster: no bob, no stunts
