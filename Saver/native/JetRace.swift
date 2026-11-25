@@ -241,6 +241,7 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         }
         let m = unlit(geometry: passData, fragment: f, entry: entry)
         m.blendMode = .alpha
+        m.transparency = 0.999   // SceneKit only blends a material it takes to be see-through; an opaque white one is drawn solid
         m.writesToDepthBuffer = false
         return m
     }

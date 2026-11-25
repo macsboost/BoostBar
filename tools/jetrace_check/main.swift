@@ -131,7 +131,7 @@ do {
     let dot: [Float] = [0, 0, 0.4, 1, 1, 0, 0.4, 1, 1, 1, 0.4, 1, 0, 1, 0.4, 1]            // u, v, alpha
     let ribbon: [Float] = [0, 0.1, 1, 1, 1, 0.1, 1, 1, 1, 0.7, 1, 1, 0, 0.7, 1, 1]          // edge, age, strength
     let simple = JetRace.unlit(geometry: JetRace.passData, fragment: "#pragma varyings\nfloat3 wpos;\nfloat3 vdat;\n#pragma body\n{\n_output.color = float4(in.vdat * 0.4, 0.4);\n}\n")
-    simple.blendMode = .alpha; simple.writesToDepthBuffer = false
+    simple.blendMode = .alpha; simple.writesToDepthBuffer = false; simple.transparency = 0.999
     let list: [(SCNMaterial, [Float])] = [
         (simple, dot), (JetRace.makeSpray("fragment"), dot), (JetRace.makeSpray("surface"), dot), (JetRace.makeSpray("surfacepm"), dot),
         (JetRace.makeFoam("fragment"), ribbon), (JetRace.makeFoam("surface"), ribbon), (JetRace.makeFoam("surfacepm"), ribbon),
