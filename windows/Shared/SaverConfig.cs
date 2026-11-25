@@ -18,24 +18,53 @@ namespace BoostBar
         /// Flock angle in degrees (0 = right, 90 = up); null = the classic down-left.
         public double? Heading;
         public bool Crossing, Lasers, Clouds, Roadster, RoadsterStable;
+        // Jet Racers: who wins ("random" or a racer's number), how they celebrate, and how the race is shown.
+        public string Winner = "random", Celebration = "random", Camera = "director", Follow = "leader";
+        public bool Board = true, Captions;
+    }
+
+    /// The Jet Racers screen saver's choices: the value the scene page understands, and the name shown in Settings.
+    static class JetRace
+    {
+        public static readonly (string Id, string Name)[] Winners =
+        {
+            ("random", "Random (a fair race)"), ("16", "Skeeter (#16) always wins"), ("8", "Skison (#8) always wins"), ("3", "Jorge (#3) always wins"),
+        };
+        public static readonly (string Id, string Name)[] Celebrations =
+        {
+            ("random", "Random"), ("shake", "Stand and shake arms"), ("bow", "Take a bow"), ("bow2", "Formal bow, one arm up"),
+            ("backflip", "Backflip off the seat"), ("dab", "Dab"), ("cart", "Shopping cart dance"), ("mower", "Lawn mower"),
+        };
+        public static readonly (string Id, string Name)[] Cameras =
+        {
+            ("director", "Director (cinematic)"), ("chase", "Chase"), ("onboard", "Onboard"), ("side", "Trackside boat"), ("front", "Lead boat"),
+            ("heli", "Helicopter"), ("blimp", "Overhead"), ("buoy", "Buoy cam"), ("orbit", "Drone orbit"), ("finish", "Finish line"),
+        };
+        public static readonly (string Id, string Name)[] Follows =
+        {
+            ("leader", "Race leader"), ("16", "Skeeter (#16)"), ("8", "Skison (#8)"), ("3", "Jorge (#3)"),
+        };
+        public static int Index((string Id, string Name)[] list, string id) { var i = Array.FindIndex(list, x => x.Id == id); return i < 0 ? 0 : i; }
+        public static string Valid((string Id, string Name)[] list, string id) => list[Index(list, id)].Id;
     }
 
     static class SaverConfig
     {
-        public static readonly string[] Scenes = { "cars", "starships", "starlink" };
+        public static readonly string[] Scenes = { "cars", "starships", "starlink", "jetrace" };
 
         public static string Title(string scene) =>
-            scene == "starships" ? "BoostBar Starships" : scene == "starlink" ? "BoostBar Starlink" : "BoostBar Flying Cars";
+            scene == "starships" ? "BoostBar Starships" : scene == "starlink" ? "BoostBar Starlink" : scene == "jetrace" ? "BoostBar Jet Racers" : "BoostBar Flying Cars";
 
         /// File name of the installed screen saver for a scene (no spaces: Windows keeps SCRNSAVE.EXE paths simple).
         public static string ScrName(string scene) =>
-            scene == "starships" ? "BoostBarStarships.scr" : scene == "starlink" ? "BoostBarStarlink.scr" : "BoostBarFlyingCars.scr";
+            scene == "starships" ? "BoostBarStarships.scr" : scene == "starlink" ? "BoostBarStarlink.scr" : scene == "jetrace" ? "BoostBarJetRacers.scr" : "BoostBarFlyingCars.scr";
 
         public static string SceneFromExe(string exePath)
         {
             var n = Path.GetFileNameWithoutExtension(exePath ?? "").ToLowerInvariant();
             if (n.Contains("starship")) return "starships";
             if (n.Contains("starlink")) return "starlink";
+            if (n.Contains("jetrac")) return "jetrace";
             return "cars";
         }
 
@@ -88,6 +117,14 @@ namespace BoostBar
                 o.Clouds = d.Bool("clouds") ?? false;
                 o.Roadster = d.Bool("roadster") ?? o.Roadster;
                 o.RoadsterStable = d.Bool("roadsterStable") ?? false;
+                string Str(string key, (string Id, string Name)[] list, string fallback) =>
+                    d.TryGetValue(key, out var v) && v != null ? JetRace.Valid(list, v.ToString()) : fallback;
+                o.Winner = Str("winner", JetRace.Winners, o.Winner);
+                o.Celebration = Str("celebration", JetRace.Celebrations, o.Celebration);
+                o.Camera = Str("camera", JetRace.Cameras, o.Camera);
+                o.Follow = Str("follow", JetRace.Follows, o.Follow);
+                o.Board = d.Bool("board") ?? o.Board;
+                o.Captions = d.Bool("captions") ?? o.Captions;
                 if (d.TryGetValue("liveries", out var l) && l is System.Collections.IEnumerable list)
                     o.Liveries = list.Cast<object>().Select(x => x?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList();
             }
@@ -109,6 +146,8 @@ namespace BoostBar
                     ["stars"] = o.Stars, ["liveries"] = o.Liveries, ["oxidation"] = o.Oxidation,
                     ["crossing"] = o.Crossing, ["lasers"] = o.Lasers, ["clouds"] = o.Clouds,
                     ["roadster"] = o.Roadster, ["roadsterStable"] = o.RoadsterStable,
+                    ["winner"] = o.Winner, ["celebration"] = o.Celebration, ["camera"] = o.Camera, ["follow"] = o.Follow,
+                    ["board"] = o.Board, ["captions"] = o.Captions,
                     ["savedAt"] = (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds,
                 };
                 if (o.Tilt.HasValue) d["tilt"] = o.Tilt.Value;
@@ -129,6 +168,10 @@ namespace BoostBar
         public static string Script(string scene, bool preview = false)
         {
             var o = Load(scene);
+            if (scene == "jetrace")
+                return "window.SAVER_CONFIG={winner:\"" + JetRace.Valid(JetRace.Winners, o.Winner) + "\",celebration:\"" + JetRace.Valid(JetRace.Celebrations, o.Celebration) +
+                       "\",camera:\"" + JetRace.Valid(JetRace.Cameras, o.Camera) + "\",follow:\"" + JetRace.Valid(JetRace.Follows, o.Follow) +
+                       "\",board:" + B(o.Board) + ",captions:" + B(o.Captions) + ",preview:" + B(preview) + "};";
             var livs = string.Join(",", o.Liveries.Select(x => "\"" + x.Replace("\"", "") + "\""));
             return "window.SAVER_CONFIG={liveries:[" + livs + "],count:" + o.Count + ",speed:" + N(o.Speed) +
                    ",flapSpeed:" + N(o.FlapSpeed) + ",stunts:" + B(o.Stunts) + ",stars:" + B(o.Stars) +

@@ -1,12 +1,12 @@
 name: Screen Saver Preview
 
-# Renders the Flying Cars scene in headless Chrome (software WebGL) and saves screenshots,
-# so changes to the scene or liveries can be checked without installing the saver.
+# Renders the screen saver scenes (natively with SceneKit/Metal, and their pages in headless Chrome with software
+# WebGL) and saves the frames, so changes can be checked without installing a saver.
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["Saver/**", "tools/native_check/**", "tools/build_saver_html.py", "tools/macsboost_livery.py", ".github/workflows/saver-preview.yml"]
+    paths: ["Saver/**", "tools/native_check/**", "tools/jetrace_check/**", "tools/jetrace_test.js", "tools/build_saver_html.py", "tools/macsboost_livery.py", ".github/workflows/saver-preview.yml"]
 
 permissions:
   contents: read
@@ -37,6 +37,16 @@ jobs:
             sips --resampleWidth 720 "build/$n.jpg" --out "build/${n}_s.jpg" >/dev/null 2>&1 || true
             echo "IMG_BEGIN ${n}.jpg"; base64 -i "build/${n}_s.jpg" | tr -d '\n'; echo; echo "IMG_END"
           done
+      - name: Jet Racers (race script test, native frames, the .saver bundle)
+        run: |
+          node tools/jetrace_test.js build/saver/three.min.js 30
+          python3 tools/build_saver_html.py build/saver/three.min.js build/saver/GLTFLoader.js out/jetrace.html jetrace
+          mkdir -p build/jet_res out/jetrace
+          cp Saver/src/jetrace/*.glb Saver/src/jetrace/rigs.json Saver/src/jetrace.js build/saver/three.min.js build/jet_res/
+          swiftc -O tools/jetrace_check/main.swift Saver/native/GLB.swift Saver/native/JetRace.swift -o build/jetrace_check
+          ./build/jetrace_check build/jet_res out/jetrace || echo "::error::the native Jet Racers check failed"
+          ./scripts/build-saver.sh "build/BoostBar Jet Racers.saver" 0.0.0 1 jetrace
+          ls -l "build/BoostBar Jet Racers.saver/Contents/Resources"
       - name: WebKit check (as the .saver loads it)
         run: |
           swift tools/webkit_check.swift out/starships.html '{"count":4,"oxidation":0.8}' || true
@@ -49,12 +59,17 @@ jobs:
           node tools/saver_shots.mjs "$PWD/out/saver.html" out webclouds '{"count":7,"clouds":true}' | grep -i "error\|loaded\|TIMEOUT" || true
           node tools/saver_shots.mjs "$PWD/out/starships.html" out webroad '{"count":4,"roadster":true}' | grep -i "error\|loaded\|TIMEOUT" || true
           node tools/saver_shots.mjs "$PWD/out/starlink.html" out webx '{"count":12,"liveries":["v2","v3"],"crossing":true,"lasers":true}' | grep -i "error\|loaded\|TIMEOUT" || true
+          node tools/saver_shots.mjs "$PWD/out/jetrace.html" out webjet '{"winner":"8","captions":true}' | grep -i "error\|loaded\|TIMEOUT" || true
           for f in out/oxhalf_1.png out/webx_3.png out/webclouds_3.png out/webroad_3.png; do
             sips -s format jpeg -s formatOptions 60 --resampleWidth 720 "$f" --out "${f%.png}.jpg" >/dev/null
             echo "IMG_BEGIN $(basename "$f")"; base64 -i "${f%.png}.jpg" | tr -d '\n'; echo; echo "IMG_END"
           done
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: saver-preview
           path: |
             out/*.png
+            out/jetrace/*.jpg
+      - name: The app builds (Settings ▸ Screen Saver)
+        run: swift build 2>&1 | tail -30
