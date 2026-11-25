@@ -45,6 +45,10 @@ jobs:
           cp Saver/src/jetrace/*.glb Saver/src/jetrace/rigs.json Saver/src/jetrace.js build/saver/three.min.js build/jet_res/
           swiftc -O tools/jetrace_check/main.swift Saver/native/GLB.swift Saver/native/JetRace.swift -o build/jetrace_check
           ./build/jetrace_check build/jet_res out/jetrace || echo "::error::the native Jet Racers check failed"
+          for f in out/jetrace/*.jpg; do
+            sips -s format jpeg -s formatOptions 55 --resampleWidth 640 "$f" --out "build/jet_s.jpg" >/dev/null 2>&1 || continue
+            echo "IMG_BEGIN $(basename "$f")"; base64 -i build/jet_s.jpg | tr -d '\n'; echo; echo "IMG_END"
+          done
           ./scripts/build-saver.sh "build/BoostBar Jet Racers.saver" 0.0.0 1 jetrace
           ls -l "build/BoostBar Jet Racers.saver/Contents/Resources"
       - name: WebKit check (as the .saver loads it)
