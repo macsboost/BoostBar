@@ -750,7 +750,7 @@ const CORE = (() => {
       const r = racers[i], vf = clamp(k.v / CORE.V_TOP, 0, 1.2);
       const idle = 1 - clamp(k.v / 4, 0, 1);
       const chop = vf * (0.035 * Math.sin(now * 11 + r.ph) + 0.025 * Math.sin(now * 17.3 + r.ph * 2));
-      const y = -0.25 + 0.1 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph);
+      const y = -0.25 + 0.135 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed
       r.pos.set(k.x, 0, -k.y);
       r.fwd.set(Math.cos(k.th), 0, -Math.sin(k.th)); r.left.set(-Math.sin(k.th), 0, -Math.cos(k.th));
       r.vel.copy(r.fwd).multiplyScalar(k.v);
@@ -1044,9 +1044,34 @@ const CORE = (() => {
   }
   window.addEventListener('resize', resize);
   const clock = new THREE.Clock();
+  /* Keeping up. The water is worked out for every pixel, so a big window on modest graphics can drop frames, most of
+     all in the close, low shots. When the frame rate sags the picture is drawn at a lower resolution (and stretched to
+     fit), and it creeps back up while there is room. If a step down buys nothing, the slowness isn't the pixels (a
+     30 Hz display, a throttled window): the resolution is put back and left alone. */
+  const PR_MAX = Math.min(devicePixelRatio || 1, 1.75), PR_MIN = 0.5;
+  const pace = { pr: PR_MAX, ceil: PR_MAX, fps: 0, t: 0, n: 0, warm: 3, hold: 0, before: null, noGain: 0, on: true };
+  function setPR(v) { pace.pr = v; renderer.setPixelRatio(v); resize(); }
+  function keepUp(raw) { // raw: the real time since the last frame
+    if (raw > 0.5) { pace.t = pace.n = 0; return; } // a hitch or a hidden window says nothing about the pace
+    pace.t += raw; pace.n++;
+    if (pace.t < 1) return;
+    const fps = (pace.fps = pace.n / pace.t); pace.t = pace.n = 0;
+    if (pace.warm > 0) { pace.warm--; return; } // the first seconds include loading
+    if (!pace.on || fading) return;
+    if (pace.hold > 0) pace.hold--;
+    if (pace.before) { // the second after a step down: did it help?
+      const b = pace.before; pace.before = null;
+      if (fps < b.fps * 1.06) { if (++pace.noGain >= 2) { pace.on = false; setPR(PR_MAX); return; } } else pace.noGain = 0;
+    }
+    if (fps < 48 && pace.pr > PR_MIN) {
+      pace.before = { fps }; pace.ceil = pace.pr * 0.96; pace.hold = 12;
+      setPR(Math.max(PR_MIN, pace.pr * clamp(Math.sqrt(fps / 58), 0.7, 0.9)));
+    } else if (fps > 57 && pace.hold <= 0 && pace.pr < pace.ceil - 0.01) { pace.hold = 8; setPR(Math.min(pace.ceil, pace.pr * 1.08)); }
+  }
   function frame() {
     requestAnimationFrame(frame);
-    const dt = Math.min(clock.getDelta(), 0.05);
+    const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
+    keepUp(raw);
     tick(dt);
     $('fade').style.opacity = fadeV;
     waterU.t.value = skyMat.uniforms.t.value = now; waterU.cam.value.copy(camera.position);
@@ -1059,6 +1084,6 @@ const CORE = (() => {
     racers.forEach(makeTrail); resize(); start();
     const ld = $('loading'); if (ld) ld.remove();
     frame();
-    window.__jr = { get race() { return race; }, S, racers, CORE, get shot() { return shot; }, skip(sec) { for (let i = 0; i < sec * 120; i++) race.step(1 / 120); } };
+    window.__jr = { get race() { return race; }, S, racers, CORE, pace, get shot() { return shot; }, skip(sec) { for (let i = 0; i < sec * 120; i++) race.step(1 / 120); } };
   }).catch((e) => fail(e.message || String(e)));
 })();
