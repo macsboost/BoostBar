@@ -305,7 +305,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     struct Stunt { enum T { case roll, veer, alt }; let type: T; let t0: TimeInterval; let dur: Double; let dirn: Float; let amp: Float }
 
     private func build(_ res: URL) throws {
-        let n = max(1, min(20, cfg.count))
+        let n = max(1, min(kind == .starlink ? 69 : 20, cfg.count))
         switch kind {
         case .cars:
             let all = ["macsboost", "yonder", "xxone"]

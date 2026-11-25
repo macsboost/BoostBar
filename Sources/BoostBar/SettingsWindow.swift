@@ -719,8 +719,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 }
             })
             let times: (Double) -> String = { String(format: "%.1f×", $0) }
-            p.slider("How many", min: 1, max: 16, get: { Double(o.count) }, set: { v in change { $0.count = Int(v.rounded()) } },
-                     value: { String(Int($0.rounded())) })
+            p.slider("How many", min: 1, max: 16, get: { Double(min(o.count, 16)) }, set: { v in change { $0.count = Int(v.rounded()) } },
+                     value: { String(Int($0.rounded())) }, visible: { current.scene != "starlink" })
+            p.slider("How many", min: 1, max: 69, get: { Double(o.count) }, set: { v in change { $0.count = Int(v.rounded()) } },
+                     value: { String(Int($0.rounded())) }, caption: "up to 69 satellites",
+                     visible: { current.scene == "starlink" })
             p.slider("Speed", min: 0.3, max: 3, get: { o.speed }, set: { v in change { $0.speed = v } }, value: times)
             p.slider("Flap speed", min: 0.2, max: 3, get: { o.flapSpeed }, set: { v in change { $0.flapSpeed = v } },
                      value: times, caption: "flaps, wings, fans, wheels")

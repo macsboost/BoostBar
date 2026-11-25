@@ -219,7 +219,7 @@ class BoostBarSceneView: ScreenSaverView {
         }
         y -= 36
         let cl = NSTextField(labelWithString: Self.things); cl.frame = NSRect(x: 20, y: y, width: 90, height: 20); v.addSubview(cl)
-        let cs = NSSlider(value: Double(defaults.integer(forKey: "count")), minValue: 1, maxValue: 16, target: nil, action: nil)
+        let cs = NSSlider(value: Double(defaults.integer(forKey: "count")), minValue: 1, maxValue: Self.scene == "starlink" ? 69 : 16, target: nil, action: nil)
         cs.frame = NSRect(x: 120, y: y, width: 230, height: 20); v.addSubview(cs); countSlider = cs
         y -= 30
         let sl = NSTextField(labelWithString: "Speed"); sl.frame = NSRect(x: 20, y: y, width: 90, height: 20); v.addSubview(sl)

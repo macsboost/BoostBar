@@ -1078,7 +1078,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       const model = (k) => (k === 'DEPLOY' ? 'V3' : k); // the deploying one is a V3, fresh off Starship
       const tpls = await loadStarlink([...new Set(names.map(model))]);
       const have = names.filter((n) => tpls[model(n)]);
-      const n = Math.max(1, Math.min(20, CFG.count | 0));
+      const n = Math.max(1, Math.min(SATS ? 69 : 20, CFG.count | 0));
       for (let i = 0; i < n; i++) {
         const pick = have[i % have.length];
         const root = tpls[model(pick)].clone(true),
@@ -1103,7 +1103,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     }
     if (SHIPS) {
       const tpl = await loadStarship();
-      const n = Math.max(1, Math.min(20, CFG.count | 0));
+      const n = Math.max(1, Math.min(SATS ? 69 : 20, CFG.count | 0));
       for (let i = 0; i < n; i++) {
         const root = tpl.clone(true),
           g = new THREE.Group();
@@ -1125,7 +1125,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       applyLivery(root, LIVERIES.find((l) => l.id === id));
       templates[id] = root;
     }
-    const n = Math.max(1, Math.min(20, CFG.count | 0));
+    const n = Math.max(1, Math.min(SATS ? 69 : 20, CFG.count | 0));
     for (let i = 0; i < n; i++) {
       const id = ids[i % ids.length],
         root = templates[id].clone(true),
