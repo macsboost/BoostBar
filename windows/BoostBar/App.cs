@@ -51,7 +51,7 @@ namespace BoostBar
             if (renderTimer.Enabled) return;
             var since = (clock.Elapsed.TotalSeconds - lastRender) * 1000;
             renderTimer.Interval = Math.Max(1, FrameMs - (int)since);
-            MarkDirty();
+            renderTimer.Start();
         }
         HoverTarget hoverTarget, pendingHover;
 
@@ -108,7 +108,7 @@ namespace BoostBar
             ApplySettings();
             secondTimer.Start();
             diskTimer.Start();
-            renderTimer.Start();
+            MarkDirty();
 
             AboutForm.ShowIfFirstLaunch();
             InstallPing.SendIfNeeded();
