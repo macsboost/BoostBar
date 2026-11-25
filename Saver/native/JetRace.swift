@@ -765,7 +765,8 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
             let num = Self.line("\((win["id"] as? NSNumber)?.intValue ?? 0)", Self.font(heavyItalic, 30 * z), Self.hex(chip.count > 1 ? chip[1] : nil))
             let sub = Self.line(win["sub"] as? String ?? "", Self.font(medium, 12 * z), Self.srgb(0xffffff, 0.75), kern: 1.7 * z)
             let chipW = max(52 * z, num.width + 24 * z)
-            let w = 6 * z + 20 * z + max(chipW + 14 * z + title.width, sub.width) + 26 * z, h: CGFloat = 90 * z
+            let inner: CGFloat = max(chipW + 14 * z + title.width, sub.width)
+            let w: CGFloat = 52 * z + inner, h: CGFloat = 90 * z
             winSize = CGSize(width: w, height: h)
             show(winNode, card(winSize) { c in
                 c.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: self.winSize), cornerWidth: 6 * z, cornerHeight: 6 * z, transform: nil)); c.clip()
