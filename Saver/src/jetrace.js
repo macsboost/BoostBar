@@ -750,23 +750,23 @@ const CORE = (() => {
       const r = racers[i], vf = clamp(k.v / CORE.V_TOP, 0, 1.2);
       const idle = 1 - clamp(k.v / 4, 0, 1);
       const chop = vf * (0.035 * Math.sin(now * 11 + r.ph) + 0.025 * Math.sin(now * 17.3 + r.ph * 2));
-      const y = -0.25 + 0.2 * Math.min(vf, 1) + chop * 0.6 + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed; the bounce is kept small enough that the keel stays wet
-      r.pos.set(k.x, 0, -k.y);
-      r.fwd.set(Math.cos(k.th), 0, -Math.sin(k.th)); r.left.set(-Math.sin(k.th), 0, -Math.cos(k.th));
+      const y = -0.25 + 0.2 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed
+      r.pos.set(k.rx, 0, -k.ry);
+      r.fwd.set(Math.cos(k.rth), 0, -Math.sin(k.rth)); r.left.set(-Math.sin(k.rth), 0, -Math.cos(k.rth));
       r.vel.copy(r.fwd).multiplyScalar(k.v);
       const wob = k.wob * Math.sin(now * 13 + r.ph) * 0.22;
       const leanT = clamp((k.v * k.v * k.k) / 9.81 * 0.75 + k.pv * 0.05, -0.62, 0.62) + wob;
       r.lean = lerp(r.lean, leanT, 1 - Math.exp(-7 * dt));
       const pitchT = -(0.035 * Math.min(vf, 1) + 0.085 * clamp(k.acc / 6.5, -0.8, 1) * (1 - 0.5 * Math.min(vf, 1))) + chop * 0.5;
       r.pitch = lerp(r.pitch, pitchT, 1 - Math.exp(-6 * dt));
-      r.g.position.set(k.x, y, -k.y);
+      r.g.position.set(k.rx, y, -k.ry);
       // winner: a full spinout as the ski stops, then the celebration
       const sp = k.cel > 0 ? clamp((k.cel - 1.2) / 1.5, 0, 1) : 0, spinning = sp > 0 && sp < 1, dir = -k.celSide;
       const spinYaw = dir * TAU * (1 - Math.pow(1 - sp, 2.2));
       if (spinning) r.lean = lerp(r.lean, dir * 0.5 * Math.sin(Math.PI * sp), 1 - Math.exp(-12 * dt));
-      r.g.rotation.set(0, k.th + Math.PI / 2 + spinYaw, 0);
+      r.g.rotation.set(0, k.rth + Math.PI / 2 + spinYaw, 0);
       if (spinning) {
-        r.fwd.set(Math.cos(k.th + spinYaw), 0, -Math.sin(k.th + spinYaw)); r.left.set(-Math.sin(k.th + spinYaw), 0, -Math.cos(k.th + spinYaw));
+        r.fwd.set(Math.cos(k.rth + spinYaw), 0, -Math.sin(k.rth + spinYaw)); r.left.set(-Math.sin(k.rth + spinYaw), 0, -Math.cos(k.rth + spinYaw));
         let ns = 1500 * Math.sin(Math.PI * sp) * dt; ns = Math.floor(ns) + (Math.random() < ns % 1 ? 1 : 0);
         for (let e = 0; e < ns; e++) { // wall of spray thrown off the outside rail
           const fz = (Math.random() - 0.5) * 2.4, o = 3 + Math.random() * 6;
@@ -915,7 +915,7 @@ const CORE = (() => {
     hud.win = w1 ? { id: w1.id, name: RACERS[w1.id].name.toUpperCase(), chip: RACERS[w1.id].chip, sub: `${fmt(w1.ft)} · ${R.course.nB} buoys · ${R.laps} laps` } : null;
     if (NATIVE) { const key = JSON.stringify(hud); if (key !== hudKey) { hudKey = key; hudSerial++; } return; }
     $('board').style.display = hud.board ? 'block' : 'none'; $('cap').style.display = hud.capOn ? 'block' : 'none';
-    $('cap').textContent = hud.cap + (pace.fps ? `  ·  ${Math.round(pace.fps)} FPS  ·  ${Math.round((pace.pr / PR_MAX) * 100)}%` : ''); $('lap').textContent = hud.lap; $('clock').textContent = hud.clock;
+    $('cap').textContent = hud.cap; $('lap').textContent = hud.lap; $('clock').textContent = hud.clock;
     $('rows').innerHTML = hud.rows.map((r, i) =>
       `<div class="row"><span class="pos">${i + 1}</span><span class="chip" style="background:${r.chip[0]};color:${r.chip[1]}">${r.id}</span><span class="nm">${r.name}${r.hs ? ' <b class="hs" title="Holeshot">HS</b>' : ''}</span><span class="gap">${r.gap}</span></div>`).join('');
     const w = $('win');
@@ -971,6 +971,7 @@ const CORE = (() => {
   }
   function newRace() {
     race = new CORE.Race(pickSeed(), IDS);
+    for (const k of race.skis) { k.px = k.rx = k.x; k.py = k.ry = k.y; k.pth = k.rth = k.th; }
     let cb; do cb = CELEBS[Math.floor(Math.random() * CELEBS.length)]; while (cb === lastCeleb && Math.random() < 0.8);
     race.celeb = lastCeleb = cb; racers.forEach(resetBody);
     buildCourse();
@@ -979,11 +980,22 @@ const CORE = (() => {
     if (renderer && racesRun++) betweenRaces();
   }
   let racesRun = 0;
+  const STEP = 1 / 120;
+  function stepRace() { for (const k of race.skis) { k.px = k.x; k.py = k.y; k.pth = k.th; } race.step(STEP); }
   function restart() { if (!fading) fading = 0.0001; }
   let now = 0, accT = 0;
   function tick(dt) {
     now += dt;
-    accT += dt * (ff ? 8 : 1); while (accT >= 1 / 120) { race.step(1 / 120); accT -= 1 / 120; }
+    /* The race always advances in fixed 1/120 s steps, so a race is decided by its seed alone (the winner option
+       depends on that). But a frame rarely holds a whole number of steps: drawn as-is, the skis would lurch fore and
+       aft against the smoothly moving camera on anything but an even 60 Hz. So each ski is drawn part-way between
+       its last two steps, by however much of a step is left over. */
+    accT += dt * (ff ? 8 : 1); while (accT >= STEP) { stepRace(); accT -= STEP; }
+    const part = accT / STEP;
+    for (const k of race.skis) {
+      let dth = k.th - k.pth; while (dth > Math.PI) dth -= TAU; while (dth < -Math.PI) dth += TAU;
+      k.rx = k.px + (k.x - k.px) * part; k.ry = k.py + (k.y - k.py) * part; k.rth = k.pth + dth * part;
+    }
     if (race.phase === 'done' && race.order[0].cel > 12.5) restart();
     if (fading) { // fade to black, swap in the next race, fade back
       const was = fading; fading += dt;
@@ -1035,7 +1047,7 @@ const CORE = (() => {
       },
       hud() { return hudKey; },
       state() { return JSON.stringify({ phase: race.phase, t: race.raceT, seed: race.seed, laps: race.laps, order: race.order.map((k) => k.id), celeb: CELEBS.includes(S.celeb) ? S.celeb : race.celeb, shot: shot && shot.type, S }); },
-      debug: { get race() { return race; }, S, racers, CORE, skip(sec) { for (let i = 0; i < sec * 120; i++) race.step(1 / 120); } },
+      debug: { get race() { return race; }, S, racers, CORE, skip(sec) { for (let i = 0; i < sec * 120; i++) stepRace(); } },
     };
     return;
   }
@@ -1092,6 +1104,6 @@ const CORE = (() => {
     racers.forEach(makeTrail); resize(); start();
     const ld = $('loading'); if (ld) ld.remove();
     frame();
-    window.__jr = { get race() { return race; }, S, racers, CORE, pace, get shot() { return shot; }, skip(sec) { for (let i = 0; i < sec * 120; i++) race.step(1 / 120); } };
+    window.__jr = { get race() { return race; }, S, racers, CORE, pace, get shot() { return shot; }, skip(sec) { for (let i = 0; i < sec * 120; i++) stepRace(); } };
   }).catch((e) => fail(e.message || String(e)));
 })();
