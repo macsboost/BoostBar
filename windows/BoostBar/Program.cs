@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -117,6 +118,33 @@ namespace BoostBar
                             bg.Save(Path.Combine(dir, $"strip_{name}_{(light ? "light" : "dark")}_{v}.png"), ImageFormat.Png);
                         }
                     }
+            // every emotion, large eyes, on a dark and a light taskbar
+            foreach (var light in new[] { false, true })
+            {
+                var faces = new List<(string, EyeFace)> { ("plain", new EyeFace()) };
+                foreach (var e in Emotions.All)
+                {
+                    var f = EyeFace.Pose(e, 0.7f);
+                    faces.Add((Emotions.Key(e), f));
+                    if (e == Emotion.Hearts) { var d = f.Clone(); d.Symbol = 2; faces.Add(("dollar", d)); }
+                }
+                const float zoom = 3f; const int cell = 40 * 3, hh = 66;
+                using (var bg = new Bitmap(cell * faces.Count, hh))
+                using (var g = Graphics.FromImage(bg))
+                {
+                    g.Clear(light ? Color.FromArgb(238, 238, 238) : Color.FromArgb(32, 32, 32));
+                    for (var k = 0; k < faces.Count; k++)
+                    {
+                        var s = new StripRenderer { LightBar = light, ShowEyes = true, ShowNetwork = false, ShowBattery = false, ShowCPU = false, ShowDisks = false, EyeSize = 2 };
+                        s.Face = faces[k].Item2;
+                        var down = faces[k].Item1 == "sad" || faces[k].Item1 == "sleepy";
+                        s.PupilOffsets = new[] { new PointF(1, down ? 2.5f : 0), new PointF(1, down ? 2.5f : 0) };
+                        var w = (int)Math.Ceiling(s.Layout() * zoom);
+                        using (var strip = StripWindow.RenderBitmap(s, zoom, w, hh)) g.DrawImage(strip, k * cell + (cell - w) / 2, 0, w, hh);
+                    }
+                    bg.Save(Path.Combine(dir, $"eyes_emotions_{(light ? "light" : "dark")}.png"), ImageFormat.Png);
+                }
+            }
             try { using (var f = new SettingsForm(true)) f.Snapshot(dir); } catch (Exception e) { File.WriteAllText(Path.Combine(dir, "settings_error.txt"), e.ToString()); }
             try
             {

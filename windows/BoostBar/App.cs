@@ -166,6 +166,7 @@ namespace BoostBar
                 .Select(d => new StripRenderer.Led { Key = d.Key, Color = DiskColor(d) }).ToList();
 
             eyes.Googly = Prefs.Googly; eyes.Blink = Prefs.EyeBlink; eyes.AllowCrossEye = Prefs.AllowCrossEye; eyes.Lazy = Prefs.LazyEyes;
+            eyes.Emotions = Prefs.EmotionsOn;
             eyesTimer.Enabled = Prefs.ShowEyes;
             SetCpuMeterRunning(Prefs.ShowCPU);
             corners.Watch(new[] { Prefs.CornerAwake, Prefs.CornerSleep, Prefs.CornerSaver });
@@ -200,6 +201,7 @@ namespace BoostBar
         {
             Net.Sample();
             if (BatteryMonitor.HasBattery) { var b = BatteryMonitor.Read(); if (b != null) batteryHistory.Append(b.Watts); }
+            FeedEmotions();
             if (LidSleep.Available && clock.Elapsed.TotalSeconds % 10 < 1.05) LidDisabled = LidSleep.IsDisabled;
             strip.Awake = LidDisabled ? AwakeState.LidAwake : Sleep.IsPreventing ? AwakeState.KeepAwake : AwakeState.Normal;
             RefreshContent();
@@ -264,6 +266,38 @@ namespace BoostBar
         }
 
         // ---------------- eyes ----------------
+
+        // What the eyes' emotions react to, gathered once a second.
+        bool? wasOnCharger; int? knownDrives; int fastDownloadSeconds;
+
+        void FeedEmotions()
+        {
+            if (!Prefs.ShowEyes) return;
+            if (!Prefs.ShowCPU) Cpu.Sample();                  // the meter's own clock isn't running
+            eyes.CpuLoad = Cpu.Total;
+            eyes.BatteryPercent = Battery?.Percent;
+            var charger = Battery?.ExternalConnected ?? true;
+            eyes.OnCharger = charger;
+            if (wasOnCharger == false && charger) eyes.Trigger(Emotion.Happy, 4);          // charger plugged in
+            wasOnCharger = charger;
+            try { eyes.NetDown = !System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable(); } catch { eyes.NetDown = false; }
+            // a big download finishing: fast for a while, then quiet
+            if (Net.CurrentDown > 1_000_000) fastDownloadSeconds++;
+            else
+            {
+                if (Net.CurrentDown < 100_000 && fastDownloadSeconds >= 10) eyes.Trigger(Emotion.Happy, 4);
+                if (Net.CurrentDown < 100_000) fastDownloadSeconds = 0;
+            }
+            var n = Disk.Drives.Count;                       // a drive plugged in
+            if (knownDrives.HasValue && n > knownDrives.Value) eyes.Trigger(Emotion.Startled, 0.9);
+            knownDrives = n;
+        }
+
+        /// Settings ▸ Eyes ▸ Try one.
+        public void PreviewEmotion(Emotion e) { eyes.Trigger(e, e == Emotion.Startled ? 0.9 : 5, force: true); eyesTimer.Interval = FrameMs; }
+
+        /// A tip button in About was clicked: hearts (and dollar signs).
+        public void Tipped() => eyes.Trigger(Emotion.Hearts, 5);
 
         void EyesStep()
         {

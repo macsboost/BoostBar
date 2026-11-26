@@ -46,6 +46,8 @@ namespace BoostBar
         public PointF[] PupilOffsets = new PointF[0];
         public float? WheelAngle;
         public bool EyesClosed;
+        /// The mood the eyes are showing (lids, slant, pupil size, props); plain by default.
+        public EyeFace Face = new EyeFace();
         public Segment[] Order = Prefs.DefaultOrder;
         public Fmt.NetUnit NetUnit = Fmt.NetUnit.Auto; public bool NetBits;
         public bool LightBar;
@@ -551,16 +553,28 @@ namespace BoostBar
         void DrawEyes(Graphics g)
         {
             var patched = Pirate && EyeRects.Count > 1 ? 0 : -1;
-            var pr = PupilRadius;
+            var face = Face ?? new EyeFace();
+            var pr = PupilRadius * face.PupilScale;
             for (var i = 0; i < EyeRects.Count; i++)
             {
                 if (i == patched) continue;
-                var r = EyeRects[i];
+                var r0 = EyeRects[i];
+                var r = new RectangleF(r0.X, r0.Y - Math.Min(face.Lift, r0.Y), r0.Width, r0.Height);
                 var er = RectangleF.Inflate(r, -0.5f, -0.5f);
                 using (var eye = new GraphicsPath())
                 {
                     eye.AddEllipse(er);
-                    if (EyesClosed)
+                    if (face.Smile && !EyesClosed)
+                    {
+                        // happy: closed, arched eyes
+                        using (var lg = new LinearGradientBrush(new RectangleF(er.X, er.Y - 0.5f, er.Width, er.Height + 1), Color.White, Color.FromArgb(219, 219, 219), 90f))
+                            g.FillPath(lg, eye);
+                        var my = r.Y + r.Height / 2;
+                        using (var pen = new Pen(Color.Black, Math.Max(1.4f, r.Width * 0.13f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                            g.DrawBezier(pen, r.X + 2, my + r.Height * 0.08f, r.X + r.Width * 0.3f, my - r.Height * 0.3f,
+                                         r.Right - r.Width * 0.3f, my - r.Height * 0.3f, r.Right - 2, my + r.Height * 0.08f);
+                    }
+                    else if (EyesClosed)
                     {
                         using (var b = new SolidBrush(Color.FromArgb(217, 217, 217))) g.FillPath(b, eye);
                         using (var lid = new Pen(Color.Black, 1.2f))
@@ -576,6 +590,28 @@ namespace BoostBar
                         if (Bloodshot) DrawVeins(g, r, eye, i);
                         void Pupil(PointF c, float squash = 1)
                         {
+                            if (face.Symbol == 1)
+                            {
+                                // a heart
+                                var s = pr * 1.25f;
+                                using (var h = new GraphicsPath())
+                                {
+                                    h.AddBezier(c.X, c.Y + s, c.X - s * 0.5f, c.Y + s * 0.55f, c.X - s, c.Y + s * 0.15f, c.X - s, c.Y - s * 0.25f);
+                                    h.AddBezier(c.X - s, c.Y - s * 0.25f, c.X - s, c.Y - s * 0.95f, c.X - s * 0.15f, c.Y - s * 0.95f, c.X, c.Y - s * 0.45f);
+                                    h.AddBezier(c.X, c.Y - s * 0.45f, c.X + s * 0.15f, c.Y - s * 0.95f, c.X + s, c.Y - s * 0.95f, c.X + s, c.Y - s * 0.25f);
+                                    h.AddBezier(c.X + s, c.Y - s * 0.25f, c.X + s, c.Y + s * 0.15f, c.X + s * 0.5f, c.Y + s * 0.55f, c.X, c.Y + s);
+                                    using (var b = new SolidBrush(Color.FromArgb(237, 28, 61))) g.FillPath(b, h);
+                                }
+                                return;
+                            }
+                            if (face.Symbol == 2)
+                            {
+                                using (var f = new Font("Segoe UI", pr * 3.0f, FontStyle.Bold, GraphicsUnit.Pixel))
+                                using (var b = new SolidBrush(Color.FromArgb(26, 140, 41)))
+                                using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                                    g.DrawString("$", f, b, new RectangleF(c.X - pr * 3, c.Y - pr * 3, pr * 6, pr * 6), sf);
+                                return;
+                            }
                             var w = pr * 2 * squash;
                             using (var b = new SolidBrush(Color.Black)) g.FillEllipse(b, c.X - w / 2, c.Y - pr, w, pr * 2);
                             var gl = Math.Max(pr * 0.35f, 0.8f);
@@ -600,11 +636,58 @@ namespace BoostBar
                         else
                         {
                             var off = i < PupilOffsets.Length ? PupilOffsets[i] : PointF.Empty;
+                            if (face.Symbol != 0) off = PointF.Empty;
                             Pupil(new PointF(r.X + r.Width / 2 + off.X, r.Y + r.Height / 2 + off.Y));
+                        }
+                        // lids: the upper one can slant (toward the middle when angry, toward the outside when sad);
+                        // a one-eye squint (skeptical) closes this eye's lids further
+                        var sq = EyeRects.Count > 1 ? (i == 0 ? face.SquintL : face.SquintR) : Math.Max(face.SquintL, face.SquintR);
+                        var lt = Math.Max(face.LidTop, sq * 0.62f); var lb = Math.Max(face.LidBottom, sq * 0.42f);
+                        if (lt > 0.01f || lb > 0.01f)
+                        {
+                            var st = g.Save();
+                            g.SetClip(eye);
+                            var lidFill = Bloodshot ? Color.FromArgb(189, 189, 189) : Color.FromArgb(199, 199, 199);
+                            if (lt > 0.01f)
+                            {
+                                var innerIsRight = EyeRects.Count > 1 ? i == 0 : true;
+                                var slant = EyeRects.Count > 1 ? face.Slant : 0;
+                                float inner = Math.Max(0, lt + slant), outer = Math.Max(0, lt - slant * 0.6f);
+                                var yL = r.Y + r.Height * (innerIsRight ? outer : inner);
+                                var yR = r.Y + r.Height * (innerIsRight ? inner : outer);
+                                using (var lid = new GraphicsPath())
+                                {
+                                    lid.AddPolygon(new[] { new PointF(r.X - 1, r.Y - 1), new PointF(r.Right + 1, r.Y - 1), new PointF(r.Right + 1, yR), new PointF(r.X - 1, yL) });
+                                    using (var b = new SolidBrush(lidFill)) g.FillPath(b, lid);
+                                }
+                                using (var pen = new Pen(Color.Black, Math.Abs(slant) > 0.05f ? 1.5f : 1f)) g.DrawLine(pen, r.X - 1, yL, r.Right + 1, yR);
+                            }
+                            if (lb > 0.01f)
+                            {
+                                var y = r.Bottom - r.Height * lb;
+                                using (var b = new SolidBrush(lidFill)) g.FillRectangle(b, r.X - 1, y, r.Width + 2, r.Bottom - y + 1);
+                                using (var pen = new Pen(Color.Black, 1f)) g.DrawLine(pen, r.X - 1, y, r.Right + 1, y);
+                            }
+                            g.Restore(st);
                         }
                     }
                     var rim = Bloodshot && !EyesClosed ? Color.FromArgb(153, 13, 20) : Color.FromArgb(217, 0, 0, 0);
                     using (var p = new Pen(rim, 1f)) g.DrawPath(p, eye);
+                }
+            }
+            if (face.Sweat >= 0 && EyeRects.Count > 0)
+            {
+                // a sweat drop sliding down beside the eye
+                var r = EyeRects[EyeRects.Count - 1];
+                var w = Math.Max(2.6f, r.Width * 0.26f); var hgt = w * 1.5f;
+                var x = r.Right - w * 0.55f; var y = r.Y - hgt * 0.4f + face.Sweat * r.Height * 0.45f;
+                using (var d = new GraphicsPath())
+                {
+                    d.AddBezier(x + w / 2, y, x + w * 1.25f, y + hgt * 0.65f, x + w, y + hgt, x + w / 2, y + hgt);
+                    d.AddBezier(x + w / 2, y + hgt, x, y + hgt, x - w * 0.25f, y + hgt * 0.65f, x + w / 2, y);
+                    var alpha = (int)(255 * (1 - Math.Max(0, face.Sweat - 0.7f) / 0.3f));
+                    using (var b = new SolidBrush(Color.FromArgb(alpha, 89, 184, 255))) g.FillPath(b, d);
+                    using (var p = new Pen(Color.FromArgb((int)(alpha * 0.8), 26, 89, 191), 0.5f)) g.DrawPath(p, d);
                 }
             }
         }

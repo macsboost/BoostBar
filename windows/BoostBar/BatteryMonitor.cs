@@ -17,6 +17,9 @@ namespace BoostBar
         public bool FullyCharged;
         public int? CycleCount;
         public int? HealthPercent;
+        /// True for the short while after the charger is plugged in or pulled, while the driver's rate still
+        /// points the old way: the reading follows the charger instead.
+        public bool Estimated;
     }
 
     /// Reads the battery driver directly (IOCTL_BATTERY_QUERY_STATUS): the charge/discharge rate in milliwatts.
@@ -83,7 +86,28 @@ namespace BoostBar
             return list;
         }
 
+        static bool? lastExternal;
+        static DateTime settleSince = DateTime.MinValue;
+
         public static BatteryReading Read()
+        {
+            var r = ReadRaw();
+            if (r == null) return null;
+            // Right after plugging in or unplugging, the battery's reported rate can lag behind the charger by tens of
+            // seconds (still discharging on the charger, still charging off it). Until it agrees, follow the charger.
+            if (lastExternal.HasValue && lastExternal.Value != r.ExternalConnected) settleSince = DateTime.UtcNow;
+            lastExternal = r.ExternalConnected;
+            var settling = (DateTime.UtcNow - settleSince).TotalSeconds < 120;
+            var contradicts = r.ExternalConnected ? r.Direction == BatteryReading.Dir.Discharging : r.Direction == BatteryReading.Dir.Charging;
+            if (settling && contradicts)
+            {
+                r.Watts = 0; r.Direction = BatteryReading.Dir.Idle; r.MinutesRemaining = null; r.Estimated = true;
+            }
+            else if (settling && !contradicts && (DateTime.UtcNow - settleSince).TotalSeconds > 3) settleSince = DateTime.MinValue;
+            return r;
+        }
+
+        static BatteryReading ReadRaw()
         {
             if (!HasBattery) return null;
             var ps = SystemInformation.PowerStatus;
@@ -182,6 +206,7 @@ namespace BoostBar
                         : "Battery idle" + pct);
                     break;
             }
+            if (r.Estimated) lines.Add("Just " + (r.ExternalConnected ? "plugged in" : "unplugged") + " — waiting for the battery to report its new rate");
             return lines.ToArray();
         }
     }

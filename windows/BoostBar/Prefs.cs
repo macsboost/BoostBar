@@ -96,6 +96,17 @@ namespace BoostBar
         public static bool SingleEye { get => GetBool("singleEye", false); set => SetBool("singleEye", value); }
         public static bool Googly { get => GetBool("googlyEyes", true); set => SetBool("googlyEyes", value); }
         public static bool LazyEyes { get => GetBool("lazyEyes", false); set => SetBool("lazyEyes", value); }
+        /// Eye emotions are all on unless switched off here (stored as the list of the ones turned off).
+        public static HashSet<Emotion> EmotionsOff
+        {
+            get
+            {
+                var keys = new HashSet<string>(GetString("eyeEmotionsOff", "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(k => k.Trim()));
+                return new HashSet<Emotion>(Emotions.All.Where(e => keys.Contains(Emotions.Key(e))));
+            }
+            set => SetString("eyeEmotionsOff", string.Join(",", value.Select(Emotions.Key).OrderBy(x => x)));
+        }
+        public static HashSet<Emotion> EmotionsOn { get { var on = new HashSet<Emotion>(Emotions.All); on.ExceptWith(EmotionsOff); return on; } }
         public static bool EyeBlink { get => GetBool("eyeBlink", true); set => SetBool("eyeBlink", value); }
         public static bool AllowCrossEye { get => GetBool("allowCrossEye", true); set => SetBool("allowCrossEye", value); }
         public static bool Bloodshot { get => GetBool("bloodshotEyes", false); set => SetBool("bloodshotEyes", value); }

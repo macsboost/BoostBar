@@ -86,7 +86,7 @@ namespace BoostBar
                 var b = new Button { Text = text, BackColor = c, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Width = 150, Height = 40, Margin = new Padding(5, 0, 5, 0), Font = new Font("Segoe UI Semibold", 10f) };
                 b.FlatAppearance.BorderSize = 0;
                 new ToolTip().SetToolTip(b, tip);
-                b.Click += (s, e) => act();
+                b.Click += (s, e) => { act(); App.Shared?.Tipped(); };
                 pays.Controls.Add(b);
             }
             Pay("PayPal  $" + Amount, Color.FromArgb(0, 112, 186), "Pay $" + Amount + " to " + PayEmail + " with PayPal", () =>
@@ -97,7 +97,7 @@ namespace BoostBar
             Pay("Card  $" + Amount, Color.FromArgb(99, 91, 255), "Pay $" + Amount + " by card (Stripe) on biz-cord.com", () =>
                 Shell.Open(StripeUrl + "?amount=" + Amount + "&app=BoostBar&version=" + Esc(Updater.CurrentVersion) + "&platform=windows"));
             Add(pays, 0, 8);
-            Add(Lbl("Card payments are processed by Stripe on biz-cord.com. Apple Cash works too, from an iPhone: send $" + Amount + " to " + PayEmail + ".",
+            Add(Lbl("Card payments are processed by Stripe on biz-cord.com.",
                      Color.FromArgb(170, 170, 170), new Font("Segoe UI", 8.5f)), 0, 14);
 
             Add(Lbl("More from MacsBoost", null, new Font("Segoe UI Semibold", 10.5f)), 0, 4);
