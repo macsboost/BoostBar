@@ -162,7 +162,7 @@ const CORE = (() => {
       this.skis = ids.map((id, i) => ({
         id, i, s: -2.05, p: lanes[i], pv: 0, tp: lanes[i] * 0.72, v: 0, acc: 0,
         skill: (rng() - 0.5) * 0.012, react: 0.05 + rng() * 0.3, launch: A_ACC * (0.92 + rng() * 0.16),
-        ph: [rng() * TAU, rng() * TAU, rng() * TAU], laneT: 3 + rng() * 3, mist: 0, wob: 0, cel: -1, celSide: 1, fin: false, ft: 0, place: 0, lap: 1,
+        ph: [rng() * TAU, rng() * TAU, rng() * TAU], laneT: 3 + rng() * 3, mist: 0, wob: 0, touch: [false, false, false], hits: 0, cel: -1, celSide: 1, fin: false, ft: 0, place: 0, lap: 1,
         x: 0, y: 0, th: 0, k: 0,
       }));
       this._o = {};
@@ -201,11 +201,20 @@ const CORE = (() => {
             if (!blocked || gap < blocked.s - k.s) blocked = q;
             if (gap < 4.6 && Math.abs(dp) < 1.35) vt = Math.min(vt, q.v * (gap < 3.4 ? 0.97 : 1.0));
           }
+          // contact: hulls touch. Each ski is knocked away once per touch, scrubs a little speed and gets unsettled
+          const touching = Math.abs(gap) < 2.75 && Math.abs(dp) < 1.02;
+          if (touching && !k.touch[q.i] && T > 1.5) {
+            k.touch[q.i] = true;
+            const sd = Math.sign(dp || q.i - k.i), closing = Math.max(0, (k.pv - q.pv) * sd);
+            if (Math.abs(dp) > 0.55) k.pv -= sd * (0.9 + 0.6 * closing); // side to side: shoved apart
+            else if (gap > 0) k.v *= 0.93; else k.v *= 1.015; // nose to tail: the one behind is checked, the one ahead nudged on
+            k.v *= 0.985; k.wob = Math.max(k.wob, 0.4); k.hits++;
+          } else if (!touching && (Math.abs(dp) > 1.2 || Math.abs(gap) > 3.1)) k.touch[q.i] = false;
           if (Math.abs(gap) < 4.2 && Math.abs(dp) < 1.8) {
             const sg = Math.sign(dp || q.i - k.i), lim = Math.max(LANE_MAX, Math.abs(k.p));
             k.tp = clamp(k.tp - sg * dt * 4, -lim, lim);
-            if (Math.abs(gap) < 3.1 && Math.abs(dp) < 1.25) { // never share the same water
-              k.p = clamp(k.p - sg * Math.min(1.25 - Math.abs(dp), 2.6 * dt), -lim, lim);
+            if (Math.abs(gap) < 3.1 && Math.abs(dp) < 1.0) { // never share the same water
+              k.p = clamp(k.p - sg * Math.min(1.0 - Math.abs(dp), 2.6 * dt), -lim, lim);
               if (gap > 0 || (gap === 0 && k.i > q.i)) vt = Math.min(vt, q.v * 0.9);
             }
           }
@@ -458,7 +467,7 @@ const CORE = (() => {
      x- swings a limb forward, z+ lifts the left one out sideways. Fields ending in R override the right side.
      Arms can instead be aimed: uaDL / faDL / uaDR / faDR are directions for the upper arm and forearm in the
      torso frame (+X rider's left, +Y up, +Z forward). */
-  const CELEBS = ['shake', 'bow', 'bow2', 'backflip', 'dab', 'cart', 'mower'];
+  const CELEBS = ['shake', 'bow', 'bow2', 'backflip', 'dab', 'cart', 'mower', 'sprinkler', 'crane'];
   const POSE0 = { hy: 0, hz: 0, hips: [0, 0, 0], spine: [0.05, 0, 0], head: [0, 0, 0], ua: [0, 0, 0.14], fa: [-0.15, 0, 0], th: [0, 0, 0], sh: [0, 0, 0], ft: [0, 0.18, 0] };
   const P = (...parts) => Object.assign({}, POSE0, ...parts);
   const QT = THREE.Quaternion, DOWN = new V3(0, -1, 0), XAX = new V3(1, 0, 0), ZAX = new V3(0, 0, 1);
@@ -485,7 +494,7 @@ const CORE = (() => {
   function celebKeys(kind, b) {
     const th = Math.asin(clamp((0.305 - b.hipX) / b.L, -0.6, 0.6)), k = b.k;
     const hs = -0.39 + 0.085 * k + b.L * Math.cos(th) + b.hipDrop; // hips height standing in the footwells
-    const ht = -0.014 + 0.08 * k + b.L + b.hipDrop; // hips height with the soles on the top of the seat
+    const ht = -0.044 - 0.055 * (k - 0.9) + 0.08 * k + b.L + b.hipDrop; // hips height standing on the seat: the shoes press about 3 cm into the cushion, so they never read as hovering
     const wells = { hy: hs, hz: 0.1, th: [0, 0, th], ft: [0, 0.18, -th] }, seat = { hy: ht, hz: -0.05 };
     const knee = (a) => ({ hy: hs - b.L * (1 - Math.cos(a)), hz: 0.1, th: [-a, 0, th], sh: [2 * a, 0, 0], ft: [-a, 0.18, -th] }); // standing in the wells, knees bent
     const up = { ua: [0, 0, 2.55], fa: [0, 0, 0.35] }, wide = { ua: [0, 0, 1.45], fa: [0, 0, 0.1] };
@@ -519,6 +528,25 @@ const CORE = (() => {
       K = [[0.6, push(0.12)]];
       let t = 0.6;
       for (let i = 0; i < 6; i++) { const m = i % 2 ? mirror : (x) => x; K.push([t + 0.35, m(reach)], [t + 0.55, m(reach)], [t + 0.82, m(drop)], [t + 1.0, push(i % 2 ? 0.12 : 0.26)]); t += 1.0; }
+      K.push([t + 0.5, P(wells, up)]); extra = { shake: t + 0.5, amp: 0.7 };
+    } else if (kind === 'crane') { // up on the seat on one leg, arms out like wings; hop, kick with the standing leg, land on the other
+      const wings = { uaDL: [0.8, 0.55, 0.1], faDL: [0.45, 0.85, 0.2], uaDR: [-0.8, 0.55, 0.1], faDR: [-0.45, 0.85, 0.2] };
+      const kneeUp = { thR: [-1.5, 0, 0], shR: [1.75, 0, 0], ftR: [0.55, 0.18, 0] }; // right knee raised, toes pointed
+      const crane = P(seat, wings, kneeUp, { spine: [0.02, 0, 0] }); // standing on the left leg
+      const dip = P(seat, wings, kneeUp, { hy: ht - b.L * (1 - Math.cos(0.32)), th: [-0.32, 0, 0], sh: [0.64, 0, 0], ft: [-0.32, 0.18, 0], spine: [0.12, 0, 0] });
+      const kick = P({ hy: ht + 0.3, hz: -0.05, spine: [-0.14, 0, 0], head: [0.1, 0, 0], th: [-1.7, 0, 0], sh: [0.05, 0, 0], ft: [0.45, 0.18, 0], // the left leg snaps out front
+        thR: [-0.45, 0, 0], shR: [1.25, 0, 0], ftR: [0.3, 0.18, 0], uaDL: [0.75, -0.35, -0.3], faDL: [0.6, -0.6, 0.2], uaDR: [-0.75, -0.35, -0.3], faDR: [-0.6, -0.6, 0.2] });
+      const craneR = mirror(crane);
+      K = [[0.5, P(wells)], [1.2, P(seat, wide)], [1.75, crane], [2.9, crane], [3.08, dip], [3.3, kick], [3.56, craneR], [4.5, craneR], [4.68, mirror(dip)], [4.9, mirror(kick)], [5.16, crane], [5.9, crane], [6.4, P(seat, up)]];
+      extra = { shake: 6.4, amp: 0.8 };
+    } else if (kind === 'sprinkler') { // one hand behind the head, the other arm straight out; tick round one way, sweep back
+      const at = (yaw, bob) => P(knee(bob), { spine: [0.08, yaw, 0], head: [0, yaw * 0.25, 0], uaDL: [0.25, -0.02, 0.97], faDL: [0.25, 0.04, 0.97], uaDR: [-0.85, 0.5, -0.1], faDR: [0.55, 0.6, -0.55] });
+      K = [[0.6, at(-0.95, 0.1)]];
+      let t = 0.9;
+      for (let rep = 0; rep < 3; rep++) {
+        for (let i = 1; i <= 7; i++) { const y = -0.95 + (1.9 * i) / 7; K.push([t + 0.09, at(y, i % 2 ? 0.2 : 0.08)], [t + 0.2, at(y, i % 2 ? 0.2 : 0.08)]); t += 0.2; } // ch-ch-ch-ch
+        K.push([t + 0.42, at(-0.95, 0.1)], [t + 0.6, at(-0.95, 0.1)]); t += 0.6; // the sweep back
+      }
       K.push([t + 0.5, P(wells, up)]); extra = { shake: t + 0.5, amp: 0.7 };
     } else if (kind === 'mower') { // lawn mower: three pulls on the starter cord, then push it along
       const hold = { uaDL: [0.15, -0.7, 0.7], faDL: [0.05, -0.55, 0.83] };
@@ -561,6 +589,92 @@ const CORE = (() => {
     }
     J.Hips.position.set(0, lerp(b.hipsRest.y, hy, w), lerp(b.hipsRest.z, lerp(A.hz, B.hz, u), w));
   }
+  /* ---------- the rider as a mass on the ski ----------
+     Three damped springs carry his weight: a vertical one between hips and seat (he lifts off it and sinks into it over
+     chop; the seat is not deformed), and two that let his torso swing fore-aft and side to side about the hips. They
+     are driven by the ski's own accelerations, measured frame to frame, so he is thrown back at the launch, pitches
+     forward under braking, and is rocked the other way when another ski knocks his sideways. Two-bone IK then keeps
+     his hands on the grips and feet in the footwells. */
+  const LIMBS = [['UpperArm_L', 'ForeArm_L', 'Hand_L'], ['UpperArm_R', 'ForeArm_R', 'Hand_R'], ['Thigh_L', 'Shin_L', 'Foot_L'], ['Thigh_R', 'Shin_R', 'Foot_R']];
+  const POSED = ['Spine', 'Head'].concat(...LIMBS.map((L) => [L[0], L[1]])); // joints this code turns each frame
+  const TORSO_H = 0.35, TORSO_M = 0.48, TORSO_K = 60, TORSO_C = 7.7; // lever arm (m), share of the push that reaches the torso, spring, damping
+  const _s = new V3(), _el = new V3(), _h = new V3(), _dir = new V3(), _pole = new V3(), _va = new V3(), _vb = new V3(), _wq = new QT(), _pq = new QT(), _dq = new QT();
+  function swing(node, from, to) { // turn a joint, in world space, so that `from` points along `to`
+    _dq.setFromUnitVectors(from, to);
+    node.getWorldQuaternion(_wq); node.parent.getWorldQuaternion(_pq);
+    node.quaternion.copy(_pq.invert()).multiply(_dq).multiply(_wq);
+    node.updateWorldMatrix(false, true);
+  }
+  /* looking back: now and then the leader checks over his shoulder for the racer behind, and the middle rider does
+     when he is being caught. Only on the straighter parts, on the side the chaser is on. */
+  function updateLooks(dt) {
+    const R = race, rk = R.ranked();
+    racers.forEach((r) => { if (r.look) { r.look.t += dt; if (r.look.t > r.look.dur) r.look = null; } r.lookCool = Math.max(0, (r.lookCool || 0) - dt); });
+    if (R.phase !== 'race' || R.raceT < 6) return;
+    for (let pos = 0; pos < 2; pos++) {
+      const k = rk[pos], q = rk[pos + 1], r = racers[idxOf(k)], gap = k.s - q.s;
+      if (r.look || r.lookCool > 0 || k.fin || q.fin || k.mist > 0 || Math.abs(k.k) > 0.012) continue;
+      const closing = q.v - k.v;
+      const rate = pos === 0 ? (gap < 16 ? 0.22 : 0) : (gap < 11 && closing > 0.15 ? 0.6 : 0); // chances per second
+      if (Math.random() < rate * dt) {
+        r.look = { t: 0, dur: 1.0 + Math.random() * 0.6, side: q.p >= k.p ? 1 : -1, pos };
+        r.lookCool = r.look.dur + 4 + Math.random() * 6; r.looks = (r.looks || 0) + 1;
+      }
+    }
+  }
+  const lookAmt = (r) => { const L = r.look; return L ? L.side * sm(L.t / 0.28) * sm((L.dur - L.t) / 0.32) : 0; };
+  function riderMass(r, k, vf, now, dt, riding) {
+    const b = r.body, J = b.J;
+    if (!b.out) { b.out = {}; b.base = {}; b.bo = b.bv = b.th = b.thv = b.ph = b.phv = b.latSlow = 0; b.prev = null; }
+    if (!riding) { b.bo = b.bv = b.th = b.thv = b.ph = b.phv = 0; b.prev = null; return; } // the celebration owns the pose
+    if (!b.prev || b.prev.race !== race || ff) b.prev = { race, v: k.rv, pv: k.rpv, hits: k.hits }; // (fast-forward would read as huge accelerations)
+    const idt = dt > 1e-4 ? 1 / dt : 0; // a zero-length frame carries no acceleration
+    const aLon = clamp((k.rv - b.prev.v) * idt, -60, 60), aLatRaw = clamp((k.rpv - b.prev.pv) * idt, -90, 90);
+    b.latSlow += (aLatRaw - b.latSlow) * (1 - Math.exp(-dt / 0.25)); // he rides ordinary lane changes; only the sharp part throws him
+    const aLat = aLatRaw - b.latSlow, hit = k.hits !== b.prev.hits;
+    b.prev.v = k.rv; b.prev.pv = k.rpv; b.prev.hits = k.hits;
+    // vertical: hips against the seat
+    const acc = -vf * (0.035 * 121 * Math.sin(now * 11 + r.ph) + 0.025 * 299 * Math.sin(now * 17.3 + r.ph * 2)); // hull's vertical acceleration over the chop
+    if (hit) b.bv += 0.55;
+    b.bv += (-acc * BOUNCE - 80 * b.bo - 10 * b.bv) * dt; // free both ways: up off the seat and down into it
+    b.bo += b.bv * dt;
+    if (Math.abs(b.bo) > 0.16) { b.bo = 0.16 * Math.sign(b.bo); b.bv = 0; }
+    // torso: th pitches forward (+), ph leans to his left (+); the ski accelerating one way leaves the torso behind
+    b.thv += ((-aLon / TORSO_H) * TORSO_M - TORSO_K * b.th - TORSO_C * b.thv) * dt; b.th += b.thv * dt;
+    b.phv += ((-aLat / TORSO_H) * TORSO_M - TORSO_K * b.ph - TORSO_C * b.phv) * dt; b.ph += b.phv * dt;
+    if (b.th > 0.5 || b.th < -0.38) { b.th = clamp(b.th, -0.38, 0.5); b.thv = 0; }
+    if (Math.abs(b.ph) > 0.45) { b.ph = 0.45 * Math.sign(b.ph); b.phv = 0; }
+    // the steer clip only rewrites a joint when its value changes, so put back the un-thrown pose where it did not
+    for (const nm of POSED) {
+      const q = J[nm].quaternion;
+      if (b.out[nm] && q.equals(b.out[nm])) q.copy(b.base[nm]); else (b.base[nm] || (b.base[nm] = new QT())).copy(q);
+    }
+    J.Hips.position.y = b.hipsRest.y;
+    const lk = lookAmt(r);
+    if (Math.abs(b.bo) < 0.002 && Math.abs(b.th) < 0.003 && Math.abs(b.ph) < 0.003 && !lk) return;
+    r.g.updateMatrixWorld(true);
+    const T = LIMBS.map((L) => J[L[2]].getWorldPosition(new V3())); // where the hands and feet belong
+    J.Hips.position.y = b.hipsRest.y + b.bo;
+    J.Spine.quaternion.multiply(_dq.setFromEuler(_e.set(b.th, 0.32 * lk, -b.ph - 0.06 * lk, 'XYZ'))); // shoulders open a little toward the look
+    J.Head.quaternion.multiply(_dq.setFromEuler(_e.set(-0.55 * b.th - 0.1 * Math.abs(lk), 1.2 * lk, 0.55 * b.ph, 'XYZ'))); // the head stays nearer level, and turns over the shoulder
+    r.g.updateMatrixWorld(true);
+    LIMBS.forEach((L, i) => {
+      const U = J[L[0]], Lo = J[L[1]], E = J[L[2]];
+      U.getWorldPosition(_s); Lo.getWorldPosition(_el); E.getWorldPosition(_h);
+      const L1 = _el.distanceTo(_s), L2 = _h.distanceTo(_el);
+      _dir.copy(T[i]).sub(_s); const dist = Math.min(_dir.length(), L1 + L2 - 1e-3); _dir.normalize();
+      const a = (L1 * L1 - L2 * L2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(L1 * L1 - a * a, 0));
+      _va.copy(_el).sub(_s); _pole.copy(_va).addScaledVector(_dir, -_va.dot(_dir));
+      if (_pole.lengthSq() < 1e-8) return;
+      _pole.normalize(); _vb.copy(_dir).multiplyScalar(a).addScaledVector(_pole, h).normalize();
+      swing(U, _va.normalize(), _vb);
+      Lo.getWorldPosition(_el); E.getWorldPosition(_h);
+      _va.copy(_h).sub(_el).normalize(); _vb.copy(_s).addScaledVector(_dir, dist).sub(_el).normalize();
+      swing(Lo, _va, _vb);
+    });
+    for (const nm of POSED) (b.out[nm] || (b.out[nm] = new QT())).copy(J[nm].quaternion);
+  }
+  const BOUNCE = 0.7; // how hard the chop throws the rider; 0 turns the bounce off
   function resetBody(r) { const b = r.body; for (const nm of JOINTS) b.J[nm].quaternion.copy(b.rest[nm]); b.J.Hips.position.copy(b.hipsRest); b.seat = null; }
   const racers = []; // visual state per ski, index-aligned with race.skis
   function mkBody(J) { // rest pose and the proportions the celebrations are fitted to
@@ -590,26 +704,31 @@ const CORE = (() => {
     }
   }
   /* Native: SceneKit owns the meshes, so here each ski and rider is only its moving parts — bare transforms made from
-     Saver/src/jetrace/rigs.json (tools/jetrace_rigs.py: every node's rest pose, and the Steer clips). */
+     Saver/src/jetrace/rigs.json (tools/jetrace_rigs.py: every node's rest pose and parent, and the Steer clips),
+     hung in the same tree as the models so the rider's springs and reach can work in world space. */
   const SKI_PARTS = ['Handlebars', 'SteeringNozzle'];
   function buildRacersNative(rigs) {
     for (const id of IDS) {
-      const R = RACERS[id], nodes = {};
-      const rig = (key) => {
+      const R = RACERS[id], nodes = {}, g = new THREE.Object3D(), inner = new THREE.Object3D();
+      g.add(inner);
+      const rig = (key, mount) => { // mount: what this model's root hangs from
         const r = rigs[key];
         if (!r) throw new Error('rig missing: ' + key);
-        for (const nm in r.nodes) { const o = new THREE.Object3D(); o.position.fromArray(r.nodes[nm].p); o.quaternion.fromArray(r.nodes[nm].q); nodes[nm] = o; }
+        for (const nm in r.nodes) { const o = new THREE.Object3D(); o.name = nm; o.position.fromArray(r.nodes[nm].p); o.quaternion.fromArray(r.nodes[nm].q); nodes[nm] = o; }
+        for (const nm in r.nodes) (r.nodes[nm].u ? nodes[r.nodes[nm].u] : mount).add(nodes[nm]);
         const T = r.clip.times, n = T.length, ch = r.clip.ch;
         return { setTime(t) { // the Steer clip: straight slerp between its keys
           let i = 0; while (i < n - 2 && t > T[i + 1]) i++;
           const u = clamp((t - T[i]) / (T[i + 1] - T[i]), 0, 1);
-          for (const nm in ch) { _q.fromArray(ch[nm], i * 4); _q2.fromArray(ch[nm], i * 4 + 4); nodes[nm].quaternion.slerpQuaternions(_q, _q2, u); }
+          for (const nm in ch) { _q.fromArray(ch[nm], i * 4); _q2.fromArray(ch[nm], i * 4 + 4); _q.slerp(_q2, u); if (!nodes[nm].quaternion.equals(_q)) nodes[nm].quaternion.copy(_q); }
         } };
       };
-      const mxS = rig(R.ski), mxR = rig(R.rider), J = {};
+      const mxS = rig(R.ski, inner);
+      if (!nodes.SeatMount) throw new Error('SeatMount missing on ' + R.ski);
+      const mxR = rig(R.rider, nodes.SeatMount), J = {};
       for (const nm of JOINTS.concat(SKI_PARTS)) if (!nodes[nm]) throw new Error('rig node missing: ' + nm);
       for (const nm of JOINTS) J[nm] = nodes[nm];
-      mkRacer(id, new THREE.Object3D(), new THREE.Object3D(), mkBody(J), mxS, mxR, nodes);
+      mkRacer(id, g, inner, mkBody(J), mxS, mxR, nodes);
     }
   }
 
@@ -746,6 +865,7 @@ const CORE = (() => {
 
   /* ---------- per-frame racer visuals ---------- */
   function updateRacers(dt, now) {
+    updateLooks(dt);
     race.skis.forEach((k, i) => {
       const r = racers[i], vf = clamp(k.v / CORE.V_TOP, 0, 1.2);
       const idle = 1 - clamp(k.v / 4, 0, 1);
@@ -779,6 +899,7 @@ const CORE = (() => {
       const t = clamp(0.5 - r.steer / (2 * STEER_MAX), 0.002, 0.998);
       r.mxS.setTime(t);
       if (k.cel > 2.9) applyCelebration(r, k.cel - 2.9, now); else r.mxR.setTime(t);
+      riderMass(r, k, Math.min(vf, 1), now, dt, !(k.cel > 2.9));
       // spray: rooster tail from the pump, sheets off the bow sides, extra off the outside rail in a turn
       const rate = (k.v > 0.6 ? 90 + 520 * vf : 0) + (k.acc > 3 ? 380 : 0) + k.wob * 400;
       let nEm = rate * dt; nEm = Math.floor(nEm) + (Math.random() < nEm % 1 ? 1 : 0);
@@ -923,7 +1044,7 @@ const CORE = (() => {
     else w.classList.remove('on');
   }
   const WINNERS = [['random', 'Random (a fair race)'], ['16', 'Skeeter (#16) always wins'], ['8', 'Skison (#8) always wins'], ['3', 'Jorge (#3) always wins']];
-  const CELEB_NAMES = [['random', 'Random'], ['shake', 'Stand and shake arms'], ['bow', 'Take a bow'], ['bow2', 'Formal bow, one arm up'], ['backflip', 'Backflip off the seat'], ['dab', 'Dab'], ['cart', 'Shopping cart dance'], ['mower', 'Lawn mower']];
+  const CELEB_NAMES = [['random', 'Random'], ['shake', 'Stand and shake arms'], ['bow', 'Take a bow'], ['bow2', 'Formal bow, one arm up'], ['backflip', 'Backflip off the seat'], ['dab', 'Dab'], ['cart', 'Shopping cart dance'], ['mower', 'Lawn mower'], ['sprinkler', 'Sprinkler'], ['crane', 'Crane kick']];
   const FOLLOWS = [['leader', 'Race leader'], ['16', 'Skeeter (#16)'], ['8', 'Skison (#8)'], ['3', 'Jorge (#3)']];
   sanitize();
   let syncUI = () => {};
@@ -971,17 +1092,17 @@ const CORE = (() => {
   }
   function newRace() {
     race = new CORE.Race(pickSeed(), IDS);
-    for (const k of race.skis) { k.px = k.rx = k.x; k.py = k.ry = k.y; k.pth = k.rth = k.th; }
+    for (const k of race.skis) { k.px = k.rx = k.x; k.py = k.ry = k.y; k.pth = k.rth = k.th; k.pvv = k.rv = k.v; k.ppv = k.rpv = k.pv; }
     let cb; do cb = CELEBS[Math.floor(Math.random() * CELEBS.length)]; while (cb === lastCeleb && Math.random() < 0.8);
     race.celeb = lastCeleb = cb; racers.forEach(resetBody);
     buildCourse();
-    racers.forEach((r) => { r.trail.length = 0; r.lean = r.pitch = r.steer = 0; });
+    racers.forEach((r) => { r.trail.length = 0; r.lean = r.pitch = r.steer = 0; r.look = null; r.lookCool = 0; });
     pLife.fill(0); ff = false; shot = null; lastTypes = []; hudT = 0;
     if (renderer && racesRun++) betweenRaces();
   }
   let racesRun = 0;
   const STEP = 1 / 120;
-  function stepRace() { for (const k of race.skis) { k.px = k.x; k.py = k.y; k.pth = k.th; } race.step(STEP); }
+  function stepRace() { for (const k of race.skis) { k.px = k.x; k.py = k.y; k.pth = k.th; k.pvv = k.v; k.ppv = k.pv; } race.step(STEP); }
   function restart() { if (!fading) fading = 0.0001; }
   let now = 0, accT = 0;
   function tick(dt) {
@@ -995,6 +1116,7 @@ const CORE = (() => {
     for (const k of race.skis) {
       let dth = k.th - k.pth; while (dth > Math.PI) dth -= TAU; while (dth < -Math.PI) dth += TAU;
       k.rx = k.px + (k.x - k.px) * part; k.ry = k.py + (k.y - k.py) * part; k.rth = k.pth + dth * part;
+      k.rv = k.pvv + (k.v - k.pvv) * part; k.rpv = k.ppv + (k.pv - k.ppv) * part; // what the rider's body feels
     }
     if (race.phase === 'done' && race.order[0].cel > 12.5) restart();
     if (fading) { // fade to black, swap in the next race, fade back

@@ -34,6 +34,7 @@ namespace BoostBar
         {
             ("random", "Random"), ("shake", "Stand and shake arms"), ("bow", "Take a bow"), ("bow2", "Formal bow, one arm up"),
             ("backflip", "Backflip off the seat"), ("dab", "Dab"), ("cart", "Shopping cart dance"), ("mower", "Lawn mower"),
+            ("sprinkler", "Sprinkler"), ("crane", "Crane kick"),
         };
         public static readonly (string Id, string Name)[] Cameras =
         {

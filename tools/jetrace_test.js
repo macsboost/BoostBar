@@ -69,7 +69,7 @@ for (const want of ['16', '8', '3', 'random']) {
   const S = JSON.parse(JR.state()).S;
   check(S.winner === 'random' && S.celeb === 'random' && S.camera === 'director' && S.follow === 'leader' && S.board === false && S.caption === true, 'bad options fall back: ' + JSON.stringify(S));
   for (const camera of ['chase', 'onboard', 'side', 'front', 'heli', 'blimp', 'buoy', 'orbit', 'finish'])
-    for (const celebration of ['shake', 'bow', 'bow2', 'backflip', 'dab', 'cart', 'mower']) {
+    for (const celebration of ['shake', 'bow', 'bow2', 'backflip', 'dab', 'cart', 'mower', 'sprinkler', 'crane']) {
       const b = boot({ camera, celebration, follow: '8' });
       for (let i = 0; i < 40; i++) b.JR.tick(1 / 30);
       b.JR.debug.skip(140);

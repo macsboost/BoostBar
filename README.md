@@ -142,7 +142,7 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 Its options, in **BoostBar ▸ Settings ▸ Screen Saver** (and in the saver's own Options on the Mac):
 
 - **Winner:** *Random* runs a fair race that any of the three can win. Pick a racer and that racer wins every race — still a real race, with a different course and a different fight each time.
-- **Celebration:** *Random*, or always one of: stand and shake arms, take a bow, the formal bow with one arm up, a backflip off the seat, the dab, the shopping cart dance, or the lawn mower.
+- **Celebration:** *Random*, or always one of: stand and shake arms, take a bow, the formal bow with one arm up, a backflip off the seat, the dab, the shopping cart dance, the lawn mower, the sprinkler, or the crane kick.
 - **Camera** and **Follow:** leave it to the director, or hold one camera, on the race leader or on one racer.
 - **Leaderboard** and **Camera captions** on or off.
 

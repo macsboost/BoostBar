@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes Saver/src/jetrace/rigs.json from the jet racer models: every node's rest pose and the Steer clip of each
+"""Writes Saver/src/jetrace/rigs.json from the jet racer models: every node's rest pose and parent, and the Steer clip of each
 ski and rider. The macOS screen saver runs jetrace.js without three.js's model loader (SceneKit draws the meshes), so
 the script poses the riders from this file instead.
 
@@ -24,6 +24,10 @@ for name in ("ski16", "ski8", "ski3", "riderTall", "rider8", "rider3"):
         return [round(x, 6) for x in struct.unpack_from("<%df" % n, binary, o)]
 
     nodes = {n["name"]: {"p": n.get("translation", [0, 0, 0]), "q": n.get("rotation", [0, 0, 0, 1])} for n in J["nodes"]}
+    for n in J["nodes"]:
+        assert "scale" not in n and "matrix" not in n, n["name"]
+        for c in n.get("children", []):
+            nodes[J["nodes"][c]["name"]]["u"] = n["name"]  # its parent ("up")
     clip = next(a for a in J["animations"] if a["name"] == "Steer")
     times, ch = None, {}
     for c in clip["channels"]:
