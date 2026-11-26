@@ -79,7 +79,7 @@ A small native macOS menu bar app from [MacsBoost](https://macsboost.com). It ha
 - **Launch at login:** a checkbox in the menu that uses the native macOS login-item API.
 - **Self-updating:** checks GitHub Releases at launch, or when you pick **Check for Updates…**. It can download, swap, and relaunch in one click.
 
-The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so you can tell at a glance — they clear up again when Keep Awake turns off (Settings ▸ Eyes ▸ Bloodshot while keeping the Mac awake).
+The googly eyes go **bloodshot** while BoostBar is keeping your Mac awake, so you can tell at a glance — they clear up again when Keep Awake turns off (Settings ▸ Eyes ▸ Bloodshot while keeping the Mac awake). The eyes can also wear **eyelashes** — natural or fake — under Settings ▸ Eyes ▸ Looks, on Mac and Windows.
 
 ## BoostBar for Windows 🪟
 

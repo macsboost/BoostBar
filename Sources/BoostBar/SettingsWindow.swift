@@ -476,14 +476,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             }
         }
         // every emotion, large eyes at 6x, on a dark and a light bar
-        for dark in [true, false] {
+        for lash in 0...2 { for dark in [true, false] {
             let faces: [(String, EyeFace, Bool)] = [("plain", EyeFace(), false)] + Emotion.allCases.flatMap { e -> [(String, EyeFace, Bool)] in
                 var f = EyeFace.pose(e, level: 0.7)
                 if e == .hearts { var g = f; g.symbol = 2; return [(e.rawValue, f, false), ("dollar", g, false)] }
                 if e == .startled { f.lift = 1.5 }
                 return [(e.rawValue, f, false)]
             }
-            let cellW = 40, scale = 6
+            let cellW = 48, scale = 6
             guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: cellW * faces.count * scale, pixelsHigh: 22 * scale, bitsPerSample: 8, samplesPerPixel: 4,
                                              hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { continue }
             rep.size = NSSize(width: cellW * faces.count, height: 22)
@@ -496,7 +496,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 let v = StatusGraphView(frame: .zero)
                 v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 v.showNetwork = false; v.showBattery = false; v.showDisks = false; v.showCPU = false
-                v.showEyes = true; v.eyeSize = 2
+                v.showEyes = true; v.eyeSize = 2; v.lashes = lash
                 v.eyeFace = item.1
                 v.pupilOffsets = item.0 == "sad" || item.0 == "sleepy" ? [CGPoint(x: 0, y: -2.5), CGPoint(x: 0, y: -2.5)] : [CGPoint(x: 1, y: 0), CGPoint(x: 1, y: 0)]
                 let w = v.layoutSegments(height: 22)
@@ -508,9 +508,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 NSGraphicsContext.restoreGraphicsState()
             }
             if let png = rep.representation(using: .png, properties: [:]) {
-                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("menubar_emotions_\(dark ? "dark" : "light").png"))
+                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("menubar_emotions\(lash == 0 ? "" : lash == 1 ? "_natural" : "_fake")_\(dark ? "dark" : "light").png"))
             }
-        }
+        } }
         for saver in BundledSaver.all.indices {
             Self.initialSaver = saver
             window = nil; tabs = nil
@@ -722,6 +722,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Bloodshot while keeping the Mac awake", get: { Prefs.bloodshotAwake }, set: { Prefs.bloodshotAwake = $0; app.applySettings() })
             p.check("Pirate eyepatch", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
+            p.popup("Lashes", items: ["None", "Natural", "Fake"], get: { Prefs.lashes }, set: { Prefs.lashes = $0; app.applySettings() })
             p.header("Emotions")
             // one box, two columns: each mood is set off by something the Mac is doing (hover a name to see what)
             let all = Emotion.allCases

@@ -155,7 +155,7 @@ namespace BoostBar
             strip.Bloodshot = Prefs.Bloodshot || (Prefs.BloodshotAwake && (Sleep.IsPreventing || LidDisabled));
             strip.EyesShowAwake = Prefs.BloodshotAwake && !Prefs.Bloodshot;
             strip.VerticalLabels = Prefs.VerticalLabels;
-            strip.Pirate = Prefs.Pirate;
+            strip.Pirate = Prefs.Pirate; strip.Lashes = Prefs.Lashes;
             strip.LedSize = Prefs.LedSize;
             strip.UpColor = Prefs.UpColor;
             strip.DownColor = Prefs.DownColor;

@@ -111,6 +111,8 @@ namespace BoostBar
         public static bool AllowCrossEye { get => GetBool("allowCrossEye", true); set => SetBool("allowCrossEye", value); }
         public static bool Bloodshot { get => GetBool("bloodshotEyes", false); set => SetBool("bloodshotEyes", value); }
         public static bool BloodshotAwake { get => GetBool("bloodshotWhenAwake", true); set => SetBool("bloodshotWhenAwake", value); }
+        /// Eyelashes: 0 none, 1 natural, 2 fake.
+        public static int Lashes { get => Math.Min(2, Math.Max(0, GetInt("eyeLashes", 0))); set => SetInt("eyeLashes", value); }
         public static bool Pirate { get => GetBool("pirateEyes", false); set => SetBool("pirateEyes", value); }
         public static readonly string[] SizeNames = { "Small", "Medium", "Large" };
 

@@ -337,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.eyesShowAwake = Prefs.bloodshotAwake && !Prefs.bloodshot
         graphView.verticalLabels = Prefs.verticalLabels
         graphView.pirate = Prefs.pirate
+        graphView.lashes = Prefs.lashes
         graphView.ledSize = diskSettings.ledSize
         graphView.upColor = Prefs.upColor
         graphView.downColor = Prefs.downColor

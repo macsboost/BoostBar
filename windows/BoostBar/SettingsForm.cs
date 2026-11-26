@@ -372,6 +372,7 @@ namespace BoostBar
             p.Check("Bloodshot", () => Prefs.Bloodshot, v => Prefs.Bloodshot = v);
             p.Check("Bloodshot while keeping the PC awake", () => Prefs.BloodshotAwake, v => Prefs.BloodshotAwake = v);
             p.Check("Pirate eyepatch", () => Prefs.Pirate, v => Prefs.Pirate = v);
+            p.Popup("Lashes", new[] { "None", "Natural", "Fake" }, () => Prefs.Lashes, i => Prefs.Lashes = i);
             p.Header("Emotions");
             p.CheckGrid(Emotions.All.Select(e => (Emotions.Title(e), Emotions.When(e),
                 (Func<bool>)(() => !Prefs.EmotionsOff.Contains(e)),

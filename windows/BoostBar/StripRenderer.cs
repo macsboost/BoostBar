@@ -43,6 +43,8 @@ namespace BoostBar
         public double Cpu; public double[] CpuCores = new double[0]; public int CpuStyle; public double CpuBackdrop; public double[] CpuPeaks = new double[0];
         public int LedSize;
         public int EyeSize = 1; public bool SingleEye, Bloodshot, Pirate;
+        /// Eyelashes: 0 none, 1 natural, 2 fake.
+        public int Lashes;
         public PointF[] PupilOffsets = new PointF[0];
         public float? WheelAngle;
         public bool EyesClosed;
@@ -154,10 +156,13 @@ namespace BoostBar
                         if (!ShowEyes) break;
                         Gap();
                         var e = EyeDims;
-                        var eh = Math.Min(e.Height, h - 2);
+                        // lashes need a little room: beside the outer corners, and above (the eyes sit a touch lower and shorter)
+                        var lp = Lashes == 0 ? 0f : (float)Math.Ceiling(e.Width * (Lashes == 2 ? 0.36f : 0.2f));
+                        var lv = Lashes == 0 ? 0f : (Lashes == 2 ? 3f : 2f);
+                        var eh = Math.Min(e.Height, h - 2 - lv);
                         var count = SingleEye ? 1 : 2;
-                        for (var i = 0; i < count; i++) EyeRects.Add(new RectangleF(x + i * (e.Width + 1), (h - eh) / 2, e.Width, eh));
-                        EyesRect = new RectangleF(x, 0, count * e.Width + (count - 1), h);
+                        for (var i = 0; i < count; i++) EyeRects.Add(new RectangleF(x + lp + i * (e.Width + 1), (h - eh) / 2 + lv / 2, e.Width, eh));
+                        EyesRect = new RectangleF(x, 0, count * e.Width + (count - 1) + lp * 2, h);
                         x = EyesRect.Right;
                         break;
                     case Segment.Network:
@@ -314,7 +319,7 @@ namespace BoostBar
             }
             if (ShowsBattery) DrawBattery(g, Battery, BatteryRect, ink);
             if (ShowsDisks) DrawDisks(g, ink);
-            if (ShowEyes) { DrawEyes(g); DrawEyepatch(g); }
+            if (ShowEyes) { DrawEyes(g); DrawLashes(g); DrawEyepatch(g); }
         }
 
         static void FillRound(Graphics g, Brush b, RectangleF r, float rad)
@@ -688,6 +693,69 @@ namespace BoostBar
                     var alpha = (int)(255 * (1 - Math.Max(0, face.Sweat - 0.7f) / 0.3f));
                     using (var b = new SolidBrush(Color.FromArgb(alpha, 89, 184, 255))) g.FillPath(b, d);
                     using (var p = new Pen(Color.FromArgb((int)(alpha * 0.8), 26, 89, 191), 0.5f)) g.DrawPath(p, d);
+                }
+            }
+        }
+
+        /// Eyelashes fanning off each eye's outer corner. They ride on the upper lid: lower with a drooping lid, sweep
+        /// down on a blink. Natural is three short ones; fake is five long curled ones on a heavier liner.
+        void DrawLashes(Graphics g)
+        {
+            if (Lashes <= 0) return;
+            var fake = Lashes == 2;
+            var patched = Pirate && EyeRects.Count > 1 ? 0 : -1;
+            var face = Face ?? new EyeFace();
+            for (var i = 0; i < EyeRects.Count; i++)
+            {
+                if (i == patched) continue;
+                var r0 = EyeRects[i];
+                var r = new RectangleF(r0.X, r0.Y - Math.Min(face.Lift, r0.Y), r0.Width, r0.Height);
+                double rx = r.Width / 2 - 0.5, ry = r.Height / 2 - 0.5, cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
+                var sides = EyeRects.Count > 1 ? new[] { i == 0 ? -1.0 : 1.0 } : new[] { -1.0, 1.0 };
+                double sq = EyeRects.Count > 1 ? (i == 0 ? face.SquintL : face.SquintR) : Math.Max(face.SquintL, face.SquintR);
+                var top = Math.Max(face.LidTop, sq * 0.62);
+                double slant = EyeRects.Count > 1 ? face.Slant : 0;
+                var lid = top > 0.01 ? Math.Max(0, top - slant * 0.6) : 0;      // how far the lid is down at the outer corner
+                // where the lashes root, in degrees round the rim from the top toward the outer side
+                double lo, hi, curl, tilt = 0; var n = fake ? 5 : 3; var liner = fake;
+                if (EyesClosed) { lo = 100; hi = 142; curl = -0.4; n = 3; liner = false; }
+                else if (face.Smile) { lo = 72; hi = 104; curl = 0.35; n = 3; liner = false; }
+                else if (lid > 0.02)
+                {
+                    var tc = Math.Acos(Math.Max(-0.99, Math.Min(0.99, 1 - 2 * lid))) * 180 / Math.PI;
+                    hi = tc; lo = Math.Max(8, tc - (fake ? 56 : 38)); curl = 0.35; tilt = -30 * lid;
+                }
+                else { lo = fake ? 26 : 40; hi = fake ? 90 : 80; curl = fake ? 0.45 : 0.4; }
+                var length = rx * (fake ? 0.8 : 0.42);
+                foreach (var side in sides)
+                {
+                    PointF Rim(double deg, double k = 1)
+                    {
+                        var a = deg * Math.PI / 180;
+                        return new PointF((float)(cx + side * Math.Sin(a) * rx * k), (float)(cy - Math.Cos(a) * ry * k));
+                    }
+                    if (liner)
+                    {
+                        var pts = new PointF[13];
+                        for (var s = 0; s <= 12; s++) pts[s] = Rim(lo - 8 + (hi - lo + 12) * s / 12.0, 1.04);
+                        using (var pen = new Pen(Ink, (float)Math.Max(1.1, rx * 0.2)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+                            g.DrawLines(pen, pts);
+                    }
+                    using (var pen = new Pen(Ink, (float)(fake ? Math.Max(0.9, rx * 0.16) : Math.Max(0.7, rx * 0.11))) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+                        for (var k = 0; k < n; k++)
+                        {
+                            var deg = lo + (hi - lo) * k / (n - 1);
+                            var root = Rim(deg);
+                            var dir = (90 - deg + tilt) * Math.PI / 180;
+                            var pts = new PointF[9];
+                            pts[0] = root;
+                            for (var s = 1; s <= 8; s++)
+                            {
+                                var t = s / 8.0; var a = dir + curl * t;
+                                pts[s] = new PointF((float)(root.X + side * Math.Cos(a) * length * t), (float)(root.Y - Math.Sin(a) * length * t));
+                            }
+                            g.DrawLines(pen, pts);
+                        }
                 }
             }
         }

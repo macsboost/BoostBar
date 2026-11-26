@@ -83,6 +83,8 @@ final class StatusGraphView: NSView {
     var singleEye = false
     var bloodshot = false
     var pirate = false
+    /// Eyelashes: 0 none, 1 natural, 2 fake.
+    var lashes = 0
     var pupilOffsets: [CGPoint] = []
     /// Set while the pupils ride the internal wheel (circle-to-spin); nil = normal.
     var wheelAngle: CGFloat?
@@ -184,12 +186,15 @@ final class StatusGraphView: NSView {
                 if showEyes {
                     gap()
                     let e = eyeDims
-                    let eh = min(e.height, h - 2)
+                    // lashes need a little room: beside the outer corners, and above (the eyes sit a touch lower and shorter)
+                    let lp: CGFloat = lashes == 0 ? 0 : ceil(e.width * (lashes == 2 ? 0.36 : 0.2))
+                    let lv: CGFloat = lashes == 0 ? 0 : (lashes == 2 ? 3 : 2)
+                    let eh = min(e.height, h - 2 - lv)
                     let count = singleEye ? 1 : 2
                     for i in 0..<count {
-                        eyeRects.append(NSRect(x: x + CGFloat(i) * (e.width + 1), y: (h - eh) / 2, width: e.width, height: eh))
+                        eyeRects.append(NSRect(x: x + lp + CGFloat(i) * (e.width + 1), y: (h - eh) / 2 - lv / 2, width: e.width, height: eh))
                     }
-                    eyesRect = NSRect(x: x, y: 0, width: CGFloat(count) * e.width + CGFloat(count - 1), height: h)
+                    eyesRect = NSRect(x: x, y: 0, width: CGFloat(count) * e.width + CGFloat(count - 1) + lp * 2, height: h)
                     x = eyesRect.maxX
                 }
             case .network:
@@ -426,7 +431,7 @@ final class StatusGraphView: NSView {
         }
         if showsBattery, let b = battery { drawBattery(b, in: batteryRect, label: label, font: font) }
         if showsDisks { drawDisks(label: label) }
-        if showEyes { drawEyes(); drawEyepatch() }
+        if showEyes { drawEyes(); drawLashes(); drawEyepatch() }
     }
 
     private func drawEyes() {
@@ -569,6 +574,66 @@ final class StatusGraphView: NSView {
             NSColor(srgbRed: 0.1, green: 0.35, blue: 0.75, alpha: 0.8).setStroke()
             d.lineWidth = 0.5
             d.stroke()
+        }
+    }
+
+    /// Eyelashes fanning off each eye's outer corner. They ride on the upper lid: lower with a drooping lid, sweep
+    /// down on a blink. Natural is three short ones; fake is five long curled ones on a heavier liner.
+    private func drawLashes() {
+        guard lashes > 0 else { return }
+        let fake = lashes == 2
+        let patched = pirate && eyeRects.count > 1 ? 0 : -1
+        let face = eyeFace
+        NSColor.labelColor.setStroke()
+        for (i, r0) in eyeRects.enumerated() {
+            if i == patched { continue }
+            let r = r0.offsetBy(dx: 0, dy: min(face.lift, bounds.height - r0.maxY))
+            let rx = Double(r.width) / 2 - 0.5, ry = Double(r.height) / 2 - 0.5
+            let cx = Double(r.midX), cy = Double(r.midY)
+            let sides: [Double] = eyeRects.count > 1 ? [i == 0 ? -1 : 1] : [-1, 1]
+            let sq = Double(eyeRects.count > 1 ? (i == 0 ? face.squintL : face.squintR) : max(face.squintL, face.squintR))
+            let top = max(Double(face.lidTop), sq * 0.62)
+            let slant = eyeRects.count > 1 ? Double(face.slant) : 0
+            let lid = top > 0.01 ? max(0, top - slant * 0.6) : 0        // how far the lid is down at the outer corner
+            // where the lashes root, in degrees round the rim from the top toward the outer side
+            var lo: Double, hi: Double, curl: Double, tilt = 0.0
+            var n = fake ? 5 : 3, liner = fake
+            if eyesClosed { lo = 100; hi = 142; curl = -0.4; n = 3; liner = false }
+            else if face.smile { lo = 72; hi = 104; curl = 0.35; n = 3; liner = false }
+            else if lid > 0.02 {
+                let tc = Foundation.acos(max(-0.99, min(0.99, 1 - 2 * lid))) * 180 / Double.pi
+                hi = tc; lo = max(8, tc - (fake ? 56 : 38)); curl = 0.35; tilt = -30 * lid
+            } else { lo = fake ? 26 : 40; hi = fake ? 90 : 80; curl = fake ? 0.45 : 0.4 }
+            let length = rx * (fake ? 0.8 : 0.42)
+            for side in sides {
+                func rim(_ deg: Double, _ k: Double = 1) -> NSPoint {
+                    let a = deg * Double.pi / 180
+                    return NSPoint(x: cx + side * Foundation.sin(a) * rx * k, y: cy + Foundation.cos(a) * ry * k)
+                }
+                if liner {
+                    let p = NSBezierPath()
+                    for s in 0...12 {
+                        let pt = rim(lo - 8 + (hi - lo + 12) * Double(s) / 12, 1.04)
+                        if s == 0 { p.move(to: pt) } else { p.line(to: pt) }
+                    }
+                    p.lineWidth = CGFloat(max(1.1, rx * 0.2)); p.lineCapStyle = .round; p.lineJoinStyle = .round
+                    p.stroke()
+                }
+                for k in 0..<n {
+                    let deg = lo + (hi - lo) * Double(k) / Double(n - 1)
+                    let root = rim(deg)
+                    let dir = (90 - deg + tilt) * Double.pi / 180
+                    let p = NSBezierPath()
+                    p.move(to: root)
+                    for s in 1...8 {
+                        let t = Double(s) / 8, a = dir + curl * t
+                        p.line(to: NSPoint(x: Double(root.x) + side * Foundation.cos(a) * length * t, y: Double(root.y) + Foundation.sin(a) * length * t))
+                    }
+                    p.lineWidth = CGFloat(fake ? max(0.9, rx * 0.16) : max(0.7, rx * 0.11))
+                    p.lineCapStyle = .round; p.lineJoinStyle = .round
+                    p.stroke()
+                }
+            }
         }
     }
 

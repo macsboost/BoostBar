@@ -37,6 +37,7 @@ enum Prefs {
         static let netSplit = "networkGraphPerConnection"
         static let verticalLabels = "verticalLabels"
         static let pirate = "pirateEyes"
+        static let lashes = "eyeLashes"
         static let cornerAwake = "hotCornerKeepAwake"
         static let cornerSleep = "hotCornerSleepNow"
         static let cornerSaver = "hotCornerScreenSaver"
@@ -162,6 +163,8 @@ enum Prefs {
         get { Corner(rawValue: d.integer(forKey: K.cornerSleep)) ?? .none }
         set { d.set(newValue.rawValue, forKey: K.cornerSleep) }
     }
+    /// Eyelashes: 0 none, 1 natural, 2 fake.
+    static var lashes: Int { get { min(max(d.integer(forKey: K.lashes), 0), 2) } set { d.set(newValue, forKey: K.lashes) } }
     static var pirate: Bool { get { bool(K.pirate) } set { set(newValue, K.pirate) } }
     static var allowCrossEye: Bool { get { bool(K.crossEye) } set { set(newValue, K.crossEye) } }
 
