@@ -515,16 +515,19 @@ final class StatusGraphView: NSView {
                     let off = i < pupilOffsets.count ? pupilOffsets[i] : .zero
                     pupil(at: face.symbol != 0 ? NSPoint(x: r.midX, y: r.midY) : NSPoint(x: r.midX + off.x, y: r.midY + off.y))
                 }
-                if face.lidTop > 0.01 || face.lidBottom > 0.01 {
+                // a one-eye squint (skeptical) closes this eye's lids further than the mood's own
+                let sq: CGFloat = eyeRects.count > 1 ? (i == 0 ? face.squintL : face.squintR) : max(face.squintL, face.squintR)
+                let lt = max(face.lidTop, sq * 0.62), lb = max(face.lidBottom, sq * 0.42)
+                if lt > 0.01 || lb > 0.01 {
                     // lids: the upper one can slant (toward the middle when angry, toward the outside when sad)
                     NSGraphicsContext.saveGraphicsState()
                     eye.addClip()
                     let lidFill = NSColor(white: bloodshot ? 0.74 : 0.78, alpha: 1)
-                    if face.lidTop > 0.01 {
+                    if lt > 0.01 {
                         // which side of this eye faces the other eye
                         let innerIsRight = eyeRects.count > 1 ? i == 0 : true
                         let slant = eyeRects.count > 1 ? face.slant : 0
-                        let inner = max(0, face.lidTop + slant), outer = max(0, face.lidTop - slant * 0.6)
+                        let inner = max(0, lt + slant), outer = max(0, lt - slant * 0.6)
                         let yL = r.maxY - r.height * (innerIsRight ? outer : inner)
                         let yR = r.maxY - r.height * (innerIsRight ? inner : outer)
                         let lid = NSBezierPath()
@@ -536,8 +539,8 @@ final class StatusGraphView: NSView {
                         edge.lineWidth = abs(slant) > 0.05 ? 1.5 : 1
                         NSColor.black.setStroke(); edge.stroke()
                     }
-                    if face.lidBottom > 0.01 {
-                        let y = r.minY + r.height * face.lidBottom
+                    if lb > 0.01 {
+                        let y = r.minY + r.height * lb
                         lidFill.setFill()
                         NSBezierPath(rect: NSRect(x: r.minX, y: r.minY - 1, width: r.width, height: y - r.minY + 1)).fill()
                         let edge = NSBezierPath()

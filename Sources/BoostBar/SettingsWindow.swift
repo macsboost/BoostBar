@@ -735,7 +735,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 if i > 0 { app.previewEmotion(all[i - 1]) }
                 p.refresh()
             })
-            p.note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating when hot, happy on the charger, sad with no network, suspicious of a lingering pointer, startled by a new drive, bored now and then — and hearts for a tip. Hover a name for exactly when it shows.")
+            p.note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating when hot, happy on the charger, sad with no network, suspicious of a lingering pointer, a one-eye skeptical squint when you whip the pointer around, startled by a new drive, bored now and then — and hearts for a tip. Hover a name for exactly when it shows.")
             p.footnote("Click the eyes to open the About window. Circle the pointer over them two and a half times to spin them. On a MacBook with a motion sensor, shake the Mac to make them dizzy. A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 

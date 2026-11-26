@@ -3,7 +3,7 @@ import Network
 
 /// The moods the eyes can show. Each is set off by something the Mac is doing (or, for a few, by an event).
 enum Emotion: String, CaseIterable {
-    case sleepy, alarmed, angry, sweating, happy, sad, suspicious, startled, bored, hearts
+    case sleepy, alarmed, angry, sweating, happy, sad, suspicious, skeptical, startled, bored, hearts
 
     var title: String {
         switch self {
@@ -14,6 +14,7 @@ enum Emotion: String, CaseIterable {
         case .happy: return "Happy"
         case .sad: return "Sad"
         case .suspicious: return "Suspicious"
+        case .skeptical: return "Skeptical (one-eye squint)"
         case .startled: return "Startled"
         case .bored: return "Bored"
         case .hearts: return "Heart / dollar eyes"
@@ -29,6 +30,7 @@ enum Emotion: String, CaseIterable {
         case .happy: return "Smiling eyes for a few seconds when the charger is plugged in or a big download finishes."
         case .sad: return "Droopy eyes when the network is down, or the battery is at 15% and unplugged."
         case .suspicious: return "A narrow side-eye when the pointer lingers right by the eyes."
+        case .skeptical: return "Whip the pointer fast across a big stretch of screen and one eye squints at it: the eye on the pointer's side, harder the faster you go (both a little when it's right above them)."
         case .startled: return "A jump and a blink when a drive is plugged in, or the pointer moves after a long pause."
         case .bored: return "An eye-roll now and then when nothing has happened for a while."
         case .hearts: return "A flash of hearts and dollar signs when a tip button is clicked."
@@ -46,6 +48,8 @@ struct EyeFace: Equatable {
     var smile = false              // happy: closed, arched eyes
     var sweat: CGFloat = -1        // 0…1 = a drop sliding down beside the eyes; < 0 none
     var symbol = 0                 // 1 = hearts, 2 = dollar signs, in place of the pupils
+    var squintL: CGFloat = 0       // one-eye squint, 0…1, for the left and right eye
+    var squintR: CGFloat = 0
 
     static func pose(_ e: Emotion, level: CGFloat = 1) -> EyeFace {
         var f = EyeFace()
@@ -57,6 +61,7 @@ struct EyeFace: Equatable {
         case .happy: f.smile = true
         case .sad: f.lidTop = 0.24; f.slant = -0.3
         case .suspicious: f.lidTop = 0.42; f.lidBottom = 0.28
+        case .skeptical: f.squintR = level
         case .startled: f.pupilScale = 0.45; f.lift = 1.5
         case .bored: f.lidTop = 0.3
         case .hearts: f.symbol = 1
@@ -71,6 +76,10 @@ struct EyeFace: Equatable {
         slant += (t.slant - slant) * k
         pupilScale += (t.pupilScale - pupilScale) * k
         lift += (t.lift - lift) * k
+        squintL += (t.squintL - squintL) * k
+        squintR += (t.squintR - squintR) * k
+        if abs(squintL - t.squintL) < 0.004 { squintL = t.squintL }
+        if abs(squintR - t.squintR) < 0.004 { squintR = t.squintR }
         if abs(lidTop - t.lidTop) < 0.004 { lidTop = t.lidTop }
         if abs(lidBottom - t.lidBottom) < 0.004 { lidBottom = t.lidBottom }
         if abs(slant - t.slant) < 0.004 { slant = t.slant }
@@ -107,6 +116,30 @@ final class EyesAnimator {
     private var lastIdle = 0.0
     private var nextRoll: TimeInterval = 0, rollStart: TimeInterval = -10
     private var netDown = false
+    // Skeptical: a fast, wide sweep of the pointer, and which side of the eyes it's on
+    private var trail: [(t: TimeInterval, p: NSPoint)] = []
+    private var skeptUntil: TimeInterval = 0, skeptLevel: CGFloat = 0, skeptSide: CGFloat = 0
+
+    /// Watches for the pointer whipping across the screen: fast (over ~2200 pt/s for half a second) and over a big
+    /// stretch (the last second's path spans 700+ pt). The faster, the harder the squint; it holds 1.3 s after.
+    private func trackWhip(mouse: NSPoint, mid: CGPoint, now: TimeInterval) {
+        trail.append((now, mouse))
+        trail.removeAll { now - $0.t > 1.0 }
+        guard trail.count > 4 else { return }
+        var len: CGFloat = 0
+        var lo = mouse, hi = mouse
+        for k in trail.indices {
+            let p = trail[k].p
+            lo.x = min(lo.x, p.x); lo.y = min(lo.y, p.y); hi.x = max(hi.x, p.x); hi.y = max(hi.y, p.y)
+            if k > 0, now - trail[k].t <= 0.5 { len += hypot(p.x - trail[k - 1].p.x, p.y - trail[k - 1].p.y) }
+        }
+        let speed = len / 0.5, span = hypot(hi.x - lo.x, hi.y - lo.y)
+        if speed > 2200, span > 700 {
+            skeptLevel = min(1, 0.45 + (speed - 2200) / 5000)
+            skeptUntil = now + 1.3
+        }
+        if now < skeptUntil { skeptSide = mouse.x - mid.x }     // the squint follows the pointer's side
+    }
     private var pathMonitor: NWPathMonitor?
 
     /// Shows a mood for a while because something just happened (a charger, a drive, a tip…).
@@ -121,9 +154,13 @@ final class EyesAnimator {
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
         if lastIdle > 60, idle < 1 { trigger(.startled, for: 0.9) }      // woken after a long pause
         lastIdle = idle
+        if emotions.contains(.skeptical) { trackWhip(mouse: mouse, mid: mid, now: now) }
         if let t = triggered {
             if now < t.until { return (t.emotion, 1) }
             triggered = nil
+        }
+        if emotions.contains(.skeptical), now < skeptUntil {
+            return (.skeptical, skeptLevel * CGFloat(min(1, (skeptUntil - now) / 0.5)))   // eases off at the end
         }
         if cpuLoad > 0.9 { if cpuPeggedSince == nil { cpuPeggedSince = now } } else { cpuPeggedSince = nil }
         if cpuLoad > 0.8 { if cpuHighSince == nil { cpuHighSince = now } } else if cpuLoad < 0.7 { cpuHighSince = nil }
@@ -358,6 +395,12 @@ final class EyesAnimator {
             case .sweating:
                 target.sweat = CGFloat((now / 1.6).truncatingRemainder(dividingBy: 1))
                 changed = true
+            case .skeptical:
+                // the eye on the pointer's side squints; with the pointer right above the eyes, both do a little
+                let w = min(1, abs(skeptSide) / 250)
+                let main = level, other = level * (1 - w) * 0.6
+                if skeptSide < 0 { target.squintL = main; target.squintR = other } else { target.squintR = main; target.squintL = other }
+                target.squintR = triggered?.emotion == .skeptical ? level : target.squintR    // "Try one": the right eye
             case .startled:
                 let t = now - (triggered?.from ?? now)
                 target.lift = t < 0.22 ? 1.5 : 0
