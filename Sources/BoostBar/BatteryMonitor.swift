@@ -17,6 +17,9 @@ struct BatteryReading {
     /// Charge cycles so far, and full-charge capacity as a percent of the original design capacity.
     var cycleCount: Int?
     var healthPercent: Int?
+    /// True for the short while after the charger is plugged in or pulled, when the battery's own current
+    /// reading hasn't caught up yet and `watts` is worked out from the adapter and system power instead.
+    var estimated = false
 
     enum Direction { case charging, discharging, idle }
     var direction: Direction {
@@ -29,7 +32,43 @@ struct BatteryReading {
 enum BatteryMonitor {
     static let hasBattery: Bool = read() != nil
 
+    // The battery's gas gauge only reports its current every half minute or so, but macOS knows at once whether the
+    // charger is connected. Right after plugging in or unplugging, the stale current points the wrong way (still
+    // "discharging" on the charger, still "charging" off it). Until the gauge reports again, that reading is
+    // replaced by an estimate from what is known immediately.
+    private static var lastExternal: Bool?
+    private static var settling: (stamp: Int64, since: TimeInterval)?
+    private static var lastSystemWatts: Double?
+
     static func read() -> BatteryReading? {
+        guard var r = readRaw() else { return nil }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let s = r.reading.systemWatts { lastSystemWatts = s }
+        if let was = lastExternal, was != r.reading.externalConnected { settling = (r.stamp, now) }
+        lastExternal = r.reading.externalConnected
+        if let s = settling {
+            let ext = r.reading.externalConnected, w = r.reading.watts
+            let contradicts = ext ? w < -0.05 : w > 0.05
+            if r.stamp != s.stamp || now - s.since > 120 || (!contradicts && now - s.since > 3) {
+                settling = nil                                   // the gauge has reported since the change
+            } else {
+                if ext {
+                    // on the charger: what the adapter supplies beyond what the Mac uses goes into the battery
+                    if let a = r.reading.adapterWatts, let sys = r.reading.systemWatts { r.reading.watts = max(0, a - sys) }
+                    else { r.reading.watts = 0 }
+                } else {
+                    // off the charger: the battery carries the whole load
+                    r.reading.watts = -(r.reading.systemWatts ?? lastSystemWatts ?? 0)
+                }
+                r.reading.isCharging = r.reading.watts > 0.05
+                r.reading.minutesRemaining = nil
+                r.reading.estimated = true
+            }
+        }
+        return r.reading
+    }
+
+    private static func readRaw() -> (reading: BatteryReading, stamp: Int64)? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return nil }
         defer { IOObjectRelease(service) }
@@ -85,7 +124,9 @@ enum BatteryMonitor {
             if let v = num("SystemLoad", in: t), v > 0 { system = Double(v) / 1000 }
         }
 
-        return BatteryReading(
+        // changes whenever the gauge reports anew: its timestamp if there is one, else the current itself
+        let stamp = num("UpdateTime") ?? mA
+        return (BatteryReading(
             watts: watts,
             percent: percent,
             externalConnected: flag("ExternalConnected"),
@@ -96,7 +137,7 @@ enum BatteryMonitor {
             systemWatts: system,
             cycleCount: num("CycleCount").map { Int($0) },
             healthPercent: health
-        )
+        ), stamp)
     }
 
     /// IORegistry sometimes stores negative currents as unsigned 32- or 64-bit values.
@@ -136,6 +177,7 @@ enum BatteryMonitor {
                 lines.append("Battery idle\(pct)")
             }
         }
+        if r.estimated { lines.append("Just \(r.externalConnected ? "plugged in" : "unplugged") — estimated until the battery reports its current") }
         if r.externalConnected, let a = r.adapterWatts {
             var s = "Adapter supplying \(formatWatts(a))"
             if let sys = r.systemWatts { s += " · Mac using \(formatWatts(sys))" }
