@@ -27,6 +27,19 @@
   <img src="https://img.shields.io/github/downloads/macsboost/BoostBar/total?color=56BE37&labelColor=0e0f0e" alt="Downloads">
 </p>
 
+<h2 align="center">How to install on macOS 27 (video)</h2>
+
+<p align="center">
+  These steps are for macOS 27.<br>
+  <a href="docs/boostbar-tutorial.mp4"><img src="docs/boostbar-tutorial-thumbnail.jpg" width="640" alt="How to install BoostBar and set up the JetRacer screen saver on macOS 27"></a>a><br>
+  <sub><a href="docs/boostbar-tutorial.mp4">Watch the walkthrough (MP4)</a>a></sub>sub>
+</p>
+
+1. Download **BoostBar.zip** from [Releases](https://github.com/macsboost/BoostBar/releases), unzip it, and drag BoostBar to Applications.
+2. Click BoostBar in the menu bar ▸ **Settings…** ▸ **Screen Saver** and pick **Jet Racers**.
+3. Control the options in BoostBar.
+4. Click **Install & Show in System Settings**, then in Wallpaper click **Screen Saver…** and pick **BoostBar Jet Racers** under Other.</sub>
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/macsboost/BoostBar/counter/odometer.svg" height="96" alt="Visitor counter"><img src="https://komarev.com/ghpvc/?username=macsboost-boostbar&label=visits" width="1" height="1" alt="">
 </p>
