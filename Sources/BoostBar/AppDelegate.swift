@@ -454,6 +454,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Menu (readouts, keep-awake, and the way into Settings)
 
+    /// Readouts in the menu, only for what the menu bar isn't already showing: a gauge that's on screen doesn't
+    /// need repeating here, and one that's hidden still gets a line.
+    private func addReadouts(to menu: NSMenu) {
+        func info(_ title: String) -> NSMenuItem {
+            let i = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            i.isEnabled = false
+            menu.addItem(i)
+            return i
+        }
+        if !isSegmentShown(.network) {
+            let bits = Prefs.useBits
+            _ = info("▲ \(NetworkMonitor.format(net.currentUp, bits: bits, unit: Prefs.netUnit))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits, unit: Prefs.netUnit))")
+        }
+        if !isSegmentShown(.battery), let b = battery {
+            for line in BatteryMonitor.describe(b).split(separator: "\n") { _ = info(String(line)) }
+        }
+        if !isSegmentShown(.cpu) {
+            // the meter isn't running, so take a fresh half-second reading now (the menu keeps it updated while open)
+            cpu.sample()
+            let line = info("CPU — measuring…")
+            let pct: (Double) -> String = { String(format: "%.0f%%", $0 * 100) }
+            let t = Timer(timeInterval: 0.5, repeats: true) { [weak self, weak line] t in
+                guard let self, let line, self.menuIsOpen else { t.invalidate(); return }
+                self.cpu.sample()
+                line.title = "CPU — \(pct(self.cpu.total))  ·  User \(pct(self.cpu.user))  ·  System \(pct(self.cpu.system))"
+            }
+            RunLoop.main.add(t, forMode: .common)
+        }
+        if !isSegmentShown(.disks),
+           let v = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeNameKey, .volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]),
+           let free = v.volumeAvailableCapacityForImportantUsage, let total = v.volumeTotalCapacity {
+            _ = info("\(v.volumeName ?? "Startup disk") — \(DiskMonitor.formatBytes(free)) free of \(DiskMonitor.formatBytes(Int64(total)))")
+        }
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
         hideHover()
@@ -520,17 +555,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         menu.addItem(item("About BoostBar \(Updater.currentVersion)…", #selector(showAbout), on: false))
-        let bits = Prefs.useBits
-        let live = NSMenuItem(title: "▲ \(NetworkMonitor.format(net.currentUp, bits: bits, unit: Prefs.netUnit))    ▼ \(NetworkMonitor.format(net.currentDown, bits: bits, unit: Prefs.netUnit))", action: nil, keyEquivalent: "")
-        live.isEnabled = false
-        menu.addItem(live)
-        if let b = battery {
-            for line in BatteryMonitor.describe(b).split(separator: "\n") {
-                let i = NSMenuItem(title: String(line), action: nil, keyEquivalent: "")
-                i.isEnabled = false
-                menu.addItem(i)
-            }
-        }
+        addReadouts(to: menu)
 
         // Keep awake stays one click away
         menu.addItem(.separator())
