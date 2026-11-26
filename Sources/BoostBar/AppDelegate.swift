@@ -128,6 +128,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.sendAction(on: [.leftMouseDown, .rightMouseDown])
         }
         eyes.view = graphView
+        NotificationCenter.default.addObserver(forName: .boostBarTipClicked, object: nil, queue: .main) { [weak self] _ in
+            self?.eyes.trigger(.hearts, for: 5)
+        }
         #if !APPSTORE
         shake.onShake = { [weak self] on in self?.eyes.shaking = on }
         #endif
@@ -213,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         disk.isActive = diskSettings.showDisks
 
         eyes.googly = Prefs.googly
+        eyes.emotions = Prefs.emotions
         eyes.lazy = Prefs.lazyEyes
         eyes.blink = Prefs.eyeBlink
         eyes.allowCrossEye = Prefs.allowCrossEye
@@ -270,10 +274,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if BatteryMonitor.hasBattery, let b = BatteryMonitor.read() {
             batteryHistory.append(b.watts)
         }
+        feedEmotions()
         refreshStatus()
         if HoverPanel.shared.isVisible, let t = hoverTarget, let c = hoverContent(for: t) {
             HoverPanel.shared.update(c)
         }
+    }
+
+    // What the eyes' emotions react to, gathered once a second.
+    private var wasOnCharger: Bool?
+    private var knownDrives: Int?
+    private var fastDownloadSeconds = 0
+
+    private func feedEmotions() {
+        guard Prefs.showEyes else { return }
+        if !Prefs.showCPU { cpu.sample() }                     // the meter's own clock isn't running
+        eyes.cpuLoad = cpu.total
+        let b = battery
+        eyes.batteryPercent = b?.percent
+        let charger = b?.externalConnected ?? true
+        eyes.onCharger = charger
+        if let was = wasOnCharger, !was, charger { eyes.trigger(.happy, for: 4) }          // charger plugged in
+        wasOnCharger = charger
+        // a big download finishing: fast for a while, then quiet
+        if net.currentDown > 1_000_000 { fastDownloadSeconds += 1 }
+        else {
+            if net.currentDown < 100_000, fastDownloadSeconds >= 10 { eyes.trigger(.happy, for: 4) }
+            if net.currentDown < 100_000 { fastDownloadSeconds = 0 }
+        }
+        // a drive plugged in
+        let n = disk.drives.count
+        if let k = knownDrives, n > k { eyes.trigger(.startled, for: 0.9) }
+        knownDrives = n
+    }
+
+    /// Settings ▸ Eyes ▸ Try one.
+    func previewEmotion(_ e: Emotion) {
+        eyes.trigger(e, for: e == .startled ? 0.9 : 5, force: true)
     }
 
     private func refreshStatus() {

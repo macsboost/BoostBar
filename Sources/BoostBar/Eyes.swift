@@ -1,4 +1,84 @@
 import AppKit
+import Network
+
+/// The moods the eyes can show. Each is set off by something the Mac is doing (or, for a few, by an event).
+enum Emotion: String, CaseIterable {
+    case sleepy, alarmed, angry, sweating, happy, sad, suspicious, startled, bored, hearts
+
+    var title: String {
+        switch self {
+        case .sleepy: return "Sleepy"
+        case .alarmed: return "Alarmed"
+        case .angry: return "Angry"
+        case .sweating: return "Sweating"
+        case .happy: return "Happy"
+        case .sad: return "Sad"
+        case .suspicious: return "Suspicious"
+        case .startled: return "Startled"
+        case .bored: return "Bored"
+        case .hearts: return "Heart / dollar eyes"
+        }
+    }
+    /// When it shows, for the Settings tooltip.
+    var when: String {
+        switch self {
+        case .sleepy: return "Lids droop the longer the Mac sits idle (from 3 minutes)."
+        case .alarmed: return "Wide eyes, tiny pupils: CPU pegged, or battery at 10% and unplugged."
+        case .angry: return "Slanted lids when the CPU has been in the red for 20 seconds."
+        case .sweating: return "A squint and a sweat drop when the Mac is running hot."
+        case .happy: return "Smiling eyes for a few seconds when the charger is plugged in or a big download finishes."
+        case .sad: return "Droopy eyes when the network is down, or the battery is at 15% and unplugged."
+        case .suspicious: return "A narrow side-eye when the pointer lingers right by the eyes."
+        case .startled: return "A jump and a blink when a drive is plugged in, or the pointer moves after a long pause."
+        case .bored: return "An eye-roll now and then when nothing has happened for a while."
+        case .hearts: return "A flash of hearts and dollar signs when a tip button is clicked."
+        }
+    }
+}
+
+/// How the eyes are drawn for a mood: lids, slant, pupil size and the odd prop.
+struct EyeFace: Equatable {
+    var lidTop: CGFloat = 0        // fraction of the eye the upper lid covers
+    var lidBottom: CGFloat = 0     // …and the lower lid
+    var slant: CGFloat = 0         // > 0 angry (lids lower toward the middle), < 0 sad (lower at the outside)
+    var pupilScale: CGFloat = 1
+    var lift: CGFloat = 0          // points the eyes hop up
+    var smile = false              // happy: closed, arched eyes
+    var sweat: CGFloat = -1        // 0…1 = a drop sliding down beside the eyes; < 0 none
+    var symbol = 0                 // 1 = hearts, 2 = dollar signs, in place of the pupils
+
+    static func pose(_ e: Emotion, level: CGFloat = 1) -> EyeFace {
+        var f = EyeFace()
+        switch e {
+        case .sleepy: f.lidTop = 0.3 + 0.45 * level
+        case .alarmed: f.pupilScale = 0.5
+        case .angry: f.lidTop = 0.26; f.slant = 0.3
+        case .sweating: f.lidTop = 0.12; f.lidBottom = 0.22; f.sweat = 0.3
+        case .happy: f.smile = true
+        case .sad: f.lidTop = 0.24; f.slant = -0.3
+        case .suspicious: f.lidTop = 0.42; f.lidBottom = 0.28
+        case .startled: f.pupilScale = 0.45; f.lift = 1.5
+        case .bored: f.lidTop = 0.3
+        case .hearts: f.symbol = 1
+        }
+        return f
+    }
+
+    /// Eases the numeric parts toward `to`; the props switch at once.
+    mutating func ease(to t: EyeFace, by k: CGFloat) {
+        lidTop += (t.lidTop - lidTop) * k
+        lidBottom += (t.lidBottom - lidBottom) * k
+        slant += (t.slant - slant) * k
+        pupilScale += (t.pupilScale - pupilScale) * k
+        lift += (t.lift - lift) * k
+        if abs(lidTop - t.lidTop) < 0.004 { lidTop = t.lidTop }
+        if abs(lidBottom - t.lidBottom) < 0.004 { lidBottom = t.lidBottom }
+        if abs(slant - t.slant) < 0.004 { slant = t.slant }
+        if abs(pupilScale - t.pupilScale) < 0.004 { pupilScale = t.pupilScale }
+        if abs(lift - t.lift) < 0.02 { lift = t.lift }
+        smile = t.smile; sweat = t.sweat; symbol = t.symbol
+    }
+}
 
 /// Drives the googly eyes in the menu bar: pupils look toward the mouse pointer anywhere on
 /// screen (NSEvent.mouseLocation — no permission needed), with springy "googly" overshoot,
@@ -13,6 +93,60 @@ final class EyesAnimator {
     /// Lazy eyes take their time: where they're looking drifts slowly after the pointer.
     var lazy = false
     private var lazyTarget: [CGPoint] = []
+
+    // MARK: Emotions
+    /// Which moods are switched on, and what the app knows that sets them off.
+    var emotions: Set<Emotion> = []
+    var cpuLoad = 0.0
+    var batteryPercent: Int?
+    var onCharger = true
+    private var face = EyeFace()
+    private var triggered: (emotion: Emotion, from: TimeInterval, until: TimeInterval)?
+    private var cpuPeggedSince: TimeInterval?, cpuHighSince: TimeInterval?
+    private var hoverSince: TimeInterval?
+    private var lastIdle = 0.0
+    private var nextRoll: TimeInterval = 0, rollStart: TimeInterval = -10
+    private var netDown = false
+    private var pathMonitor: NWPathMonitor?
+
+    /// Shows a mood for a while because something just happened (a charger, a drive, a tip…).
+    func trigger(_ e: Emotion, for seconds: Double, force: Bool = false) {
+        guard force || emotions.contains(e) else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        triggered = (e, now, now + seconds)
+    }
+
+    /// The mood to show right now, strongest first, and how strongly (sleepy deepens with idle time).
+    private func mood(now: TimeInterval, mouse: NSPoint, mid: CGPoint, halfSpan: CGFloat) -> (Emotion, CGFloat)? {
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        if lastIdle > 60, idle < 1 { trigger(.startled, for: 0.9) }      // woken after a long pause
+        lastIdle = idle
+        if let t = triggered {
+            if now < t.until { return (t.emotion, 1) }
+            triggered = nil
+        }
+        if cpuLoad > 0.9 { if cpuPeggedSince == nil { cpuPeggedSince = now } } else { cpuPeggedSince = nil }
+        if cpuLoad > 0.8 { if cpuHighSince == nil { cpuHighSince = now } } else if cpuLoad < 0.7 { cpuHighSince = nil }
+        let pct = batteryPercent ?? 100
+        func on(_ e: Emotion) -> Bool { emotions.contains(e) }
+        if on(.alarmed) {
+            if let p = cpuPeggedSince, now - p < 6 { return (.alarmed, 1) }
+            if !onCharger, pct <= 10, now.truncatingRemainder(dividingBy: 60) < 6 { return (.alarmed, 1) }   // a reminder each minute
+        }
+        if on(.sweating), ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue { return (.sweating, 1) }
+        if on(.angry), let h = cpuHighSince, now - h > 20 { return (.angry, 1) }
+        if on(.sad), netDown || (!onCharger && pct <= 15) { return (.sad, 1) }
+        let near = abs(mouse.x - mid.x) < halfSpan + 10 && abs(mid.y - mouse.y) < 14
+        if near { if hoverSince == nil { hoverSince = now } } else { hoverSince = nil }
+        if on(.suspicious), let h = hoverSince, now - h > 1.2 { return (.suspicious, 1) }
+        if on(.bored), idle > 90 {
+            if nextRoll == 0 { nextRoll = now + .random(in: 4...15) }
+            if now >= nextRoll { rollStart = now; nextRoll = now + .random(in: 25...50) }
+            if now - rollStart < 1.6 { return (.bored, CGFloat((now - rollStart) / 1.6)) }
+        } else { nextRoll = 0 }
+        if on(.sleepy), idle > 180 { return (.sleepy, CGFloat(min(1, (idle - 180) / 420))) }
+        return nil
+    }
 
     private var timer: Timer?
     private var pos: [CGPoint] = []
@@ -43,6 +177,12 @@ final class EyesAnimator {
     private var lastStep: TimeInterval = 0
 
     func setRunning(_ on: Bool) {
+        if on, pathMonitor == nil {
+            let m = NWPathMonitor()
+            m.pathUpdateHandler = { [weak self] p in DispatchQueue.main.async { self?.netDown = p.status != .satisfied } }
+            m.start(queue: .global(qos: .utility))
+            pathMonitor = m
+        }
         if on, timer == nil {
             let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.step() }
             t.tolerance = 0.005
@@ -171,6 +311,7 @@ final class EyesAnimator {
         if trackCircles(mouse: mouse, mid: mid, halfSpan: (centers.last!.x - centers.first!.x) / 2 + v.pupilTravel.width + 6, now: now) {
             v.wheelAngle = wheelAngle
             v.pupilOffsets = pos
+            face = EyeFace(); v.eyeFace = face
             v.eyesClosed = shaking
             v.needsDisplay = true
             lastMouse = mouse
@@ -194,8 +335,43 @@ final class EyesAnimator {
             }
             changed = true
         }
-        var closed = false
-        if blink {
+        // the mood: pose the lids, and let a few moods move the pupils themselves
+        var target = EyeFace()
+        var startledBlink = false
+        if let (emotion, level) = mood(now: now, mouse: mouse, mid: mid, halfSpan: (centers.last!.x - centers.first!.x) / 2 + travel.width + 6), now >= dizzyUntil {
+            target = EyeFace.pose(emotion, level: level)
+            switch emotion {
+            case .bored:
+                // the eye-roll: up, and all the way around
+                let a = level * 2 * .pi
+                for i in pos.indices { pos[i] = CGPoint(x: sin(a) * travel.width * 0.85, y: cos(a) * travel.height * 0.85); vel[i] = .zero }
+                changed = true
+            case .sleepy:
+                for i in pos.indices { pos[i].y = max(-travel.height, pos[i].y - travel.height * 0.5 * level) }
+            case .sad:
+                for i in pos.indices { pos[i].y = min(pos[i].y, -travel.height * 0.45) }
+            case .alarmed:
+                for i in pos.indices { pos[i].x += .random(in: -0.35...0.35); pos[i].y += .random(in: -0.35...0.35) }
+                changed = true
+            case .sweating:
+                target.sweat = CGFloat((now / 1.6).truncatingRemainder(dividingBy: 1))
+                changed = true
+            case .startled:
+                let t = now - (triggered?.from ?? now)
+                target.lift = t < 0.22 ? 1.5 : 0
+                startledBlink = t > 0.45 && t < 0.6
+            case .hearts:
+                target.symbol = Int((now - (triggered?.from ?? now)) / 1.2) % 2 == 0 ? 1 : 2
+                target.pupilScale = 1 + 0.18 * CGFloat(sin(now * 9))       // a little pulse
+                changed = true
+            default: break
+            }
+        }
+        let before = face
+        face.ease(to: target, by: 0.28)
+        if face != before || face != v.eyeFace { changed = true }
+        var closed = startledBlink
+        if blink, !closed, !face.smile {
             if nextBlink == 0 { nextBlink = now + Double.random(in: 3...8) }
             if now >= nextBlink {
                 blinkUntil = now + 0.13
@@ -209,6 +385,7 @@ final class EyesAnimator {
         lastMouse = mouse
         if changed {
             v.pupilOffsets = pos
+            v.eyeFace = face
             v.eyesClosed = closed
             v.needsDisplay = true
         }

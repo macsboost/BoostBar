@@ -55,6 +55,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
 
 #if !APPSTORE
     @objc private func payPayPal() {
+        NotificationCenter.default.post(name: .boostBarTipClicked, object: nil)
         var c = URLComponents(string: "https://www.paypal.com/cgi-bin/webscr")!
         c.queryItems = [
             .init(name: "cmd", value: "_xclick"),
@@ -68,6 +69,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
     }
 
     @objc private func payVenmo() {
+        NotificationCenter.default.post(name: .boostBarTipClicked, object: nil)
         var c = URLComponents(string: "https://venmo.com/\(Self.venmoUser)")!
         c.queryItems = [
             .init(name: "txn", value: "pay"),
@@ -78,6 +80,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
     }
 
     @objc private func payStripe() {
+        NotificationCenter.default.post(name: .boostBarTipClicked, object: nil)
         var c = URLComponents(string: Self.stripeURL)!
         c.queryItems = [
             .init(name: "amount", value: Self.amount),

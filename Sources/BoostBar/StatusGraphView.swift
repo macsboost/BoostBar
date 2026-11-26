@@ -78,6 +78,8 @@ final class StatusGraphView: NSView {
 
     // Googly eyes
     var eyeSize = 1            // 0 small, 1 medium, 2 large
+    /// The mood the eyes are showing (lids, slant, pupil size, props); plain by default.
+    var eyeFace = EyeFace()
     var singleEye = false
     var bloodshot = false
     var pirate = false
@@ -429,10 +431,24 @@ final class StatusGraphView: NSView {
 
     private func drawEyes() {
         let patched = pirate && eyeRects.count > 1 ? 0 : -1   // pirate: patch over the left eye
-        for (i, r) in eyeRects.enumerated() {
+        let face = eyeFace
+        for (i, r0) in eyeRects.enumerated() {
             if i == patched { continue }
+            let r = r0.offsetBy(dx: 0, dy: min(face.lift, bounds.height - r0.maxY))
             let eye = NSBezierPath(ovalIn: r.insetBy(dx: 0.5, dy: 0.5))
-            if eyesClosed {
+            if face.smile && !eyesClosed {
+                // happy: closed, arched eyes
+                NSGradient(starting: .white, ending: NSColor(white: 0.86, alpha: 1))?.draw(in: eye, angle: -90)
+                let arc = NSBezierPath()
+                arc.move(to: NSPoint(x: r.minX + 2, y: r.midY - r.height * 0.08))
+                arc.curve(to: NSPoint(x: r.maxX - 2, y: r.midY - r.height * 0.08),
+                          controlPoint1: NSPoint(x: r.minX + r.width * 0.3, y: r.midY + r.height * 0.3),
+                          controlPoint2: NSPoint(x: r.maxX - r.width * 0.3, y: r.midY + r.height * 0.3))
+                arc.lineWidth = max(1.4, r.width * 0.13)
+                arc.lineCapStyle = .round
+                NSColor.black.setStroke()
+                arc.stroke()
+            } else if eyesClosed {
                 NSColor(white: 0.85, alpha: 1).setFill()
                 eye.fill()
                 let lid = NSBezierPath()
@@ -452,8 +468,28 @@ final class StatusGraphView: NSView {
                 } else {
                     NSGradient(starting: .white, ending: NSColor(white: 0.82, alpha: 1))?.draw(in: eye, angle: -90)
                 }
-                let pr = pupilRadius
+                let pr = pupilRadius * face.pupilScale
                 func pupil(at c: NSPoint, squash: CGFloat = 1) {
+                    if face.symbol == 1 {
+                        // a heart
+                        let s = pr * 1.25
+                        let h = NSBezierPath()
+                        h.move(to: NSPoint(x: c.x, y: c.y - s))
+                        h.curve(to: NSPoint(x: c.x - s, y: c.y + s * 0.25), controlPoint1: NSPoint(x: c.x - s * 0.5, y: c.y - s * 0.55), controlPoint2: NSPoint(x: c.x - s, y: c.y - s * 0.15))
+                        h.curve(to: NSPoint(x: c.x, y: c.y + s * 0.45), controlPoint1: NSPoint(x: c.x - s, y: c.y + s * 0.95), controlPoint2: NSPoint(x: c.x - s * 0.15, y: c.y + s * 0.95))
+                        h.curve(to: NSPoint(x: c.x + s, y: c.y + s * 0.25), controlPoint1: NSPoint(x: c.x + s * 0.15, y: c.y + s * 0.95), controlPoint2: NSPoint(x: c.x + s, y: c.y + s * 0.95))
+                        h.curve(to: NSPoint(x: c.x, y: c.y - s), controlPoint1: NSPoint(x: c.x + s, y: c.y - s * 0.15), controlPoint2: NSPoint(x: c.x + s * 0.5, y: c.y - s * 0.55))
+                        NSColor(srgbRed: 0.93, green: 0.11, blue: 0.24, alpha: 1).setFill()
+                        h.fill()
+                        return
+                    }
+                    if face.symbol == 2 {
+                        let f = NSFont.systemFont(ofSize: pr * 3.2, weight: .heavy)
+                        let t = NSAttributedString(string: "$", attributes: [.font: f, .foregroundColor: NSColor(srgbRed: 0.1, green: 0.55, blue: 0.16, alpha: 1)])
+                        let sz = t.size()
+                        t.draw(at: NSPoint(x: c.x - sz.width / 2, y: c.y - sz.height / 2))
+                        return
+                    }
                     let w = pr * 2 * squash
                     NSColor.black.setFill()
                     NSBezierPath(ovalIn: NSRect(x: c.x - w / 2, y: c.y - pr, width: w, height: pr * 2)).fill()
@@ -477,13 +513,59 @@ final class StatusGraphView: NSView {
                     NSGraphicsContext.restoreGraphicsState()
                 } else {
                     let off = i < pupilOffsets.count ? pupilOffsets[i] : .zero
-                    pupil(at: NSPoint(x: r.midX + off.x, y: r.midY + off.y))
+                    pupil(at: face.symbol != 0 ? NSPoint(x: r.midX, y: r.midY) : NSPoint(x: r.midX + off.x, y: r.midY + off.y))
+                }
+                if face.lidTop > 0.01 || face.lidBottom > 0.01 {
+                    // lids: the upper one can slant (toward the middle when angry, toward the outside when sad)
+                    NSGraphicsContext.saveGraphicsState()
+                    eye.addClip()
+                    let lidFill = NSColor(white: bloodshot ? 0.74 : 0.78, alpha: 1)
+                    if face.lidTop > 0.01 {
+                        // which side of this eye faces the other eye
+                        let innerIsRight = eyeRects.count > 1 ? i == 0 : true
+                        let slant = eyeRects.count > 1 ? face.slant : 0
+                        let inner = max(0, face.lidTop + slant), outer = max(0, face.lidTop - slant * 0.6)
+                        let yL = r.maxY - r.height * (innerIsRight ? outer : inner)
+                        let yR = r.maxY - r.height * (innerIsRight ? inner : outer)
+                        let lid = NSBezierPath()
+                        lid.move(to: NSPoint(x: r.minX, y: r.maxY + 1)); lid.line(to: NSPoint(x: r.maxX, y: r.maxY + 1))
+                        lid.line(to: NSPoint(x: r.maxX, y: yR)); lid.line(to: NSPoint(x: r.minX, y: yL)); lid.close()
+                        lidFill.setFill(); lid.fill()
+                        let edge = NSBezierPath()
+                        edge.move(to: NSPoint(x: r.minX, y: yL)); edge.line(to: NSPoint(x: r.maxX, y: yR))
+                        edge.lineWidth = abs(slant) > 0.05 ? 1.5 : 1
+                        NSColor.black.setStroke(); edge.stroke()
+                    }
+                    if face.lidBottom > 0.01 {
+                        let y = r.minY + r.height * face.lidBottom
+                        lidFill.setFill()
+                        NSBezierPath(rect: NSRect(x: r.minX, y: r.minY - 1, width: r.width, height: y - r.minY + 1)).fill()
+                        let edge = NSBezierPath()
+                        edge.move(to: NSPoint(x: r.minX, y: y)); edge.line(to: NSPoint(x: r.maxX, y: y))
+                        edge.lineWidth = 1
+                        NSColor.black.setStroke(); edge.stroke()
+                    }
+                    NSGraphicsContext.restoreGraphicsState()
                 }
             }
             (bloodshot && !eyesClosed ? NSColor(srgbRed: 0.6, green: 0.05, blue: 0.08, alpha: 1)
                                       : NSColor.black.withAlphaComponent(0.85)).setStroke()
             eye.lineWidth = 1
             eye.stroke()
+        }
+        if face.sweat >= 0, let r = eyeRects.last {
+            // a sweat drop sliding down beside the eye
+            let w = max(2.6, r.width * 0.26), hgt = w * 1.5
+            let x = r.maxX - w * 0.55, y = r.maxY - hgt * 0.6 - face.sweat * r.height * 0.45
+            let d = NSBezierPath()
+            d.move(to: NSPoint(x: x + w / 2, y: y + hgt))
+            d.curve(to: NSPoint(x: x + w / 2, y: y), controlPoint1: NSPoint(x: x + w * 1.25, y: y + hgt * 0.35), controlPoint2: NSPoint(x: x + w, y: y))
+            d.curve(to: NSPoint(x: x + w / 2, y: y + hgt), controlPoint1: NSPoint(x: x, y: y), controlPoint2: NSPoint(x: x - w * 0.25, y: y + hgt * 0.35))
+            NSColor(srgbRed: 0.35, green: 0.72, blue: 1, alpha: CGFloat(1 - max(0, face.sweat - 0.7) / 0.3)).setFill()
+            d.fill()
+            NSColor(srgbRed: 0.1, green: 0.35, blue: 0.75, alpha: 0.8).setStroke()
+            d.lineWidth = 0.5
+            d.stroke()
         }
     }
 

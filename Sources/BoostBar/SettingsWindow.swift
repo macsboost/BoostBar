@@ -456,6 +456,42 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 }
             }
         }
+        // every emotion, large eyes at 6x, on a dark and a light bar
+        for dark in [true, false] {
+            let faces: [(String, EyeFace, Bool)] = [("plain", EyeFace(), false)] + Emotion.allCases.flatMap { e -> [(String, EyeFace, Bool)] in
+                var f = EyeFace.pose(e, level: 0.7)
+                if e == .hearts { var g = f; g.symbol = 2; return [(e.rawValue, f, false), ("dollar", g, false)] }
+                if e == .startled { f.lift = 1.5 }
+                return [(e.rawValue, f, false)]
+            }
+            let cellW = 40, scale = 6
+            guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: cellW * faces.count * scale, pixelsHigh: 22 * scale, bitsPerSample: 8, samplesPerPixel: 4,
+                                             hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { continue }
+            rep.size = NSSize(width: cellW * faces.count, height: 22)
+            guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { continue }
+            NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ctx
+            (dark ? NSColor(white: 0.13, alpha: 1) : NSColor(white: 0.93, alpha: 1)).setFill()
+            NSRect(x: 0, y: 0, width: cellW * faces.count, height: 22).fill()
+            NSGraphicsContext.restoreGraphicsState()
+            for (k, item) in faces.enumerated() {
+                let v = StatusGraphView(frame: .zero)
+                v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                v.showNetwork = false; v.showBattery = false; v.showDisks = false; v.showCPU = false
+                v.showEyes = true; v.eyeSize = 2
+                v.eyeFace = item.1
+                v.pupilOffsets = item.0 == "sad" || item.0 == "sleepy" ? [CGPoint(x: 0, y: -2.5), CGPoint(x: 0, y: -2.5)] : [CGPoint(x: 1, y: 0), CGPoint(x: 1, y: 0)]
+                let w = v.layoutSegments(height: 22)
+                v.frame = NSRect(x: 0, y: 0, width: w, height: 22)
+                guard let one = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { continue }
+                v.cacheDisplay(in: v.bounds, to: one)
+                NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ctx
+                one.draw(in: NSRect(x: CGFloat(k * cellW) + (CGFloat(cellW) - w) / 2, y: 0, width: w, height: 22))
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            if let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("menubar_emotions_\(dark ? "dark" : "light").png"))
+            }
+        }
         for saver in BundledSaver.all.indices {
             Self.initialSaver = saver
             window = nil; tabs = nil
@@ -667,6 +703,39 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.check("Bloodshot while keeping the Mac awake", get: { Prefs.bloodshotAwake }, set: { Prefs.bloodshotAwake = $0; app.applySettings() })
             p.check("Pirate eyepatch", get: { Prefs.pirate }, set: { Prefs.pirate = $0; app.applySettings() },
                     enabled: { !Prefs.singleEye })
+            p.header("Emotions")
+            // one box, two columns: each mood is set off by something the Mac is doing (hover a name to see what)
+            let all = Emotion.allCases
+            var moodBoxes: [NSButton] = []
+            for (i, e) in all.enumerated() {
+                let b = NSButton(checkboxWithTitle: e.title, target: nil, action: nil)
+                b.toolTip = e.when
+                b.widthAnchor.constraint(equalToConstant: 200).isActive = true
+                b.target = p.actionBox { _ in
+                    var off = Prefs.emotionsOff
+                    if moodBoxes[i].state == .on { off.remove(e) } else { off.insert(e) }
+                    Prefs.emotionsOff = off
+                    app.applySettings()
+                }
+                b.action = #selector(ActionBox.run(_:))
+                moodBoxes.append(b)
+            }
+            let half = (all.count + 1) / 2
+            for k in 0..<half {
+                var cells: [NSView] = [moodBoxes[k]]
+                if k + half < all.count { cells.append(moodBoxes[k + half]) }
+                p.addRow(p.row(cells))
+            }
+            p.addRow(NSView(), onRefresh: {
+                let off = Prefs.emotionsOff
+                for (i, e) in all.enumerated() { moodBoxes[i].state = off.contains(e) ? .off : .on; moodBoxes[i].isEnabled = Prefs.showEyes }
+            })
+            p.divider()
+            p.popup("Try one", items: ["Choose…"] + all.map(\.title), get: { 0 }, set: { i in
+                if i > 0 { app.previewEmotion(all[i - 1]) }
+                p.refresh()
+            })
+            p.note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating when hot, happy on the charger, sad with no network, suspicious of a lingering pointer, startled by a new drive, bored now and then — and hearts for a tip. Hover a name for exactly when it shows.")
             p.footnote("Click the eyes to open the About window. Circle the pointer over them two and a half times to spin them. On a MacBook with a motion sensor, shake the Mac to make them dizzy. A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 

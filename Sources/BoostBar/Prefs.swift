@@ -136,6 +136,12 @@ enum Prefs {
     static var eyeSize: Int { get { min(max(d.integer(forKey: K.eyeSize), 0), 2) } set { d.set(newValue, forKey: K.eyeSize) } }
     static var singleEye: Bool { get { bool(K.singleEye) } set { set(newValue, K.singleEye) } }
     static var googly: Bool { get { bool(K.googly) } set { set(newValue, K.googly) } }
+    /// Eye emotions are all on unless switched off here (stored as the list of the ones turned off).
+    static var emotionsOff: Set<Emotion> {
+        get { Set((d.stringArray(forKey: "eyeEmotionsOff") ?? []).compactMap(Emotion.init(rawValue:))) }
+        set { d.set(newValue.map(\.rawValue).sorted(), forKey: "eyeEmotionsOff") }
+    }
+    static var emotions: Set<Emotion> { Set(Emotion.allCases).subtracting(emotionsOff) }
     static var lazyEyes: Bool { get { bool(K.lazyEyes) } set { set(newValue, K.lazyEyes) } }
     static var eyeBlink: Bool { get { bool(K.eyeBlink) } set { set(newValue, K.eyeBlink) } }
     /// Each eye aims at the pointer on its own, so they cross when it's between them.
@@ -181,4 +187,5 @@ enum Prefs {
 extension Notification.Name {
     /// Posted whenever app state changes outside the Settings window (menu toggles, timers, etc.).
     static let boostBarStateChanged = Notification.Name("BoostBarStateChanged")
+    static let boostBarTipClicked = Notification.Name("BoostBarTipClicked")
 }
