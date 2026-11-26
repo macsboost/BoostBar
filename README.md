@@ -160,7 +160,7 @@ Circle the pointer right over the googly eyes in the menu bar two and a half tim
 
 **Emotions.** The eyes react to what the Mac is doing: **sleepy** lids that droop the longer it sits idle, **alarmed** pinprick pupils when the CPU pegs or the battery hits 10%, **angry** when the CPU stays in the red, a **sweat** drop when it runs hot, **happy** arcs when you plug in the charger or a big download finishes, **sad** with no network, a **suspicious** squint at a lingering pointer, a one-eyed **skeptical** squint when you whip the pointer across the screen (the eye on the pointer's side, harder the faster you go), **startled** by a new drive, a **bored** eye-roll now and then — and **heart and dollar eyes** for a tip. Each one has its own checkbox in **Settings ▸ Eyes ▸ Emotions**, with a "Try one" menu to preview them.
 
-<p align="center"><img src="docs/media/eye-emotions.png" width="720" alt="The eye emotions: plain, sleepy, alarmed, angry, sweating, happy; sad, suspicious, startled, bored, hearts, dollar signs"></p>
+<p align="center"><img src="docs/media/eye-emotions.png" width="720" alt="The eye emotions: plain, sleepy, alarmed, angry, sweating, happy, sad; suspicious, skeptical one-eye squint, startled, bored, hearts, dollar signs"></p>
 
 ## Dizzy eyes
 
