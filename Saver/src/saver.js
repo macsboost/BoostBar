@@ -1232,7 +1232,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     const { w, h } = viewHalf(c.z), m = closeMargin();
     const p = upstreamPoint(w + m, h + m, 0.12); // through the middle of the view
     c.x = p.x; c.y = p.y;
-    c.speed = (6 + Math.random() * 1.5) * CFG.speed;
+    c.speed = (4.6 + Math.random()) * CFG.speed; // unhurried: about six seconds on screen
     c.phase = Math.random() * Math.PI * 2;
     c.kx = c.ky = c.kz = 0; c.wob = 0; c.man = null;
     c.closeOn = true;

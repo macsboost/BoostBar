@@ -740,7 +740,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         let p = upstreamPoint(w + closeMargin, h + closeMargin, spread: 0.12)     // through the middle of the view
         c.x = p.x; c.y = p.y
         c.d = dir
-        c.speed = (6 + .random(in: 0...1.5)) * Float(cfg.speed)
+        c.speed = (4.6 + .random(in: 0...1)) * Float(cfg.speed)        // unhurried: about six seconds on screen
         c.phase = .random(in: 0...(2 * .pi))
         c.kx = 0; c.ky = 0; c.kz = 0; c.wob = 0; c.man = nil
         c.closeOn = true
