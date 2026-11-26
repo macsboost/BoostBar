@@ -509,14 +509,53 @@ namespace BoostBar
             return i;
         }
 
+        Timer menuCpuTimer;
+
+        /// Readouts in the menu, only for what the taskbar strip isn't already showing: a gauge that's on screen
+        /// doesn't need repeating here, and one that's hidden still gets a line.
+        void AddReadouts()
+        {
+            if (!IsSegmentShown(Segment.Network))
+            {
+                var bits = Prefs.UseBits;
+                menu.Items.Add(Info("▲ " + Fmt.Rate(Net.CurrentUp, bits, Prefs.NetUnit) + "    ▼ " + Fmt.Rate(Net.CurrentDown, bits, Prefs.NetUnit)));
+            }
+            if (!IsSegmentShown(Segment.Battery) && Battery != null) foreach (var l in BatteryMonitor.Describe(Battery)) menu.Items.Add(Info(l));
+            if (!IsSegmentShown(Segment.Cpu))
+            {
+                // the meter isn't running, so take a fresh half-second reading now (kept updated while the menu is open)
+                Cpu.Sample();
+                var line = Info("CPU — measuring…");
+                menu.Items.Add(line);
+                menuCpuTimer?.Dispose();
+                menuCpuTimer = new Timer { Interval = 500 };
+                menuCpuTimer.Tick += (s, e) =>
+                {
+                    if (!menuOpen || line.IsDisposed) { menuCpuTimer.Stop(); return; }
+                    Cpu.Sample();
+                    line.Text = "CPU — " + Fmt.Pct(Cpu.Total) + "  ·  User " + Fmt.Pct(Cpu.User) + "  ·  System " + Fmt.Pct(Cpu.Sys);
+                };
+                menuCpuTimer.Start();
+            }
+            if (!IsSegmentShown(Segment.Disks))
+            {
+                try
+                {
+                    var root = System.IO.Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.System));
+                    var d = new System.IO.DriveInfo(root);
+                    if (d.IsReady) menu.Items.Add(Info((string.IsNullOrEmpty(d.VolumeLabel) ? "System drive" : d.VolumeLabel) + " (" + root.TrimEnd('\\') + ") — " +
+                                                       Fmt.Bytes(d.AvailableFreeSpace) + " free of " + Fmt.Bytes(d.TotalSize)));
+                }
+                catch { }
+            }
+        }
+
         void BuildMenu()
         {
             menu.Items.Clear();
             LidDisabled = LidSleep.Available && LidSleep.IsDisabled;
             menu.Items.Add(Item("About BoostBar " + Updater.CurrentVersion + "…", AboutForm.ShowShared));
-            var bits = Prefs.UseBits;
-            menu.Items.Add(Info("▲ " + Fmt.Rate(Net.CurrentUp, bits, Prefs.NetUnit) + "    ▼ " + Fmt.Rate(Net.CurrentDown, bits, Prefs.NetUnit)));
-            if (Battery != null) foreach (var l in BatteryMonitor.Describe(Battery)) menu.Items.Add(Info(l));
+            AddReadouts();
             menu.Items.Add(new ToolStripSeparator());
             var head = new ToolStripMenuItem("KEEP AWAKE") { Enabled = false };
             head.Font = new Font(menu.Font.FontFamily, menu.Font.Size * 0.85f, FontStyle.Bold);
