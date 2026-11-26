@@ -617,12 +617,21 @@ const CORE = (() => {
       const closing = q.v - k.v;
       const rate = pos === 0 ? (gap < 16 ? 0.22 : 0) : (gap < 11 && closing > 0.15 ? 0.6 : 0); // chances per second
       if (Math.random() < rate * dt) {
-        r.look = { t: 0, dur: 1.0 + Math.random() * 0.6, side: q.p >= k.p ? 1 : -1, pos };
+        r.look = { t: 0, dur: 1.0 + Math.random() * 0.6, side: q.p >= k.p ? 1 : -1, pos, q };
         r.lookCool = r.look.dur + 4 + Math.random() * 6; r.looks = (r.looks || 0) + 1;
       }
     }
   }
-  const lookAmt = (r) => { const L = r.look; return L ? L.side * sm(L.t / 0.28) * sm((L.dur - L.t) / 0.32) : 0; };
+  const LOOK = { head: 0, spine: 0 }, NECK = 1.2, TWIST = 0.75; // how far the neck turns before the torso has to help (rad)
+  function lookAngles(r, k) { // head and torso yaw needed to see the racer behind: the neck goes first, the torso twists for the rest
+    const L = r.look; LOOK.head = LOOK.spine = 0;
+    if (!L) return LOOK;
+    const e = L.side * sm(L.t / 0.28) * sm((L.dur - L.t) / 0.32);
+    const q = L.q, drawn = k.rx !== undefined && q.rx !== undefined; // the drawn (between-steps) places, so the head doesn't tick with the race steps
+    let rel = drawn ? Math.atan2(q.ry - k.ry, q.rx - k.rx) - k.rth : Math.atan2(q.y - k.y, q.x - k.x) - k.th; rel = Math.abs(Math.atan2(Math.sin(rel), Math.cos(rel))); // how far round he is, 0 ahead .. pi dead astern
+    LOOK.head = e * Math.min(rel, NECK); LOOK.spine = e * clamp(rel - NECK - 0.3, 0.2, TWIST); // 0.3: what his eyes cover
+    return LOOK;
+  }
   function riderMass(r, k, vf, now, dt, riding) {
     const b = r.body, J = b.J;
     if (!b.out) { b.out = {}; b.base = {}; b.bo = b.bv = b.th = b.thv = b.ph = b.phv = b.latSlow = 0; b.prev = null; }
@@ -650,13 +659,13 @@ const CORE = (() => {
       if (b.out[nm] && q.equals(b.out[nm])) q.copy(b.base[nm]); else (b.base[nm] || (b.base[nm] = new QT())).copy(q);
     }
     J.Hips.position.y = b.hipsRest.y;
-    const lk = lookAmt(r);
-    if (Math.abs(b.bo) < 0.002 && Math.abs(b.th) < 0.003 && Math.abs(b.ph) < 0.003 && !lk) return;
+    const lk = lookAngles(r, k), tw = Math.abs(lk.spine) / TWIST;
+    if (Math.abs(b.bo) < 0.002 && Math.abs(b.th) < 0.003 && Math.abs(b.ph) < 0.003 && !lk.head) return;
     r.g.updateMatrixWorld(true);
     const T = LIMBS.map((L) => J[L[2]].getWorldPosition(new V3())); // where the hands and feet belong
     J.Hips.position.y = b.hipsRest.y + b.bo;
-    J.Spine.quaternion.multiply(_dq.setFromEuler(_e.set(b.th, 0.32 * lk, -b.ph - 0.06 * lk, 'XYZ'))); // shoulders open a little toward the look
-    J.Head.quaternion.multiply(_dq.setFromEuler(_e.set(-0.55 * b.th - 0.1 * Math.abs(lk), 1.2 * lk, 0.55 * b.ph, 'XYZ'))); // the head stays nearer level, and turns over the shoulder
+    J.Spine.quaternion.multiply(_dq.setFromEuler(_e.set(b.th + LOOK_PITCH * tw, lk.spine, -b.ph - 0.08 * lk.spine, 'XYZ'))); // the torso twists toward the look, and folds forward so the far hand still reaches its grip
+    J.Head.quaternion.multiply(_dq.setFromEuler(_e.set(-0.55 * b.th - (0.08 + LOOK_PITCH) * tw, lk.head, 0.55 * b.ph, 'XYZ'))); // the head stays nearer level, and turns over the shoulder
     r.g.updateMatrixWorld(true);
     LIMBS.forEach((L, i) => {
       const U = J[L[0]], Lo = J[L[1]], E = J[L[2]];
@@ -674,6 +683,7 @@ const CORE = (() => {
     });
     for (const nm of POSED) (b.out[nm] || (b.out[nm] = new QT())).copy(J[nm].quaternion);
   }
+  const LOOK_PITCH = 0.22;
   const BOUNCE = 0.7; // how hard the chop throws the rider; 0 turns the bounce off
   function resetBody(r) { const b = r.body; for (const nm of JOINTS) b.J[nm].quaternion.copy(b.rest[nm]); b.J.Hips.position.copy(b.hipsRest); b.seat = null; }
   const racers = []; // visual state per ski, index-aligned with race.skis
