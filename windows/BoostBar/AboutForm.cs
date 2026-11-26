@@ -78,7 +78,7 @@ namespace BoostBar
             };
 
             Add(Lbl("BoostBar " + Updater.CurrentVersion + " is energydrinkware ⚡", Color.FromArgb(116, 251, 76), new Font("Segoe UI Semibold", 14f)));
-            Add(Lbl("It's free. If you like it, buy me an energy drink — $" + Amount + " keeps the boost coming.\nBy Mac McAlpine · MacsBoost"), 0, 12);
+            Add(Lbl("It's free. If you like it, buy Mac an energy drink — $" + Amount + " keeps the boost coming.\nBy Mac McAlpine · MacsBoost"), 0, 12);
 
             var pays = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false };
             void Pay(string text, Color c, string tip, Action act)

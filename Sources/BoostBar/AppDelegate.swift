@@ -622,7 +622,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 #if !APPSTORE
         menu.addItem(item("Check for Updates…", #selector(checkForUpdates), on: false, key: "u"))
 #endif
-        menu.addItem(item("Buy Me an Energy Drink ⚡…", #selector(showAbout), on: false))
+        menu.addItem(item("Buy Mac an Energy Drink ⚡…", #selector(showAbout), on: false))
         menu.addItem(.separator())
         menu.addItem(item("Quit BoostBar", #selector(quit), on: false, key: "q"))
     }

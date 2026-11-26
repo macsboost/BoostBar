@@ -144,9 +144,9 @@ final class SupportWindow: NSObject, NSWindowDelegate {
 
         y -= 44
         #if APPSTORE
-        let blurbText = "It's free. If you like it, buy me an energy drink — it keeps the boost coming.\nBy Mac McAlpine · MacsBoost"
+        let blurbText = "It's free. If you like it, buy Mac an energy drink — it keeps the boost coming.\nBy Mac McAlpine · MacsBoost"
         #else
-        let blurbText = "It's free. If you like it, buy me an energy drink — $\(Self.amount) keeps the boost coming.\nBy Mac McAlpine · MacsBoost"
+        let blurbText = "It's free. If you like it, buy Mac an energy drink — $\(Self.amount) keeps the boost coming.\nBy Mac McAlpine · MacsBoost"
         #endif
         let blurb = NSTextField(wrappingLabelWithString: blurbText)
         blurb.alignment = .center
@@ -158,7 +158,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         // Pay buttons
         y -= 56
 #if APPSTORE
-        let tip = NSButton(title: "Buy Me an Energy Drink ⚡", target: self, action: #selector(tipAppStore))
+        let tip = NSButton(title: "Buy Mac an Energy Drink ⚡", target: self, action: #selector(tipAppStore))
         tip.bezelStyle = .rounded
         tip.controlSize = .large
         tip.bezelColor = .systemGreen
@@ -167,7 +167,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
         tip.frame = NSRect(x: (width - 320) / 2, y: y, width: 320, height: 40)
         content.addSubview(tip)
         Task { @MainActor in
-            if let price = await TipJar.displayPrice() { tip.title = "Buy Me an Energy Drink ⚡  \(price)" }
+            if let price = await TipJar.displayPrice() { tip.title = "Buy Mac an Energy Drink ⚡  \(price)" }
         }
         var x: CGFloat = 0
 

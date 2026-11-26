@@ -608,7 +608,7 @@ namespace BoostBar
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Item("Settings…", () => SettingsForm.ShowShared(null)));
             menu.Items.Add(Item("Check for Updates…", () => Updater.Check(true)));
-            menu.Items.Add(Item("Buy Me an Energy Drink ⚡…", AboutForm.ShowShared));
+            menu.Items.Add(Item("Buy Mac an Energy Drink ⚡…", AboutForm.ShowShared));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Item("Quit BoostBar", () => Application.Exit()));
         }

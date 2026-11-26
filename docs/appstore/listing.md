@@ -65,7 +65,7 @@ First App Store release of BoostBar: network graphs, battery watts, disk activit
 | Price | $4.99 (Tier closest to $4.95) |
 | Display name | Energy Drink ⚡ |
 | Description | Buy the developer an energy drink. A tip that doesn't unlock anything, just says thanks. |
-| Review screenshot | Screenshot of the About window showing the "Buy Me an Energy Drink" button |
+| Review screenshot | Screenshot of the About window showing the "Buy Mac an Energy Drink" button |
 
 ## App Privacy (nutrition label)
 - **Data collection: Yes**

@@ -240,7 +240,7 @@ Without them, builds fall back to ad-hoc signing.
 
 ## Energydrinkware ⚡
 
-BoostBar is free. If you like it, buy me an energy drink ($4.95):
+BoostBar is free. If you like it, buy Mac an energy drink ($4.95):
 [PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=mac@supermac.net&item_name=BoostBar%20energy%20drink&amount=4.95&currency_code=USD&no_shipping=1) ·
 [Venmo](https://venmo.com/u/john-mcalpine-16) ·
 [Card (Stripe)](https://biz-cord.com/boostbar/donate)
