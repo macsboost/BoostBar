@@ -16,6 +16,8 @@ struct SaverConfig {
     var roadster = false
     /// …flying level along with the ships (bobbing, banking and doing stunts like them) instead of tumbling.
     var roadsterStable = false
+    /// Starships: now and then one ship passes right in front of the camera, about as long as the view is wide.
+    var closeEncounter = false
     var oxidation = 0.35
     var tilt: Double? = nil
     /// Flock angle in degrees (0 = right, 90 = up): the direction the flock flies across the screen. nil = the
@@ -102,6 +104,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     func roadsterCloseup(distance: Float) {
         closeupZ = 52 - distance
         for c in craft {
+            c.closeAt = .greatestFiniteMagnitude
             c.g.isHidden = !c.roadster
             if c.roadster { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.tumbleRate = 0.25; c.tumbleAxis = SIMD3(0, 1, 0); c.phase = 0.9 }
         }
@@ -111,6 +114,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         closeupZ = 52 - distance
         if let d = deploy, let c = craft.first { c.dep = d; c.depStarted = false }
         for (i, c) in craft.enumerated() {
+            c.closeAt = .greatestFiniteMagnitude
             c.g.isHidden = i > 0
             if i == 0 { c.x = 0; c.y = 0; c.z = 52 - distance; c.speed = 0; c.man = nil; c.next = .greatestFiniteMagnitude; c.inchPh = 0 }
         }
@@ -295,6 +299,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         var inch: [(node: SCNNode, q0: simd_quatf, i: Int, n: Int)] = [], inchPh: Float = 0, inchL: Float = -1
         /// The roadster: wheels spinning about their axles, and a slow tumble about a random axis.
         var wheels: [(node: SCNNode, q0: simd_quatf)] = [], roadster = false
+        /// Close encounter: a ship kept out of sight until its next pass right in front of the camera.
+        var close = false, closeOn = false, closeAt: TimeInterval = 0
         var tumbleAxis = SIMD3<Float>(0, 1, 0), tumbleRate: Float = 0.3
         var kx: Float = 0, ky: Float = 0, kz: Float = 0, wob: Float = 0
         var spin: Float = .random(in: 0...10), flapRate: Float = 1
@@ -362,7 +368,8 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             let tpl = SCNNode()
             tpl.addChildNode(pivot)
             let tail = (b.min.y - mid.y) * scale
-            for i in 0..<n {
+            shipLength = (b.max.y - b.min.y) * scale
+            for i in 0..<(n + (cfg.closeEncounter ? 1 : 0)) {
                 let c = Craft()
                 let root = tpl.clone()
                 c.g.addChildNode(root)
@@ -377,7 +384,14 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 root.addChildNode(plume); root.addChildNode(core)
                 c.plume = plume; c.core = core
                 c.flapRate = 5.2 + .random(in: 0...2.2)
-                _ = i
+                if i == n {
+                    // the close-encounter ship waits off stage
+                    c.close = true; c.closeAt = clock + .random(in: 45...120)
+                    c.flapRate = 4.4
+                    c.g.isHidden = true; c.z = closeZ; c.x = 0; c.y = 1000
+                    scene.rootNode.addChildNode(c.g); craft.append(c)
+                    continue
+                }
                 add(c)
             }
             if cfg.roadster { try addRoadster(res) }
@@ -708,6 +722,37 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
     }
 
     private let plumeLength: Float = 5.4
+
+    // MARK: close encounter
+
+    private var shipLength: Float = 11.3
+    /// The depth at which a ship is about 90% as long as the view is wide.
+    private var closeZ: Float { 52 - (shipLength * 0.55 / aspect) / tan(fov * .pi / 360) }
+    /// Room past the view's edge for the whole ship and its plume to be out of sight.
+    private var closeMargin: Float { shipLength * 0.5 + plumeLength + 1.5 }
+
+    /// For the CI check: start the close pass now.
+    func closeEncounterNow() { for c in craft where c.close { c.closeAt = clock } }
+
+    private func beginClose(_ c: Craft) {
+        c.z = closeZ
+        let (w, h) = viewHalf(c.z)
+        let p = upstreamPoint(w + closeMargin, h + closeMargin, spread: 0.12)     // through the middle of the view
+        c.x = p.x; c.y = p.y
+        c.d = dir
+        c.speed = (6 + .random(in: 0...1.5)) * Float(cfg.speed)
+        c.phase = .random(in: 0...(2 * .pi))
+        c.kx = 0; c.ky = 0; c.kz = 0; c.wob = 0; c.man = nil
+        c.closeOn = true
+        c.g.isHidden = false
+    }
+
+    private func endClose(_ c: Craft, _ t: TimeInterval) {
+        c.closeOn = false
+        c.g.isHidden = true
+        c.y = 1000
+        c.closeAt = t + .random(in: 90...240)       // rarely
+    }
 
     /// The Raptor exhaust: a long, translucent plume behind the tail (local -z), drawn on four crossed planes so it
     /// reads from any side — blue-white at the nozzles, shock diamonds, then a hot orange tail fading out.
@@ -1098,6 +1143,10 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
         let marginY: Float = kind == .starlink ? 20 : kind == .starships ? 12 : 8
         let yRot = simd_quatf(angle: 0.45, axis: SIMD3(0, 1, 0))
         for c in craft {
+            if c.close, !c.closeOn {
+                if t < c.closeAt { continue }
+                beginClose(c)
+            }
             // a deploying Starlink drifts at half speed until its arrays are out and flapping
             let pace: Float = c.deploys ? 0.5 + 0.5 * Float(ease(Double((c.dep - 7.8) / 1.5))) : 1
             var adv = c.speed * pace * dt
@@ -1105,18 +1154,21 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
             c.x += c.d.x * adv + c.kx * dt
             c.y += c.d.y * adv + c.ky * dt
             let (zLo, zHi) = layer(c)
-            c.z = max(zLo, min(closeupZ ?? zHi, c.z + c.kz * dt))
+            if !c.close { c.z = max(zLo, min(closeupZ ?? zHi, c.z + c.kz * dt)) }
             c.kx *= damp; c.ky *= damp; c.kz *= damp
             c.wob *= exp(-1.6 * dt)
             let (w, h) = viewHalf(c.z)
             if c.lane >= 0 {
                 if simd_dot(SIMD2(c.x, c.y), SIMD2(c.d.x, c.d.y)) > laneLength(lanes[c.lane]) { relane(c) }
+            } else if c.close {
+                if offDownstream(c.x, c.y, w + closeMargin, h + closeMargin) { endClose(c, t); continue }
             } else if offDownstream(c.x, c.y, w + marginX, h + marginY) { spawn(c, initial: false) }
             let tf = Float(t)
             let tumbling = c.roadster && !cfg.roadsterStable
             let straight = !c.inch.isEmpty || tumbling           // V1.5 and the tumbling roadster: no bob, no stunts
-            let bob = straight ? 0 : sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
-            let stowed = (c.deploys && c.dep < 7.8) || straight
+            var bob = straight ? 0 : sin(tf * 1.3 + c.phase) * 0.35 + sin(tf * 0.23 + c.phase * 2.7) * 0.9
+            if c.close { bob *= 0.4 }
+            let stowed = (c.deploys && c.dep < 7.8) || straight || c.close
             if stowed { c.man = nil; c.next = max(c.next, t + 2) }      // no stunts until the arrays are out
             let st = stowed ? nil : stunt(c, t)
             var pos = SIMD3(c.x, c.y + bob, c.z) + (st?.off ?? .zero)
@@ -1192,6 +1244,7 @@ final class Flock: NSObject, SCNSceneRendererDelegate {
                 let a = craft[i], b = craft[j]
                 if a.lane >= 0, b.lane >= 0, a.d != b.d { continue }   // crossing passes are at different altitudes
                 if a.inch.isEmpty != b.inch.isEmpty { continue }        // V1.5s fly in a lower shell
+                if a.close || b.close { continue }
                 var n = a.g.simdPosition - b.g.simdPosition
                 let d = simd_length(n)
                 if d >= 2 * R || d < 1e-4 { continue }

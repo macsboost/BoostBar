@@ -17,7 +17,7 @@ namespace BoostBar
         public double? Tilt;
         /// Flock angle in degrees (0 = right, 90 = up); null = the classic down-left.
         public double? Heading;
-        public bool Crossing, Lasers, Clouds, Roadster, RoadsterStable;
+        public bool Crossing, Lasers, Clouds, Roadster, RoadsterStable, CloseEncounter;
         // Jet Racers: who wins ("random" or a racer's number), how they celebrate, and how the race is shown.
         public string Winner = "random", Celebration = "random", Camera = "director", Follow = "leader";
         public bool Board = true, Captions;
@@ -118,6 +118,7 @@ namespace BoostBar
                 o.Clouds = d.Bool("clouds") ?? false;
                 o.Roadster = d.Bool("roadster") ?? o.Roadster;
                 o.RoadsterStable = d.Bool("roadsterStable") ?? false;
+                o.CloseEncounter = d.Bool("closeEncounter") ?? false;
                 string Str(string key, (string Id, string Name)[] list, string fallback) =>
                     d.TryGetValue(key, out var v) && v != null ? JetRace.Valid(list, v.ToString()) : fallback;
                 o.Winner = Str("winner", JetRace.Winners, o.Winner);
@@ -146,7 +147,7 @@ namespace BoostBar
                     ["count"] = o.Count, ["speed"] = o.Speed, ["flapSpeed"] = o.FlapSpeed, ["stunts"] = o.Stunts,
                     ["stars"] = o.Stars, ["liveries"] = o.Liveries, ["oxidation"] = o.Oxidation,
                     ["crossing"] = o.Crossing, ["lasers"] = o.Lasers, ["clouds"] = o.Clouds,
-                    ["roadster"] = o.Roadster, ["roadsterStable"] = o.RoadsterStable,
+                    ["roadster"] = o.Roadster, ["roadsterStable"] = o.RoadsterStable, ["closeEncounter"] = o.CloseEncounter,
                     ["winner"] = o.Winner, ["celebration"] = o.Celebration, ["camera"] = o.Camera, ["follow"] = o.Follow,
                     ["board"] = o.Board, ["captions"] = o.Captions,
                     ["savedAt"] = (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds,
@@ -177,7 +178,7 @@ namespace BoostBar
             return "window.SAVER_CONFIG={liveries:[" + livs + "],count:" + o.Count + ",speed:" + N(o.Speed) +
                    ",flapSpeed:" + N(o.FlapSpeed) + ",stunts:" + B(o.Stunts) + ",stars:" + B(o.Stars) +
                    ",oxidation:" + N(o.Oxidation) + ",crossing:" + B(o.Crossing) + ",lasers:" + B(o.Lasers) +
-                   ",clouds:" + B(o.Clouds) + ",roadster:" + B(o.Roadster) + ",roadsterStable:" + B(o.RoadsterStable) +
+                   ",clouds:" + B(o.Clouds) + ",roadster:" + B(o.Roadster) + ",roadsterStable:" + B(o.RoadsterStable) + ",closeEncounter:" + B(o.CloseEncounter) +
                    ",tilt:" + N(o.Tilt ?? DefaultTilt(scene)) + ",heading:" + N(o.Heading ?? DefaultHeading) + ",preview:" + B(preview) + "};";
         }
     }

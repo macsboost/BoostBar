@@ -46,6 +46,18 @@ for (name, t) in [("roadster_a", 1.0), ("roadster_b", 3.5), ("roadster_c", 6.0)]
         print("IMG_BEGIN \(name).jpg"); print(jpg.base64EncodedString()); print("IMG_END")
     }
 }
+var ce = SaverConfig(); ce.count = 5; ce.closeEncounter = true
+for (name, t) in [("encounter_a", 1.6), ("encounter_b", 3.4), ("encounter_c", 5.0)] {
+    let f = Flock(kind: .starships, cfg: ce, resources: res)
+    f.setAspect(size.width / size.height)
+    let r = SCNRenderer(device: device, options: nil); r.scene = f.scene; r.pointOfView = f.camera
+    var tt = 0.0; f.step(to: tt); f.closeEncounterNow()
+    while tt < t { tt += 1.0 / 30; f.step(to: tt) }
+    let img = r.snapshot(atTime: tt, with: size, antialiasingMode: .multisampling4X)
+    if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.75]) {
+        print("IMG_BEGIN \(name).jpg"); print(jpg.base64EncodedString()); print("IMG_END")
+    }
+}
 var rs = SaverConfig(); rs.count = 5; rs.roadster = true
 shoot(.starships, rs, "ships_roadster", seconds: 5)
 rs.roadsterStable = true; rs.count = 2

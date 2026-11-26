@@ -437,6 +437,7 @@ namespace BoostBar
                 p.Check("Roadster with Starman", () => SaverConfig.Load(scene).Roadster, v => Change(x => x.Roadster = v));
                 p.Check("Stabilized (flies level with the ships instead of tumbling)", () => SaverConfig.Load(scene).RoadsterStable, v => Change(x => x.RoadsterStable = v), indent: true,
                         enabled: () => SaverConfig.Load(scene).Roadster);
+                p.Check("Close encounter (now and then a ship flaps by right in front of you)", () => SaverConfig.Load(scene).CloseEncounter, v => Change(x => x.CloseEncounter = v));
             }
             if (scene == "starlink")
             {

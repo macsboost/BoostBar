@@ -475,6 +475,7 @@
   // ---------- Starship ----------
   // The ship model stands nose up (+y), heat shield on +z, flaps on +-x. A pivot lays it down nose-first (+z, which
   // lookAt points along the flight path) with the heat shield underneath, like a belly-flopping ship gliding along.
+  let shipLength = 11.3;
   const SHIP_SCALE = 0.19; // 60 m ship -> 11 scene units (a SkyRacer is about 4)
   function glowTexture(inner, outer) {
     const cv = document.createElement('canvas');
@@ -661,6 +662,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
           root.add(pivot);
           // Raptor glow out of the engines
           const tail = (box.min.y - mid.y) * SHIP_SCALE;
+          shipLength = (box.max.y - box.min.y) * SHIP_SCALE;
           const plume = exhaust(5.4, 1.25); // the same long translucent plume as the native saver
           plume.position.set(0, 0, tail + 0.05);
           plume.name = 'plume';
@@ -1115,6 +1117,15 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         spawn(c, true);
         craft.push(c);
       }
+      if (CFG.closeEncounter) {
+        // the close-encounter ship waits off stage until its next pass
+        const root = tpl.clone(true), g = new THREE.Group();
+        root.traverse((o) => { if (o.isSprite) o.material = o.material.clone(); });
+        g.add(root); g.visible = false; scene.add(g);
+        craft.push({ g, fans: [], flaps: flapsOf(root), plume: root.getObjectByName('plume'), core: root.getObjectByName('core'),
+          flapRate: 4.4, spin: 0, close: true, closeOn: false, closeAt: CFG.closeEncounter === 'now' ? 0 : clock() + 45 + Math.random() * 75,
+          x: 0, y: 1000, z: closeZ(), speed: 0, phase: 0, kx: 0, ky: 0, kz: 0, wob: 0, man: null, next: Infinity });
+      }
       if (CFG.roadster && $('glb2') && $('glb2').textContent.trim()) await addRoadster();
       $('loading') && $('loading').remove();
       return;
@@ -1186,6 +1197,7 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
         const a = craft[i], b = craft[j];
         if (a.lane !== undefined && b.lane !== undefined && a.d !== b.d) continue; // crossing passes: different altitudes
         if (!a.inch !== !b.inch) continue; // V1.5s fly in a lower shell
+        if (a.close || b.close) continue;
         n.subVectors(a.g.position, b.g.position);
         const d = n.length();
         if (d >= 2 * R || d < 1e-4) continue;
@@ -1210,6 +1222,29 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     }
   }
 
+  // ---------- close encounter (Starships option) ----------
+  // Now and then one ship passes right in front of the camera, about 90% as long as the view is wide.
+  const closeZ = () => camera.position.z - (shipLength * 0.55 / camera.aspect) / Math.tan((camera.fov * D2R) / 2);
+  const closeMargin = () => shipLength * 0.5 + 5.4 + 1.5; // the whole ship and its plume out of sight
+  window.__closeEncounter = () => { for (const c of craft) if (c.close) c.closeAt = 0; };
+  function beginClose(c) {
+    c.z = closeZ();
+    const { w, h } = viewHalf(c.z), m = closeMargin();
+    const p = upstreamPoint(w + m, h + m, 0.12); // through the middle of the view
+    c.x = p.x; c.y = p.y;
+    c.speed = (6 + Math.random() * 1.5) * CFG.speed;
+    c.phase = Math.random() * Math.PI * 2;
+    c.kx = c.ky = c.kz = 0; c.wob = 0; c.man = null;
+    c.closeOn = true;
+    c.g.visible = true;
+  }
+  function endClose(c) {
+    c.closeOn = false;
+    c.g.visible = false;
+    c.y = 1000;
+    c.closeAt = clock() + 90 + Math.random() * 150; // rarely
+  }
+
   function frame(now) {
     if (!CFG.manual) requestAnimationFrame(frame);
     vt = now / 1000;
@@ -1219,6 +1254,10 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
     const t = now / 1000;
     const damp = Math.exp(-2.2 * dt);
     for (const c of craft) {
+      if (c.close && !c.closeOn) {
+        if (clock() < c.closeAt) continue;
+        beginClose(c);
+      }
       // a deploying Starlink drifts at half speed until its arrays are out and flapping
       const pk = (c.dep - 7.8) / 1.5, pace = c.deploys ? 0.5 + 0.5 * (pk < 0 ? 0 : pk > 1 ? 1 : pk * pk * (3 - 2 * pk)) : 1;
       const D = c.d || DIR;
@@ -1226,17 +1265,18 @@ float oxF(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a
       c.x += D.x * adv + c.kx * dt;
       c.y += D.y * adv + c.ky * dt;
       const [zLo, zHi] = layer(c);
-      c.z = Math.max(zLo, Math.min(zHi, c.z + c.kz * dt));
+      if (!c.close) c.z = Math.max(zLo, Math.min(zHi, c.z + c.kz * dt));
       c.kx *= damp; c.ky *= damp; c.kz *= damp;
       c.wob *= Math.exp(-1.6 * dt);
       const { w, h } = viewHalf(c.z);
       if (c.lane !== undefined) { if (c.x * D.x + c.y * D.y > laneLen(lanes[c.lane])) relane(c); }
+      else if (c.close) { if (offDownstream(c.x, c.y, w + closeMargin(), h + closeMargin())) { endClose(c); continue; } }
       else if (offDownstream(c.x, c.y, w + (SATS ? 22 : SHIPS ? 15 : 10), h + (SATS ? 20 : SHIPS ? 12 : 8))) spawn(c, false);
       // a slow, lazy drift up and down on top of the little bob
       const tumbling = !!c.roadster && !CFG.roadsterStable;
       const straight = !!c.inch || tumbling; // V1.5 and the tumbling roadster: no bob, no stunts
-      const bob = straight ? 0 : Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9;
-      const stowed = (c.deploys && c.dep < 7.8) || straight; // no stunts until the arrays are out
+      const bob = (straight ? 0 : Math.sin(t * 1.3 + c.phase) * 0.35 + Math.sin(t * 0.23 + c.phase * 2.7) * 0.9) * (c.close ? 0.4 : 1);
+      const stowed = (c.deploys && c.dep < 7.8) || straight || !!c.close; // no stunts until the arrays are out
       if (stowed) { c.man = null; c.next = Math.max(c.next, clock() + 2); }
       const st = stowed ? null : stunt(c, t);
       c.g.position.set(c.x, c.y + bob, c.z);

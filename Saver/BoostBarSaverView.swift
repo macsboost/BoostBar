@@ -108,6 +108,7 @@ class BoostBarSceneView: ScreenSaverView {
             c.clouds = o["clouds"] as? Bool ?? false
             c.roadster = o["roadster"] as? Bool ?? (Self.scene == "starships")   // Starman rides along unless turned off
             c.roadsterStable = o["roadsterStable"] as? Bool ?? false
+            c.closeEncounter = o["closeEncounter"] as? Bool ?? false
         } else {
             let d = defaults
             c.liveries = (d.string(forKey: "liveries") ?? "").split(separator: ",").map(String.init)

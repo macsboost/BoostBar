@@ -20,6 +20,7 @@ struct SaverOptions: Codable {
     var clouds: Bool? = nil   // Flying Cars: daytime sky with clouds
     var roadster: Bool? = nil // Starships: the red roadster with a spacesuited driver
     var roadsterStable: Bool? = nil // …flying level with the ships instead of tumbling
+    var closeEncounter: Bool? = nil // Starships: now and then one passes right in front of the camera
     // Jet Racers: who wins ("random", or a racer's number: that racer wins every race), how the winner celebrates,
     // and how the race is shown. The values are the ones Saver/src/jetrace.js understands (see JetRaceChoices).
     var winner: String? = nil
@@ -108,7 +109,7 @@ enum SaverConfig {
             return "window.SAVER_CONFIG={winner:\"\(J.valid(J.winners, o.winner))\",celebration:\"\(J.valid(J.celebrations, o.celebration))\",camera:\"\(J.valid(J.cameras, o.camera))\",follow:\"\(J.valid(J.follows, o.follow))\",board:\(o.board ?? true),captions:\(o.captions ?? false),preview:false};"
         }
         let livs = o.liveries.map { "\"\($0)\"" }.joined(separator: ",")
-        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? (scene == "starlink")),lasers:\(o.lasers ?? (scene == "starlink")),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? (scene == "starships")),roadsterStable:\(o.roadsterStable ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),heading:\(o.heading ?? defaultHeading),preview:false};"
+        return "window.SAVER_CONFIG={liveries:[\(livs)],count:\(o.count),speed:\(o.speed),flapSpeed:\(o.flapSpeed),stunts:\(o.stunts),stars:\(o.stars),oxidation:\(o.oxidation),crossing:\(o.crossing ?? (scene == "starlink")),lasers:\(o.lasers ?? (scene == "starlink")),clouds:\(o.clouds ?? false),roadster:\(o.roadster ?? (scene == "starships")),roadsterStable:\(o.roadsterStable ?? false),closeEncounter:\(o.closeEncounter ?? false),tilt:\(o.tilt ?? defaultTilt(for: scene)),heading:\(o.heading ?? defaultHeading),preview:false};"
     }
 }
 
