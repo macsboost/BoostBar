@@ -53,18 +53,19 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
     private let ctx: JSContext = JSContext()
     private var jr: JSValue?
     private var outV: JSValue?, pPosV: JSValue?, pAV: JSValue?, pSV: JSValue?, bandV: JSValue?
-    private var trailPV: [JSValue] = [], trailUV: [JSValue] = []
+    private var trailPV: [JSValue] = [], trailUV: [JSValue] = [], jetPV: [JSValue] = []
+    private var jetN = 0, jetM = 0
     private var per = 0, np = 0, parts: [String] = []
     private var lastTime: TimeInterval?
     private var clock: Float = 0
     private var viewSize = CGSize(width: 1280, height: 720)
     private var pixelScale: CGFloat = 1
 
-    private struct Racer { let g: SCNNode; let inner: SCNNode; let parts: [SCNNode]; let hips: SCNNode; let trail: SCNNode }
+    private struct Racer { let g: SCNNode; let inner: SCNNode; let parts: [SCNNode]; let hips: SCNNode; let trail: SCNNode; let jet: SCNNode }
     private var racers: [Racer] = []
     private let sun = simd_normalize(SIMD3<Float>(-0.42, 0.5, -0.62))
     private let sky = SCNNode(), water = SCNNode(), spray = SCNNode(), band = SCNNode(), course = SCNNode()
-    private var waterMat = SCNMaterial(), skyMat = SCNMaterial(), foamMat = SCNMaterial(), sprayMat = SCNMaterial()
+    private var waterMat = SCNMaterial(), skyMat = SCNMaterial(), foamMat = SCNMaterial(), sprayMat = SCNMaterial(), jetMat = SCNMaterial()
     private var buoys: [(node: SCNNode, y: Float, ph: Float)] = []
     private var courseSerial: Float = -1, bandSerial: Float = -1, hudSerial: Float = -1
     private let boardNode = SCNNode(), winNode = SCNNode(), capNode = SCNNode(), fadeNode = SCNNode()
@@ -115,7 +116,9 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
             guard let ski = r["ski"] as? String, let rider = r["rider"] as? String else { continue }
             try addRacer(ski: res.appendingPathComponent(ski + ".glb"), rider: res.appendingPathComponent(rider + ".glb"))
             if let p = jr.objectForKeyedSubscript("trailP")?.atIndex(i), let u = jr.objectForKeyedSubscript("trailU")?.atIndex(i) { trailPV.append(p); trailUV.append(u) }
+            if let j = jr.objectForKeyedSubscript("jetP")?.atIndex(i), !j.isUndefined { jetPV.append(j) }
         }
+        jetN = Int(jr.objectForKeyedSubscript("jetN")?.toInt32() ?? 0); jetM = Int(jr.objectForKeyedSubscript("jetM")?.toInt32() ?? 0)
         guard racers.count == 3, trailPV.count == 3, per > 0, np > 0, !parts.isEmpty else { throw Failure(description: "the racers did not load") }
     }
 
@@ -373,6 +376,13 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         foamMat = Self.blended(Self.foamFragment)
         foamMat.readsFromDepthBuffer = false   // flat on the water and drawn straight after it, so nothing can be in front
 
+        // pump jets: a thin stream of water from each steering nozzle to where it lands (rebuilt every frame from the script's rings)
+        jetMat.lightingModel = .constant
+        jetMat.diffuse.contents = NSColor(srgbRed: 0.93, green: 0.97, blue: 0.98, alpha: 1)
+        jetMat.transparency = 0.86
+        jetMat.isDoubleSided = true
+        jetMat.writesToDepthBuffer = false
+
         // spray: soft round flecks that face the camera
         sprayMat = Self.blended(Self.sprayFragment)
         spray.renderingOrder = 30
@@ -509,7 +519,9 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         guard let hips = g.childNode(withName: "Hips", recursively: true) else { throw Failure(description: "Hips missing") }
         let trail = SCNNode(); trail.renderingOrder = -40
         scene.rootNode.addChildNode(trail)
-        racers.append(Racer(g: g, inner: inner, parts: nodes, hips: hips, trail: trail))
+        let jet = SCNNode(); jet.renderingOrder = 20
+        scene.rootNode.addChildNode(jet)
+        racers.append(Racer(g: g, inner: inner, parts: nodes, hips: hips, trail: trail, jet: jet))
     }
 
     // MARK: Course
@@ -638,6 +650,8 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         let fade = o[9]
         let hud = o[12]
         for (i, r) in racers.enumerated() { buildTrail(r, count: tails[i], p: floats(trailPV[i], limit: tails[i] * 6), u: floats(trailUV[i], limit: tails[i] * 6)) }
+        let jets = Int(o[14])
+        for (i, r) in racers.enumerated() { buildJet(r, on: jets & (1 << i) != 0, p: i < jetPV.count ? floats(jetPV[i], limit: jetN * jetM * 3) : nil) }
         buildSpray(camPos: camPos, camQ: camQ, fov: fov)
         if hud != hudSerial { hudSerial = hud; drawHud() }
         layoutHud(fov: fov, near: near, fade: fade, dt: Float(dt))
@@ -650,6 +664,21 @@ final class JetRace: NSObject, SCNSceneRendererDelegate {
         var idx = [UInt32](); idx.reserveCapacity((count - 1) * 6)
         for i in 0..<UInt32(count - 1) { idx += [i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2] }
         r.trail.geometry = Self.dataMesh(positions: Array(p[0..<(count * 6)]), data: data, indices: idx, material: foamMat)
+    }
+
+    /// The pump jet: a tube through the script's rings of points (jetN rings of jetM points, nozzle first).
+    private func buildJet(_ r: Racer, on: Bool, p: [Float]?) {
+        let count = jetN * jetM
+        guard on, let p, jetN >= 2, jetM >= 3, p.count >= count * 3 else { r.jet.geometry = nil; return }
+        var idx = [UInt32](); idx.reserveCapacity((jetN - 1) * jetM * 6)
+        let m = UInt32(jetM)
+        for i in 0..<UInt32(jetN - 1) {
+            for j in 0..<m {
+                let a = i * m + j, b = i * m + (j + 1) % m
+                idx += [a, b, a + m, b, b + m, a + m]
+            }
+        }
+        r.jet.geometry = Self.dataMesh(positions: Array(p[0..<(count * 3)]), data: [Float](repeating: 1, count: count * 4), indices: idx, material: jetMat)
     }
 
     private func buildSpray(camPos: SIMD3<Float>, camQ: simd_quatf, fov: Float) {

@@ -673,7 +673,11 @@ const CORE = (() => {
       const L1 = _el.distanceTo(_s), L2 = _h.distanceTo(_el);
       _dir.copy(T[i]).sub(_s); const dist = Math.min(_dir.length(), L1 + L2 - 1e-3); _dir.normalize();
       const a = (L1 * L1 - L2 * L2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(L1 * L1 - a * a, 0));
-      _va.copy(_el).sub(_s); _pole.copy(_va).addScaledVector(_dir, -_va.dot(_dir));
+      _va.copy(_el).sub(_s);
+      // which way the joint bends: elbows out and down, knees up and forward (the same rule the models were posed with),
+      // so an arm folds naturally when its shoulder swings toward the grip
+      const sx = i % 2 ? -1 : 1; if (i < 2) _pole.set(sx * 0.75, -0.6, -0.25); else _pole.set(sx * 0.35, 0.75, 0.65);
+      _pole.applyQuaternion(J.Hips.parent.getWorldQuaternion(_wq)); _pole.addScaledVector(_dir, -_pole.dot(_dir));
       if (_pole.lengthSq() < 1e-8) return;
       _pole.normalize(); _vb.copy(_dir).multiplyScalar(a).addScaledVector(_pole, h).normalize();
       swing(U, _va.normalize(), _vb);
@@ -683,7 +687,7 @@ const CORE = (() => {
     });
     for (const nm of POSED) (b.out[nm] || (b.out[nm] = new QT())).copy(J[nm].quaternion);
   }
-  const LOOK_PITCH = 0.22;
+  const LOOK_PITCH = 0.06;
   const BOUNCE = 0.7; // how hard the chop throws the rider; 0 turns the bounce off
   function resetBody(r) { const b = r.body; for (const nm of JOINTS) b.J[nm].quaternion.copy(b.rest[nm]); b.J.Hips.position.copy(b.hipsRest); b.seat = null; }
   const racers = []; // visual state per ski, index-aligned with race.skis
@@ -693,8 +697,8 @@ const CORE = (() => {
     const hipsRest = J.Hips.position.clone(), thighL = Math.abs(J.Shin_L.position.y), shinL = Math.abs(J.Foot_L.position.y), hipX = Math.abs(J.Thigh_L.position.x);
     return { J, rest, hipsRest, k: thighL / 0.43, L: thighL + shinL, hipX, hipDrop: Math.abs(J.Thigh_L.position.y), seat: null };
   }
-  function mkRacer(id, g, inner, body, mxS, mxR, nodes) {
-    racers.push({ id, g, inner, body, mxS, mxR, nodes, steer: 0, lean: 0, pitch: 0, y: 0, ph: Math.random() * TAU,
+  function mkRacer(id, g, inner, body, mxS, mxR, nodes, noz) {
+    racers.push({ id, g, inner, body, mxS, mxR, nodes, noz, steer: 0, lean: 0, pitch: 0, y: 0, ph: Math.random() * TAU,
       pos: new V3(), fwd: new V3(1, 0, 0), left: new V3(0, 0, -1), vel: new V3(), trail: [], trailD: 0 });
   }
   async function buildRacers() {
@@ -706,11 +710,12 @@ const CORE = (() => {
       seat.add(rider.scene); // rider root on the seat mount, identity transform
       const g = new THREE.Group(), inner = new THREE.Group();
       inner.add(ski.scene); g.add(inner); scene.add(g);
+      const noz = ski.scene.getObjectByName('SteeringNozzle'); if (!noz) throw new Error('SteeringNozzle missing on ' + R.ski);
       g.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
       const mk = (root, clips) => { const m = new THREE.AnimationMixer(root); const c = clips.find((a) => a.name === 'Steer') || clips[0]; if (c) m.clipAction(c).play(); return m; };
       const J = {};
       for (const nm of JOINTS) { const o = rider.scene.getObjectByName(nm); if (!o) throw new Error('rider joint missing: ' + nm); J[nm] = o; }
-      mkRacer(id, g, inner, mkBody(J), mk(ski.scene, ski.animations), mk(rider.scene, rider.animations), null);
+      mkRacer(id, g, inner, mkBody(J), mk(ski.scene, ski.animations), mk(rider.scene, rider.animations), null, noz);
     }
   }
   /* Native: SceneKit owns the meshes, so here each ski and rider is only its moving parts — bare transforms made from
@@ -738,7 +743,7 @@ const CORE = (() => {
       const mxR = rig(R.rider, nodes.SeatMount), J = {};
       for (const nm of JOINTS.concat(SKI_PARTS)) if (!nodes[nm]) throw new Error('rig node missing: ' + nm);
       for (const nm of JOINTS) J[nm] = nodes[nm];
-      mkRacer(id, g, inner, mkBody(J), mxS, mxR, nodes);
+      mkRacer(id, g, inner, mkBody(J), mxS, mxR, nodes, nodes.SteeringNozzle);
     }
   }
 
@@ -788,6 +793,44 @@ const CORE = (() => {
  float al=(edge*.5+core)*smoothstep(.3,.72,f+.42*(1.-a))*pow(1.-a,1.4)*vu.z;
  gl_FragColor=vec4(.90,.95,.96,al*.9);}`,
   });
+  /* ---------- pump jet: a tight stream out of the steering nozzle, along wherever the nozzle points, falling as a
+     shallow arc until it meets the water. It barely spreads on the way; the spray starts where it lands. ---------- */
+  const JET_N = 10, JET_M = 8;
+  const jetMat = NATIVE ? null : new THREE.MeshBasicMaterial({ color: 0xeef8fb, transparent: true, opacity: 0.86, depthWrite: false });
+  const _jp = new V3(), _jd = new V3(), _jt = new V3(), _js = new V3(), _ju = new V3(), _jc = new V3();
+  function makeJet(r) {
+    r.jp = new Float32Array(JET_N * JET_M * 3); r.jetHit = new V3(); r.jetDir = new V3(); r.jetOn = 0;
+    if (NATIVE) return; // SceneKit draws the stream from r.jp
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(r.jp, 3));
+    const idx = [];
+    for (let i = 0; i < JET_N - 1; i++) for (let j = 0; j < JET_M; j++) { const a = i * JET_M + j, b = i * JET_M + ((j + 1) % JET_M); idx.push(a, b, a + JET_M, b, b + JET_M, a + JET_M); }
+    geo.setIndex(idx);
+    r.jet = new THREE.Mesh(geo, jetMat); r.jet.frustumCulled = false; r.jet.renderOrder = 2; r.jet.visible = false; scene.add(r.jet);
+  }
+  function updateJet(r, k, vf, now) {
+    const nz = r.noz; r.g.updateMatrixWorld(true);
+    _jp.set(0, 0, -0.13).applyMatrix4(nz.matrixWorld); // the nozzle's exit
+    _jd.set(0, 0, -1.13).applyMatrix4(nz.matrixWorld).sub(_jp).normalize(); // and where it points
+    const thr = k.v > 0.3 || k.acc > 0.5 ? clamp(0.2 + 0.55 * vf + 0.45 * clamp(k.acc / 6.5, 0, 1), 0, 1) : 0; // throttle
+    const u = 5 + 17 * thr, by = _jd.y * u;
+    r.jetDir.set(_jd.x, 0, _jd.z).normalize();
+    const te = _jp.y > 0.012 && thr > 0 ? Math.min((by + Math.sqrt(by * by + 19.62 * _jp.y)) / 9.81, 0.7) : 0; // time for the water to fall to the surface
+    r.jetOn = te > 0.02 ? 1 : 0;
+    if (!r.jetOn) { if (r.jet) r.jet.visible = false; r.jetHit.set(r.pos.x - r.fwd.x * 1.4, 0, r.pos.z - r.fwd.z * 1.4); return; } // nozzle under water: it churns at the stern
+    if (r.jet) r.jet.visible = true;
+    for (let i = 0; i < JET_N; i++) {
+      const t = (te * i) / (JET_N - 1), w = i / (JET_N - 1);
+      _jc.copy(_jp).addScaledVector(_jd, u * t); _jc.y -= 4.905 * t * t;
+      _jt.copy(_jd).multiplyScalar(u); _jt.y -= 9.81 * t; _jt.normalize();
+      _js.set(-_jt.z, 0, _jt.x).normalize(); _ju.crossVectors(_js, _jt);
+      const rad = (0.05 + 0.03 * w) * (1 + 0.06 * Math.sin(now * 40 + i * 1.7 + r.ph)); // 5 cm at the nozzle, 8 cm where it lands, with a shimmer
+      for (let j = 0; j < JET_M; j++) { const a = (j / JET_M) * TAU, o = (i * JET_M + j) * 3;
+        r.jp[o] = _jc.x + (_js.x * Math.cos(a) + _ju.x * Math.sin(a)) * rad; r.jp[o + 1] = _jc.y + (_js.y * Math.cos(a) + _ju.y * Math.sin(a)) * rad; r.jp[o + 2] = _jc.z + (_js.z * Math.cos(a) + _ju.z * Math.sin(a)) * rad; }
+      if (i === JET_N - 1) r.jetHit.set(_jc.x, 0, _jc.z);
+    }
+    if (r.jet) r.jet.geometry.attributes.position.needsUpdate = true;
+  }
   function makeTrail(r) {
     r.tp = new Float32Array(TR_N * 6); r.tu = new Float32Array(TR_N * 6); r.tn = 0;
     if (NATIVE) return;
@@ -880,7 +923,8 @@ const CORE = (() => {
       const r = racers[i], vf = clamp(k.v / CORE.V_TOP, 0, 1.2);
       const idle = 1 - clamp(k.v / 4, 0, 1);
       const chop = vf * (0.035 * Math.sin(now * 11 + r.ph) + 0.025 * Math.sin(now * 17.3 + r.ph * 2));
-      const y = -0.25 + 0.2 * Math.min(vf, 1) + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // the hull lifts onto the plane with speed
+      const plane = sm((k.rv - 2) / 6); // up on the plane by about 8 m/s, and it stays there through the turns
+      const y = -0.25 + 0.2 * plane + chop + idle * 0.03 * Math.sin(now * 1.7 + r.ph); // (the demo lifts 12 cm; BoostBar's hulls ride higher, as asked)
       r.pos.set(k.rx, 0, -k.ry);
       r.fwd.set(Math.cos(k.rth), 0, -Math.sin(k.rth)); r.left.set(-Math.sin(k.rth), 0, -Math.cos(k.rth));
       r.vel.copy(r.fwd).multiplyScalar(k.v);
@@ -889,7 +933,7 @@ const CORE = (() => {
       r.lean = lerp(r.lean, leanT, 1 - Math.exp(-7 * dt));
       const pitchT = -(0.035 * Math.min(vf, 1) + 0.085 * clamp(k.acc / 6.5, -0.8, 1) * (1 - 0.5 * Math.min(vf, 1))) + chop * 0.5;
       r.pitch = lerp(r.pitch, pitchT, 1 - Math.exp(-6 * dt));
-      r.g.position.set(k.rx, y, -k.ry);
+      r.g.position.set(k.rx, y + 1.31 * Math.sin(Math.max(0, -r.pitch)), -k.ry); // the hull pitches about its stern, so nose-up never buries the pump
       // winner: a full spinout as the ski stops, then the celebration
       const sp = k.cel > 0 ? clamp((k.cel - 1.2) / 1.5, 0, 1) : 0, spinning = sp > 0 && sp < 1, dir = -k.celSide;
       const spinYaw = dir * TAU * (1 - Math.pow(1 - sp, 2.2));
@@ -910,12 +954,13 @@ const CORE = (() => {
       r.mxS.setTime(t);
       if (k.cel > 2.9) applyCelebration(r, k.cel - 2.9, now); else r.mxR.setTime(t);
       riderMass(r, k, Math.min(vf, 1), now, dt, !(k.cel > 2.9));
-      // spray: rooster tail from the pump, sheets off the bow sides, extra off the outside rail in a turn
+      updateJet(r, k, Math.min(vf, 1), now);
+      // spray: where the pump jet lands, sheets off the bow sides, extra off the outside rail in a turn
       const rate = (k.v > 0.6 ? 90 + 520 * vf : 0) + (k.acc > 3 ? 380 : 0) + k.wob * 400;
       let nEm = rate * dt; nEm = Math.floor(nEm) + (Math.random() < nEm % 1 ? 1 : 0);
       for (let e = 0; e < nEm; e++) {
-        const j = 1.4 + Math.random() * k.v * dt, sx = r.pos.x - r.fwd.x * j, sz = r.pos.z - r.fwd.z * j, lat = (Math.random() - 0.5) * 1.1, up = (1.6 + Math.random() * 3.6) * (0.35 + vf) * (k.acc > 3 ? 1.5 : 1);
-        emit(sx, 0.15, sz, r.vel.x * 0.25 - r.fwd.x * 2.5 + r.left.x * lat, up, r.vel.z * 0.25 - r.fwd.z * 2.5 + r.left.z * lat, 0.45 + Math.random() * 0.6, 0.05 + Math.random() * 0.09);
+        const j = Math.random() * k.v * dt, sx = r.jetHit.x - r.fwd.x * j, sz = r.jetHit.z - r.fwd.z * j, lat = (Math.random() - 0.5) * 1.1, up = (1.6 + Math.random() * 3.6) * (0.35 + vf) * (k.acc > 3 ? 1.5 : 1);
+        emit(sx, 0.1, sz, r.vel.x * 0.25 + r.jetDir.x * 2.5 + r.left.x * lat, up, r.vel.z * 0.25 + r.jetDir.z * 2.5 + r.left.z * lat, 0.45 + Math.random() * 0.6, 0.05 + Math.random() * 0.09);
       }
       let nB = (k.v > 5 ? 200 * vf + Math.abs(r.lean) * 600 : 0) * dt; nB = Math.floor(nB) + (Math.random() < nB % 1 ? 1 : 0);
       for (let e = 0; e < nB; e++) {
@@ -1146,17 +1191,18 @@ const CORE = (() => {
   if (NATIVE) {
     /* What the native renderer reads each frame, in JR.out:
          0 camera position (3) · 3 camera rotation (4) · 7 field of view (vertical, degrees) · 8 near plane · 9 fade to
-         black 0…1 · 10 course serial · 11 start band serial · 12 scoreboard serial · 13 clock · 16 the racers, PER each:
+         black 0…1 · 10 course serial · 11 start band serial · 12 scoreboard serial · 13 clock · 14 which pump jets are
+         showing (bit per racer; their rings of points are in JR.jetP) · 16 the racers, PER each:
          position (3), heading (4), pitch-and-lean (4), then a rotation (4) for each of JR.parts, the hips' position (3),
          the points along the wake (1), winner's spinout 0…1 (1). */
     const PARTS = SKI_PARTS.concat(JOINTS), PER = 11 + PARTS.length * 4 + 3 + 2, out = new Float32Array(16 + PER * IDS.length);
     G.JR = {
-      errors, out, per: PER, parts: PARTS, pPos, pA, pS, np: NP, band: bandPts, trN: TR_N, trailP: [], trailU: [],
+      errors, out, per: PER, parts: PARTS, pPos, pA, pS, np: NP, band: bandPts, trN: TR_N, trailP: [], trailU: [], jetN: JET_N, jetM: JET_M, jetP: [],
       init(config, rigs) {
         try {
           configure(typeof config === 'string' ? JSON.parse(config || '{}') : config); sanitize();
           buildRacersNative(typeof rigs === 'string' ? JSON.parse(rigs) : rigs);
-          racers.forEach((r) => { makeTrail(r); this.trailP.push(r.tp); this.trailU.push(r.tu); });
+          racers.forEach((r) => { makeTrail(r); this.trailP.push(r.tp); this.trailU.push(r.tu); makeJet(r); this.jetP.push(r.jp); });
           start();
           return JSON.stringify({ shore: SHORE, banner: BANNER, sun: SUN.toArray(), racers: IDS.map((id) => ({ id, ski: RACERS[id].ski, rider: RACERS[id].rider })) });
         } catch (e) { fail((e && e.message) || String(e)); return ''; }
@@ -1165,6 +1211,7 @@ const CORE = (() => {
         tick(Math.min(Math.max(dt, 0), 0.05));
         camera.position.toArray(out, 0); camera.quaternion.toArray(out, 3);
         out[7] = camera.fov; out[8] = camera.near; out[9] = fadeV; out[10] = courseSerial; out[11] = bandSerial; out[12] = hudSerial; out[13] = now;
+        out[14] = racers.reduce((m, r, i) => m + (r.jetOn ? 1 << i : 0), 0);
         racers.forEach((r, i) => {
           let o = 16 + i * PER;
           r.g.position.toArray(out, o); r.g.quaternion.toArray(out, o + 3); r.inner.quaternion.toArray(out, o + 7); o += 11;
@@ -1233,7 +1280,7 @@ const CORE = (() => {
     renderer.render(scene, camera);
   }
   buildRacers().then(() => {
-    racers.forEach(makeTrail); resize(); start();
+    racers.forEach(makeTrail); racers.forEach(makeJet); resize(); start();
     const ld = $('loading'); if (ld) ld.remove();
     frame();
     window.__jr = { get race() { return race; }, S, racers, CORE, pace, get shot() { return shot; }, skip(sec) { for (let i = 0; i < sec * 120; i++) stepRace(); } };
