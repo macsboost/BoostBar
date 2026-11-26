@@ -18,7 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: swift build 2>&1 | tail -25
+        run: |
+          swift build 2>&1 | tee build.log | tail -25
+          grep -E "error:" build.log | sort -u | head -40 || true
       - name: Snapshot
         run: |
           BIN=$(swift build --show-bin-path)/BoostBar

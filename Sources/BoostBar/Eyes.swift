@@ -328,9 +328,10 @@ final class EyesAnimator {
             let left = dizzyUntil - now
             let angle = left * left * 7 + left * 9
             for i in pos.indices {
-                let a = angle + Double(i) * .pi            // eyes out of step = extra dizzy
-                let r = 0.85 * min(1, left / 0.4 + 0.3)
-                pos[i] = CGPoint(x: cos(a) * travel.width * r, y: sin(a) * travel.height * r)
+                let a: Double = angle + Double(i) * Double.pi            // eyes out of step = extra dizzy
+                let r = CGFloat(0.85 * min(1, left / 0.4 + 0.3))
+                let cx = CGFloat(Foundation.cos(a)), sy = CGFloat(Foundation.sin(a))
+                pos[i] = CGPoint(x: cx * travel.width * r, y: sy * travel.height * r)
                 vel[i] = .zero
             }
             changed = true
@@ -343,8 +344,9 @@ final class EyesAnimator {
             switch emotion {
             case .bored:
                 // the eye-roll: up, and all the way around
-                let a = level * 2 * .pi
-                for i in pos.indices { pos[i] = CGPoint(x: sin(a) * travel.width * 0.85, y: cos(a) * travel.height * 0.85); vel[i] = .zero }
+                let a = Double(level) * 2 * Double.pi
+                let rx = CGFloat(Foundation.sin(a)) * travel.width * 0.85, ry = CGFloat(Foundation.cos(a)) * travel.height * 0.85
+                for i in pos.indices { pos[i] = CGPoint(x: rx, y: ry); vel[i] = .zero }
                 changed = true
             case .sleepy:
                 for i in pos.indices { pos[i].y = max(-travel.height, pos[i].y - travel.height * 0.5 * level) }
@@ -362,7 +364,7 @@ final class EyesAnimator {
                 startledBlink = t > 0.45 && t < 0.6
             case .hearts:
                 target.symbol = Int((now - (triggered?.from ?? now)) / 1.2) % 2 == 0 ? 1 : 2
-                target.pupilScale = 1 + 0.18 * CGFloat(sin(now * 9))       // a little pulse
+                target.pupilScale = 1 + 0.18 * CGFloat(Foundation.sin(now * 9))       // a little pulse
                 changed = true
             default: break
             }
