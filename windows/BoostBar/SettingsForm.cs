@@ -200,7 +200,7 @@ namespace BoostBar
             public void Add(Control c) { Flow.Controls.Add(c); }
 
             /// Checkboxes in a grid (two columns by default), each with a tooltip; one refresher for all of them.
-            public void CheckGrid((string Text, string Tip, Func<bool> Get, Action<bool> Set)[] items, int cols = 2, Func<bool> enabled = null)
+            public void CheckGrid((string Text, string Tip, Func<bool> Get, Action<bool> Set)[] items, int cols = 2, Func<bool> enabled = null, Action<int, bool> hover = null)
             {
                 var grid = new TableLayoutPanel { ColumnCount = cols, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(0, 2, 0, 4) };
                 for (var c = 0; c < cols; c++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
@@ -212,6 +212,8 @@ namespace BoostBar
                     var it = items[k];
                     var cb = new CheckBox { Text = it.Text, AutoSize = true, Margin = new Padding(2, 3, 0, 3) };
                     tips.SetToolTip(cb, it.Tip);
+                    var index = k;
+                    if (hover != null) { cb.MouseEnter += (s, e) => hover(index, true); cb.MouseLeave += (s, e) => hover(index, false); }
                     cb.CheckedChanged += (s, e) => { if (!Loading) { it.Set(cb.Checked); form.RefreshAll(); } };
                     grid.Controls.Add(cb, k / rows, k % rows);     // down the first column, then the second
                     boxes.Add(cb);
@@ -374,10 +376,8 @@ namespace BoostBar
             p.CheckGrid(Emotions.All.Select(e => (Emotions.Title(e), Emotions.When(e),
                 (Func<bool>)(() => !Prefs.EmotionsOff.Contains(e)),
                 (Action<bool>)(v => { var off = Prefs.EmotionsOff; if (v) off.Remove(e); else off.Add(e); Prefs.EmotionsOff = off; }))).ToArray(),
-                enabled: () => Prefs.ShowEyes);
-            p.Popup("Try one", new[] { "Choose…" }.Concat(Emotions.All.Select(Emotions.Title)).ToArray(), () => 0,
-                i => { if (i > 0) App.Shared?.PreviewEmotion(Emotions.All[i - 1]); });
-            p.Note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating after a minute flat out, happy on the charger, sad with no network, suspicious of a lingering pointer, a one-eye skeptical squint when you whip the pointer around, startled by a new drive, bored now and then — and hearts for a tip. Hover a name for exactly when it shows.", small: true);
+                enabled: () => Prefs.ShowEyes, hover: (i, on) => App.Shared?.PreviewEmotion(Emotions.All[i], on));   // hover a name to see the eyes do it
+            p.Note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating after a minute flat out, happy on the charger, sad with no network, suspicious of a lingering pointer, a one-eye skeptical squint when you whip the pointer around, startled by a new drive, bored now and then — and hearts for a tip. Hover over a name to see the eyes do it (and when it shows).", small: true);
             p.Note("Click the eyes to open the About window. Circle the pointer over them two and a half times to spin them. A tribute to the classic desktop toys that kept an eye on your cursor.", small: true);
         }
 

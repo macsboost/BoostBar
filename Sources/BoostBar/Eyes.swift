@@ -149,6 +149,11 @@ final class EyesAnimator {
         triggered = (e, now, now + seconds)
     }
 
+    /// Settings: the pointer left an emotion's checkbox, so stop previewing it.
+    func endPreview(_ e: Emotion) {
+        if triggered?.emotion == e { triggered = nil }
+    }
+
     /// The mood to show right now, strongest first, and how strongly (sleepy deepens with idle time).
     private func mood(now: TimeInterval, mouse: NSPoint, mid: CGPoint, halfSpan: CGFloat) -> (Emotion, CGFloat)? {
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)

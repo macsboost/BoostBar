@@ -308,9 +308,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         knownDrives = n
     }
 
-    /// Settings ▸ Eyes ▸ Try one.
-    func previewEmotion(_ e: Emotion) {
-        eyes.trigger(e, for: e == .startled ? 0.9 : 5, force: true)
+    /// Settings ▸ Eyes ▸ Emotions: hovering a checkbox previews that emotion until the pointer leaves it.
+    func previewEmotion(_ e: Emotion, _ on: Bool) {
+        if on { eyes.trigger(e, for: 3600, force: true) } else { eyes.endPreview(e) }
     }
 
     private func refreshStatus() {

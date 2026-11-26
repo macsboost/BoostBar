@@ -102,6 +102,9 @@ namespace BoostBar
             triggered = (e, now, now + seconds);
         }
 
+        /// Settings: the pointer left an emotion's checkbox, so stop previewing it.
+        public void EndPreview(Emotion e) { if (triggered.HasValue && triggered.Value.E == e) triggered = null; }
+
         static double IdleSeconds()
         {
             var lii = new Native.LASTINPUTINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(Native.LASTINPUTINFO)) };

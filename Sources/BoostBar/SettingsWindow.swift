@@ -1,5 +1,24 @@
 import AppKit
 
+/// A checkbox that reports the pointer entering and leaving it (Settings ▸ Eyes previews an emotion on hover).
+final class HoverCheckbox: NSButton {
+    var onHover: ((Bool) -> Void)?
+    private var area: NSTrackingArea?
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let area { removeTrackingArea(area) }
+        let a = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(a)
+        area = a
+    }
+    override func mouseEntered(with event: NSEvent) { super.mouseEntered(with: event); onHover?(true) }
+    override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); onHover?(false) }
+    override func viewWillMove(toWindow w: NSWindow?) {
+        if w == nil { onHover?(false) }
+        super.viewWillMove(toWindow: w)
+    }
+}
+
 /// Holds closures for AppKit target/action.
 private final class ActionBox: NSObject {
     let fire: (Any?) -> Void
@@ -708,8 +727,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             let all = Emotion.allCases
             var moodBoxes: [NSButton] = []
             for (i, e) in all.enumerated() {
-                let b = NSButton(checkboxWithTitle: e.title, target: nil, action: nil)
+                let b = HoverCheckbox(checkboxWithTitle: e.title, target: nil, action: nil)
                 b.toolTip = e.when
+                b.onHover = { on in app.previewEmotion(e, on) }       // hover a name to see the eyes do it
                 b.widthAnchor.constraint(equalToConstant: 200).isActive = true
                 b.target = p.actionBox { _ in
                     var off = Prefs.emotionsOff
@@ -730,12 +750,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 let off = Prefs.emotionsOff
                 for (i, e) in all.enumerated() { moodBoxes[i].state = off.contains(e) ? .off : .on; moodBoxes[i].isEnabled = Prefs.showEyes }
             })
-            p.divider()
-            p.popup("Try one", items: ["Choose…"] + all.map(\.title), get: { 0 }, set: { i in
-                if i > 0 { app.previewEmotion(all[i - 1]) }
-                p.refresh()
-            })
-            p.note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating when hot, happy on the charger, sad with no network, suspicious of a lingering pointer, a one-eye skeptical squint when you whip the pointer around, startled by a new drive, bored now and then — and hearts for a tip. Hover a name for exactly when it shows.")
+            p.note("Sleepy when idle, alarmed or angry when the CPU is slammed, sweating when hot, happy on the charger, sad with no network, suspicious of a lingering pointer, a one-eye skeptical squint when you whip the pointer around, startled by a new drive, bored now and then — and hearts for a tip. Hover over a name to see the eyes do it (and when it shows).")
             p.footnote("Click the eyes to open the About window. Circle the pointer over them two and a half times to spin them. On a MacBook with a motion sensor, shake the Mac to make them dizzy. A tribute to the classic desktop toys that kept an eye on your cursor.")
         })
 

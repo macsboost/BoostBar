@@ -293,8 +293,11 @@ namespace BoostBar
             knownDrives = n;
         }
 
-        /// Settings ▸ Eyes ▸ Try one.
-        public void PreviewEmotion(Emotion e) { eyes.Trigger(e, e == Emotion.Startled ? 0.9 : 5, force: true); eyesTimer.Interval = FrameMs; }
+        /// Settings ▸ Eyes ▸ Emotions: hovering a checkbox previews that emotion until the pointer leaves it.
+        public void PreviewEmotion(Emotion e, bool on)
+        {
+            if (on) { eyes.Trigger(e, 3600, force: true); eyesTimer.Interval = FrameMs; } else eyes.EndPreview(e);
+        }
 
         /// A tip button in About was clicked: hearts (and dollar signs).
         public void Tipped() => eyes.Trigger(Emotion.Hearts, 5);
