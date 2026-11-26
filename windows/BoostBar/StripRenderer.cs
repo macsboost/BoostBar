@@ -723,7 +723,8 @@ namespace BoostBar
                 else if (lid > 0.02)
                 {
                     var tc = Math.Acos(Math.Max(-0.99, Math.Min(0.99, 1 - 2 * lid))) * 180 / Math.PI;
-                    hi = tc; lo = Math.Max(8, tc - (fake ? 56 : 38)); curl = 0.35; tilt = -30 * lid;
+                    // they stay put until the lid comes down to them, then ride it
+                    hi = Math.Max(tc, fake ? 90 : 80); lo = hi - (fake ? 64 : 40); curl = fake ? 0.45 : 0.4; tilt = -30 * lid;
                 }
                 else { lo = fake ? 26 : 40; hi = fake ? 90 : 80; curl = fake ? 0.45 : 0.4; }
                 var length = rx * (fake ? 0.8 : 0.42);
@@ -738,7 +739,7 @@ namespace BoostBar
                     {
                         var pts = new PointF[13];
                         for (var s = 0; s <= 12; s++) pts[s] = Rim(lo - 8 + (hi - lo + 12) * s / 12.0, 1.04);
-                        using (var pen = new Pen(Ink, (float)Math.Max(1.1, rx * 0.2)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+                        using (var pen = new Pen(Ink, (float)Math.Max(1.0, rx * 0.15)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
                             g.DrawLines(pen, pts);
                     }
                     using (var pen = new Pen(Ink, (float)(fake ? Math.Max(0.9, rx * 0.16) : Math.Max(0.7, rx * 0.11))) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })

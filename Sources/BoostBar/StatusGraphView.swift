@@ -602,7 +602,8 @@ final class StatusGraphView: NSView {
             else if face.smile { lo = 72; hi = 104; curl = 0.35; n = 3; liner = false }
             else if lid > 0.02 {
                 let tc = Foundation.acos(max(-0.99, min(0.99, 1 - 2 * lid))) * 180 / Double.pi
-                hi = tc; lo = max(8, tc - (fake ? 56 : 38)); curl = 0.35; tilt = -30 * lid
+                // they stay put until the lid comes down to them, then ride it
+                hi = max(tc, fake ? 90 : 80); lo = hi - (fake ? 64 : 40); curl = fake ? 0.45 : 0.4; tilt = -30 * lid
             } else { lo = fake ? 26 : 40; hi = fake ? 90 : 80; curl = fake ? 0.45 : 0.4 }
             let length = rx * (fake ? 0.8 : 0.42)
             for side in sides {
@@ -616,7 +617,7 @@ final class StatusGraphView: NSView {
                         let pt = rim(lo - 8 + (hi - lo + 12) * Double(s) / 12, 1.04)
                         if s == 0 { p.move(to: pt) } else { p.line(to: pt) }
                     }
-                    p.lineWidth = CGFloat(max(1.1, rx * 0.2)); p.lineCapStyle = .round; p.lineJoinStyle = .round
+                    p.lineWidth = CGFloat(max(1.0, rx * 0.15)); p.lineCapStyle = .round; p.lineJoinStyle = .round
                     p.stroke()
                 }
                 for k in 0..<n {
