@@ -449,7 +449,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     v.battery = BatteryReading(watts: [-8.4, 42, -23.5][k], percent: 70, externalConnected: k == 1, isCharging: k == 1, fullyCharged: false); v.leds = [.init(key: "a", color: .systemGreen)]; v.ledSize = 1
                     v.showCPU = true; v.cpuStyle = style; v.cpu = load; v.cpuBackdrop = [-0.7, 0, 0.7][k]
                     v.showGPU = true; v.gpuMemory = [0.2, 0.55, 0.9][k]
-                    v.gpu = (0..<30).map { min(1, max(0, load + 0.3 * sin(Double($0) * 0.55 + Double(k)) + ($0 % 9 == 4 ? 0.3 : 0))) }
+                    v.gpu = (0..<30).map { i -> Double in
+                        let wave: Double = 0.3 * sin(Double(i) * 0.55 + Double(k))
+                        let spike: Double = i % 9 == 4 ? 0.3 : 0
+                        return min(1.0, max(0.0, load + wave + spike))
+                    }
                     v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
                     if style == 1 {
                         v.cpuPeaks = v.cpuCores.enumerated().map { i, c -> Double in
