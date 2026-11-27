@@ -691,7 +691,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      value: { abs($0) < 0.04 ? "Off" : String(format: "%@ %.0f%%", $0 < 0 ? "Dark" : "Light", abs($0) * 100) },
                      caption: "dark ← off → light")
             p.slider("Peak hold", min: 0, max: 10, get: { Prefs.cpuPeakHold }, set: { Prefs.cpuPeakHold = ($0 * 2).rounded() / 2; app.applySettings(); p.refresh() },
-                     value: { $0 < 0.2 ? "Off" : String(format: "%g s", ($0 * 2).rounded() / 2) }, caption: "spectrum analyzer: how long each core's peak marker stays",
+                     value: { $0 < 0.2 ? "Off" : String(format: "%g s", ($0 * 2).rounded() / 2) }, caption: "how long peaks stay",
                      visible: { Prefs.cpuStyle == 1 })
             p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.")
             p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Move the meter in General ▸ Menu Bar Layout.")
