@@ -829,7 +829,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     set: { Prefs.cornerSaver = Corner(rawValue: $0) ?? .none; app.applySettings() })
             p.note("Rest the pointer there to start the screen saver chosen in System Settings. Pick a corner Keep Awake and Sleep now don't use.")
 
-            // Jet Racers: who wins, how they celebrate, and how the race is covered
+            // Watercraft Racing: who wins, how they celebrate, and how the race is covered
             let isRace = { current.scene == "jetrace" }, J = JetRaceChoices.self
             func choice(_ label: String, _ list: [JetRaceChoices.Choice], _ key: WritableKeyPath<SaverOptions, String?>) {
                 p.popup(label, items: list.map(\.name), get: { J.index(list, o[keyPath: key]) }, set: { i in change { $0[keyPath: key] = list[i].id } })

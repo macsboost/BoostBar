@@ -105,6 +105,7 @@ namespace BoostBar
 
             Net.Sample();
             Cpu.Sample();
+            ScreenSavers.MigrateRenamed();
             ApplySettings();
             secondTimer.Start();
             diskTimer.Start();
@@ -637,6 +638,7 @@ namespace BoostBar
             if (!LidSleep.Set(disable))
                 Updater.Alert("Couldn't change the lid setting", "Windows didn't allow the change. Your power plan may be managed by your organization.");
             LidDisabled = LidSleep.IsDisabled;
+            ScreenSavers.MigrateRenamed();
             ApplySettings();
             SettingsForm.RefreshOpen();
         }

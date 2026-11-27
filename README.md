@@ -31,14 +31,14 @@
 
 <p align="center">
   These steps are for macOS 27.<br>
-  <a href="docs/boostbar-tutorial.mp4"><img src="docs/boostbar-tutorial-thumbnail.jpg" width="640" alt="How to install BoostBar and set up the JetRacer screen saver on macOS 27"></a><br>
+  <a href="docs/boostbar-tutorial.mp4"><img src="docs/boostbar-tutorial-thumbnail.jpg" width="640" alt="How to install BoostBar and set up the Watercraft Racing screen saver on macOS 27"></a><br>
   <sub><a href="docs/boostbar-tutorial.mp4">Watch the walkthrough (MP4)</a></sub>
 </p>
 
 1. Download **BoostBar.zip** from [Releases](https://github.com/macsboost/BoostBar/releases), unzip it, and drag BoostBar to Applications.
-2. Click BoostBar in the menu bar ▸ **Settings…** ▸ **Screen Saver** and pick **Jet Racers**.
+2. Click BoostBar in the menu bar ▸ **Settings…** ▸ **Screen Saver** and pick **Watercraft Racing**.
 3. Control the options in BoostBar.
-4. Click **Install & Show in System Settings**, then in Wallpaper click **Screen Saver…** and pick **BoostBar Jet Racers** under Other.
+4. Click **Install & Show in System Settings**, then in Wallpaper click **Screen Saver…** and pick **BoostBar Watercraft Racing** under Other.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/macsboost/BoostBar/counter/odometer.svg" height="96" alt="Visitor counter"><img src="https://komarev.com/ghpvc/?username=macsboost-boostbar&label=visits" width="1" height="1" alt="">
@@ -103,7 +103,7 @@ The same strip — googly eyes, network graph, battery watts, CPU meter and disk
 - **Stay awake with the lid closed** (laptops) sets the power plan's lid action to *Do nothing*, plugged in and on battery, and puts your old setting back when you turn it off. Like on the Mac it stays on after quitting until you turn it off.
 - **Reverse mouse scrolling** in every app, with no permission needed. (Touchpads keep their own setting in Windows Settings.)
 - **Hot corners** for Keep Awake, Sleep now and the screen saver.
-- **Screen savers:** Flying Cars, Starships, Starlink and Jet Racers are installed too. In **Settings ▸ Screen Saver** pick one, set its options, **Preview** it, and click **Use as My Screen Saver** — Windows lets apps set it directly. They need the Microsoft Edge WebView2 Runtime, which is built into Windows 11 and nearly every Windows 10 PC.
+- **Screen savers:** Flying Cars, Starships, Starlink and Watercraft Racing are installed too. In **Settings ▸ Screen Saver** pick one, set its options, **Preview** it, and click **Use as My Screen Saver** — Windows lets apps set it directly. They need the Microsoft Edge WebView2 Runtime, which is built into Windows 11 and nearly every Windows 10 PC.
 - **Updates:** BoostBar checks this page at startup. The download is checked against the SHA-256 checksum published with each release before it installs (silently, if you turn on automatic updates).
 - Settings live in `HKEY_CURRENT_USER\Software\MacsBoost\BoostBar`. Not on Windows: the dizzy (shake) eyes, which need the MacBook's motion sensor.
 - **Eye emotions** work on Windows too (Settings ▸ Eyes ▸ Emotions). Windows has no thermal reading BoostBar can use, so there the eyes sweat after the CPU has run flat out for a minute instead.
@@ -141,16 +141,16 @@ Set them in **BoostBar ▸ Settings ▸ Screen Saver**: pick the screen saver at
 
 **BoostBar Starlink** sends Starlink V2 and V3 satellites across the screen Flying Bread style. The bus is the loaf; the long solar wings are chains of hinged modules that bend between panels, so each wingbeat rolls out from the body to the tips like a bird's — a quick downstroke, a slower upstroke, the body lifting a little on each beat. Pick **V1.5** (which creeps along in straight lines like an inchworm), **V2, V3** and/or **V3 deploying** in its Options — the deploying ones arrive with their arrays fan-folded in a stack on the bus, unfold them straight up, lay them out flat, then start flapping. Turn on **Crossing orbits** to send them along two sets of lanes that cross in an X, each leg at its own altitude, and **Laser links** for red, shimmering inter-satellite lasers that hop between neighbours — on screen and off — making each new link before breaking an old one. The models are original V2 and V3 satellites made for BoostBar (`tools/starlink_glb.py`). (Direct download only. Not affiliated with SpaceX.)
 
-## Jet Racers screen saver 🏁
+## Watercraft Racing screen saver 🏁
 
 <p align="center">
-  <img src="docs/media/jet-racers.jpg" width="720" alt="BoostBar Jet Racers screen saver: jet racers #8 and #16 racing past the beach">
+  <img src="docs/media/jet-racers.jpg" width="720" alt="BoostBar Watercraft Racing screen saver: watercraft #8 and #16 racing past the beach">
 </p>
 
-**BoostBar Jet Racers** is a race, not a flock. Three jet racers — Skeeter on #16, Skison on #8 and Jorge on #3 — line up behind a rubber band, the band snaps, and they race a buoy course for about two minutes: red buoys are left turns, green are right, and two checkered buoys mark the finish. Every race gets a new course. A director cuts between chase, trackside, onboard, helicopter, buoy and finish-line cameras, a leaderboard keeps the gaps, and the winner spins out in a wall of spray and celebrates.
+**BoostBar Watercraft Racing** is a race, not a flock. Three watercraft — Skeeter on #16, Skison on #8 and Jorge on #3 — line up behind a rubber band, the band snaps, and they race a buoy course for about two minutes: red buoys are left turns, green are right, and two checkered buoys mark the finish. Every race gets a new course. A director cuts between chase, trackside, onboard, helicopter, buoy and finish-line cameras, a leaderboard keeps the gaps, and the winner spins out in a wall of spray and celebrates.
 
 <p align="center">
-  <img src="docs/media/jet-racers-winner.jpg" width="720" alt="The winner of a Jet Racers race standing on the ski, celebrating, under a banner with the finishing time">
+  <img src="docs/media/jet-racers-winner.jpg" width="720" alt="The winner of a Watercraft Racing race standing on the ski, celebrating, under a banner with the finishing time">
 </p>
 
 Its options, in **BoostBar ▸ Settings ▸ Screen Saver** (and in the saver's own Options on the Mac):

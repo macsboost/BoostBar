@@ -18,8 +18,8 @@ case "$SCENE" in
              MODULE=BoostBarStarships; FLAGS=(-D STARSHIPS); CREDIT="Starship model from the X1 SkyRacer sim (Ship 42, built from code). Not affiliated with SpaceX." ;;
   starlink)  ID=com.macsboost.boostbar.starlink;  NAME="BoostBar Starlink";    EXEC=BoostBarStarlink;  CLASS=BoostBarStarlinkView
              MODULE=BoostBarStarlink;  FLAGS=(-D STARLINK);  CREDIT="Stylised Starlink V2 and V3 models by MacsBoost. Not affiliated with SpaceX." ;;
-  jetrace)   ID=com.macsboost.boostbar.jetrace;   NAME="BoostBar Jet Racers";  EXEC=BoostBarJetRacers; CLASS=BoostBarJetRaceView
-             MODULE=BoostBarJetRacers; FLAGS=();             CREDIT="Jet racer models by MacsBoost."
+  jetrace)   ID=com.macsboost.boostbar.jetrace;   NAME="BoostBar Watercraft Racing";  EXEC=BoostBarWatercraftRacing; CLASS=BoostBarJetRaceView
+             MODULE=BoostBarWatercraftRacing; FLAGS=();             CREDIT="Watercraft models by MacsBoost."
              SOURCES=(Saver/BoostBarJetRaceView.swift Saver/native/GLB.swift Saver/native/JetRace.swift) ;;
   *) echo "unknown scene $SCENE"; exit 1 ;;
 esac

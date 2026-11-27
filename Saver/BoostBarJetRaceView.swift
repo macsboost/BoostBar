@@ -1,7 +1,7 @@
 import ScreenSaver
 import SceneKit
 
-/// BoostBar Jet Racers: three jet racers (#16, #8 and #3) race a new buoy course every couple of minutes, and the
+/// BoostBar Watercraft Racing: three watercraft (#16, #8 and #3) race a new buoy course every couple of minutes, and the
 /// winner spins out and celebrates. Drawn natively with SceneKit (Metal) — Saver/native/JetRace.swift — from the same
 /// race script the Windows saver runs (Saver/src/jetrace.js). The three.js page (saver.html) is in the bundle for
 /// BoostBar's own Preview window.
@@ -9,7 +9,7 @@ import SceneKit
 final class BoostBarJetRaceView: ScreenSaverView {
     static let scene = "jetrace"
     static let moduleName = "com.macsboost.boostbar.jetrace"
-    static let title = "BoostBar Jet Racers"
+    static let title = "BoostBar Watercraft Racing"
 
     private var sheet: NSWindow?
     private var popups: [String: NSPopUpButton] = [:]

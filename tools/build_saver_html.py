@@ -20,8 +20,8 @@ SCENES = {
 if scene == "jetrace":
     html = open(os.path.join(S, "jetrace.html"), encoding="utf-8").read()
     parts = {
-        "/*TITLE*/": "BoostBar Jet Racers",
-        "/*LOADING*/": "🏁 BOOSTBAR JET RACERS",
+        "/*TITLE*/": "BoostBar Watercraft Racing",
+        "/*LOADING*/": "🏁 BOOSTBAR WATERCRAFT RACING",
         "/*THREE*/": open(three, encoding="utf-8").read(),
         "/*GLTFLOADER*/": open(gltf, encoding="utf-8").read(),
         "/*JETRACE*/": open(os.path.join(S, "jetrace.js"), encoding="utf-8").read(),

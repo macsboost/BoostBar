@@ -21,7 +21,7 @@ namespace BoostBar
             {
                 case "starships": return "Starships glide across the screen, flaps beating like wings, Raptors glowing.";
                 case "starlink": return "Starlink V2 and V3 satellites beat their solar wings like birds; some arrive folded and unfurl their arrays.";
-                case "jetrace": return "Three jet racers (#16, #8 and #3) race a new buoy course every two minutes. The winner spins out and celebrates.";
+                case "jetrace": return "Three watercraft (#16, #8 and #3) race a new buoy course every two minutes. The winner spins out and celebrates.";
                 default: return "X1 SkyRacers fly across the screen in a loose flock, rotors and thruster fans spinning.";
             }
         }
@@ -52,6 +52,28 @@ namespace BoostBar
                 }
                 catch { return null; }
             }
+        }
+
+        /// At launch: Jet Racers became Watercraft Racing in 1.3.105 and its .scr was renamed (the installer removes the
+        /// old file). If Windows' screen saver still points at it — by its long name, or by a short 8.3 name in BoostBar's
+        /// folder that no longer exists — point it at the new file.
+        public static void MigrateRenamed()
+        {
+            try
+            {
+                using (var k = Registry.CurrentUser.OpenSubKey(DesktopKey, true))
+                {
+                    var exe = k?.GetValue("SCRNSAVE.EXE") as string;
+                    if (string.IsNullOrEmpty(exe) || File.Exists(exe)) return;
+                    var ours = SamePath(Path.GetDirectoryName(exe), Path.GetDirectoryName(Application.ExecutablePath))
+                               || SamePath(Path.GetDirectoryName(exe), Native.ShortPath(Path.GetDirectoryName(Application.ExecutablePath)));
+                    var oldName = Path.GetFileName(exe).Equals("BoostBarJetRacers.scr", StringComparison.OrdinalIgnoreCase);
+                    if (!ours && !oldName) return;
+                    var now = PathFor("jetrace");
+                    if (File.Exists(now)) k.SetValue("SCRNSAVE.EXE", Native.ShortPath(now));
+                }
+            }
+            catch { }
         }
 
         static bool SamePath(string a, string b)

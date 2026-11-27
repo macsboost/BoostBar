@@ -407,7 +407,7 @@ const CORE = (() => {
   }
   // Hills, palms, tents and the banner masts along the beach, placed the same way every time. The native renderer
   // builds the same beach from this list.
-  const BANNER = 'BOOSTBAR  JET RACER  GRAND PRIX';
+  const BANNER = 'BOOSTBAR  WATERCRAFT RACING  GRAND PRIX';
   const SHORE = (() => {
     const out = [], rnd = CORE.mulberry32(4242), cols = [0xe8432e, 0x2a6fd6, 0xf2c230, 0xffffff, 0x1c9c62];
     const beachY = (z) => (-(z + 150) / 370) * 7.5 - 0.5;

@@ -48,7 +48,7 @@ IDENTITY="${SIGN_IDENTITY:--}"
 if [[ "$EDITION" != "appstore" && "${SKIP_SAVER:-0}" != "1" ]]; then
   SAVER_ARGS=(--force --options runtime --sign "$IDENTITY")
   [[ "$IDENTITY" != "-" ]] && SAVER_ARGS+=(--timestamp)
-  for pair in "cars:BoostBar Flying Cars" "starships:BoostBar Starships" "starlink:BoostBar Starlink" "jetrace:BoostBar Jet Racers"; do
+  for pair in "cars:BoostBar Flying Cars" "starships:BoostBar Starships" "starlink:BoostBar Starlink" "jetrace:BoostBar Watercraft Racing"; do
     SAVER="$APP/Contents/Library/Screen Savers/${pair#*:}.saver"
     ./scripts/build-saver.sh "$SAVER" "$VERSION" "$BUILD" "${pair%%:*}"
     codesign "${SAVER_ARGS[@]}" "$SAVER"

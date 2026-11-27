@@ -48,7 +48,7 @@ Source: "{#BuildDir}\saver\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarFlyingCars.scr"; Flags: ignoreversion
 Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarStarships.scr"; Flags: ignoreversion
 Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarStarlink.scr"; Flags: ignoreversion
-Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarJetRacers.scr"; Flags: ignoreversion
+Source: "{#BuildDir}\saver\BoostBarSaver.exe"; DestDir: "{app}"; DestName: "BoostBarWatercraftRacing.scr"; Flags: ignoreversion
 Source: "{#BuildDir}\savers\*.html"; DestDir: "{app}\savers"; Flags: ignoreversion
 
 [Icons]
@@ -66,6 +66,10 @@ Filename: "{app}\BoostBar.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/IM BoostBar.exe /F"; Flags: runhidden; RunOnceId: "KillBoostBar"
+
+[InstallDelete]
+; renamed in 1.3.105 (Jet Racers → Watercraft Racing)
+Type: files; Name: "{app}\BoostBarJetRacers.scr"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\BoostBar\WebView2"

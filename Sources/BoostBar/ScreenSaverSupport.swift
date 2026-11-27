@@ -21,7 +21,7 @@ struct SaverOptions: Codable {
     var roadster: Bool? = nil // Starships: the red roadster with a spacesuited driver
     var roadsterStable: Bool? = nil // …flying level with the ships instead of tumbling
     var closeEncounter: Bool? = nil // Starships: now and then one passes right in front of the camera
-    // Jet Racers: who wins ("random", or a racer's number: that racer wins every race), how the winner celebrates,
+    // Watercraft Racing: who wins ("random", or a racer's number: that racer wins every race), how the winner celebrates,
     // and how the race is shown. The values are the ones Saver/src/jetrace.js understands (see JetRaceChoices).
     var winner: String? = nil
     var celebration: String? = nil
@@ -32,7 +32,7 @@ struct SaverOptions: Codable {
     var savedAt: Double = 0
 }
 
-/// The Jet Racers screen saver's choices: the value the race script understands, and the name shown in Settings.
+/// The Watercraft Racing screen saver's choices: the value the race script understands, and the name shown in Settings.
 enum JetRaceChoices {
     typealias Choice = (id: String, name: String)
     static let winners: [Choice] = [
@@ -120,14 +120,16 @@ struct BundledSaver {
     static let flyingCars = BundledSaver(name: "BoostBar Flying Cars", scene: "cars")
     static let starships = BundledSaver(name: "BoostBar Starships", scene: "starships")
     static let starlink = BundledSaver(name: "BoostBar Starlink", scene: "starlink")
-    static let jetRacers = BundledSaver(name: "BoostBar Jet Racers", scene: "jetrace")
+    static let jetRacers = BundledSaver(name: "BoostBar Watercraft Racing", scene: "jetrace")
+    /// Names a saver used to ship under, still installed on Macs that installed it then.
+    var formerNames: [String] { scene == "jetrace" ? ["BoostBar Jet Racers"] : [] }
     static let all: [BundledSaver] = [.flyingCars, .starships, .starlink, .jetRacers]
 
     var about: String {
         switch scene {
         case "starships": return "Starships glide across the screen, flaps beating like wings, Raptors glowing."
         case "starlink": return "Starlink V2 and V3 satellites beat their solar wings like birds; some arrive folded and unfurl their arrays."
-        case "jetrace": return "Three jet racers (#16, #8 and #3) race a new buoy course every two minutes. The winner spins out and celebrates."
+        case "jetrace": return "Three watercraft (#16, #8 and #3) race a new buoy course every two minutes. The winner spins out and celebrates."
         default: return "X1 SkyRacers in MacsBoost, Yonder 01 and XXONE 51 liveries, fans spinning."
         }
     }
@@ -171,10 +173,32 @@ struct BundledSaver {
             NSWorkspace.shared.open(u)   // fall back to the Finder install prompt
             return
         }
+        removeFormer()
         SaverConfig.save(SaverConfig.options(for: scene), for: scene)
         // the screen saver host caches loaded savers; quit it so the new copy is picked up
         _ = Shell.run("/usr/bin/killall", ["legacyScreenSaver"])
         Self.openSettings()
+    }
+
+    private func removeFormer() {
+        for old in formerNames {
+            try? FileManager.default.removeItem(at: SaverConfig.realHome.appendingPathComponent("Library/Screen Savers/\(old).saver"))
+        }
+    }
+
+    /// At launch: a saver installed under its old name is swapped for the renamed one (same options, same scene),
+    /// so System Settings lists it once, under the new name.
+    static func migrateRenamed() {
+        for s in all where !s.formerNames.isEmpty {
+            let had = s.formerNames.contains { FileManager.default.fileExists(atPath: SaverConfig.realHome.appendingPathComponent("Library/Screen Savers/\($0).saver").path) }
+            guard had, let u = s.bundleURL else { continue }
+            let q = Shell.quote, dest = s.installedURL
+            _ = Shell.run("/bin/sh", ["-c", "rm -rf \(q(dest.path)) && /usr/bin/ditto \(q(u.path)) \(q(dest.path)) && /usr/bin/xattr -dr com.apple.quarantine \(q(dest.path)) || true"])
+            if FileManager.default.fileExists(atPath: dest.path) {
+                s.removeFormer()
+                _ = Shell.run("/usr/bin/killall", ["legacyScreenSaver"])
+            }
+        }
     }
 
     static func openSettings() {

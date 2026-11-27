@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- BoostBar's screen savers for Windows: one program, installed four times as BoostBarFlyingCars.scr,
-       BoostBarStarships.scr, BoostBarStarlink.scr and BoostBarJetRacers.scr (the file name picks the scene). The scenes are the same
+       BoostBarStarships.scr, BoostBarStarlink.scr and BoostBarWatercraftRacing.scr (the file name picks the scene). The scenes are the same
        three.js pages the Mac version uses for its preview, shown full screen in WebView2. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>

@@ -52,8 +52,8 @@ jobs:
             sips -s format jpeg -s formatOptions 55 --resampleWidth 640 "$f" --out "build/jet_s.jpg" >/dev/null 2>&1 || continue
             echo "IMG_BEGIN $(basename "$f")"; base64 -b 4000 -i build/jet_s.jpg; echo "IMG_END"
           done
-          ./scripts/build-saver.sh "build/BoostBar Jet Racers.saver" 0.0.0 1 jetrace
-          ls -l "build/BoostBar Jet Racers.saver/Contents/Resources"
+          ./scripts/build-saver.sh "build/BoostBar Watercraft Racing.saver" 0.0.0 1 jetrace
+          ls -l "build/BoostBar Watercraft Racing.saver/Contents/Resources"
       - name: WebKit check (as the .saver loads it)
         run: |
           swift tools/webkit_check.swift out/starships.html '{"count":4,"oxidation":0.8}' || true

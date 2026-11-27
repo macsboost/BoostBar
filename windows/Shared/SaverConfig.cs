@@ -54,18 +54,18 @@ namespace BoostBar
         public static readonly string[] Scenes = { "cars", "starships", "starlink", "jetrace" };
 
         public static string Title(string scene) =>
-            scene == "starships" ? "BoostBar Starships" : scene == "starlink" ? "BoostBar Starlink" : scene == "jetrace" ? "BoostBar Jet Racers" : "BoostBar Flying Cars";
+            scene == "starships" ? "BoostBar Starships" : scene == "starlink" ? "BoostBar Starlink" : scene == "jetrace" ? "BoostBar Watercraft Racing" : "BoostBar Flying Cars";
 
         /// File name of the installed screen saver for a scene (no spaces: Windows keeps SCRNSAVE.EXE paths simple).
         public static string ScrName(string scene) =>
-            scene == "starships" ? "BoostBarStarships.scr" : scene == "starlink" ? "BoostBarStarlink.scr" : scene == "jetrace" ? "BoostBarJetRacers.scr" : "BoostBarFlyingCars.scr";
+            scene == "starships" ? "BoostBarStarships.scr" : scene == "starlink" ? "BoostBarStarlink.scr" : scene == "jetrace" ? "BoostBarWatercraftRacing.scr" : "BoostBarFlyingCars.scr";
 
         public static string SceneFromExe(string exePath)
         {
             var n = Path.GetFileNameWithoutExtension(exePath ?? "").ToLowerInvariant();
             if (n.Contains("starship")) return "starships";
             if (n.Contains("starlink")) return "starlink";
-            if (n.Contains("jetrac")) return "jetrace";
+            if (n.Contains("jetrac") || n.Contains("watercraft")) return "jetrace";
             return "cars";
         }
 

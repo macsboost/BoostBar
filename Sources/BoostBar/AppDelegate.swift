@@ -129,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         #if !APPSTORE
         if MoveToApplications.offerIfNeeded() { return }
+        DispatchQueue.global(qos: .utility).async { BundledSaver.migrateRenamed() }
         #endif
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
