@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let graphView = StatusGraphView(frame: .zero)
     private let net = NetworkMonitor(capacity: 30)
     private let cpu = CPUMonitor()
+    private let gpu = GPUMonitor()
     /// The CPU meter runs on its own fast clock: load is sampled Prefs.cpuRate times a second and the needle and bars
     /// glide toward each reading at 20 frames a second, redrawing only the meter (and only while something moves).
     /// The damping is automatic: the glide's time constant follows the update rate (slow updates get a long, smooth
@@ -274,6 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if BatteryMonitor.hasBattery, let b = BatteryMonitor.read() {
             batteryHistory.append(b.watts)
         }
+        if Prefs.showGPU { gpu.sample() }
         feedEmotions()
         refreshStatus()
         if HoverPanel.shared.isVisible, let t = hoverTarget, let c = hoverContent(for: t) {
@@ -332,6 +334,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.cpu = cpuShown
         graphView.cpuCores = cpuCoresShown
         setCPUMeterRunning(Prefs.showCPU)
+        graphView.showGPU = Prefs.showGPU && gpu.available
+        graphView.gpu = gpu.history.suffix(StatusGraphView.gpuGraphPoints)
+        graphView.gpuMemory = gpu.memoryFraction
         graphView.eyeSize = Prefs.eyeSize
         graphView.singleEye = Prefs.singleEye
         graphView.bloodshot = Prefs.bloodshot || (Prefs.bloodshotAwake && (sleep.isPreventing || lidSleepDisabled))
@@ -359,7 +364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let h = statusItem.button?.bounds.height ?? NSStatusBar.system.thickness
         let width = graphView.layoutSegments(height: h)
-        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)|\(graphView.cpuRect)|\(Prefs.netUnit.rawValue)"
+        let layoutKey = "\(width)|\(graphView.networkRect)|\(graphView.batteryRect)|\(graphView.diskRect)|\(graphView.eyesRect)|\(graphView.cpuRect)|\(graphView.gpuRect)|\(Prefs.netUnit.rawValue)"
         if layoutKey != lastLayoutKey {
             lastLayoutKey = layoutKey
             statusItem.length = width
@@ -467,6 +472,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 bottom: .init(label: "System", values: cpu.systemHistory.values, color: .systemOrange, format: pct),
                 timespan: "last 5 min")
 
+        case .gpu:
+            guard gpu.available else { return nil }
+            let pct: (Double) -> String = { String(format: "%.0f%%", $0 * 100) }
+            let bytes: (Double) -> String = { DiskMonitor.formatBytes(Int64($0)) }
+            var lines = [gpu.name]
+            if gpu.memoryTotal > 0 {
+                lines.append("Memory in use: \(bytes(Double(gpu.memoryUsed))) of \(bytes(Double(gpu.memoryTotal)))"
+                             + (gpu.unifiedMemory ? " shared with the Mac" : " VRAM"))
+            }
+            lines.append("Peak in the last 5 min: \(pct(gpu.history.peak))")
+            return HoverContent(
+                title: "GPU — \(pct(gpu.utilization))",
+                lines: lines,
+                top: .init(label: "Load", values: gpu.history.values, color: StatusGraphView.gpuColor, format: pct),
+                bottom: .init(label: "Memory", values: gpu.memoryHistory.values, color: StatusGraphView.gpuMemoryColor, format: bytes),
+                timespan: "last 5 min")
+
         case .disk(let key):
             guard let d = disk.drives.first(where: { $0.key == key }) else { return nil }
             let r = disk.readHistory[key] ?? History(capacity: 60)
@@ -520,6 +542,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 line.title = "CPU — \(pct(self.cpu.total))  ·  User \(pct(self.cpu.user))  ·  System \(pct(self.cpu.system))"
             }
             RunLoop.main.add(t, forMode: .common)
+        }
+        if !isSegmentShown(.gpu) {
+            gpu.sample()
+            if gpu.available {
+                var t = "GPU — \(String(format: "%.0f%%", gpu.utilization * 100))"
+                if gpu.memoryUsed > 0 { t += "  ·  \(DiskMonitor.formatBytes(gpu.memoryUsed)) memory" }
+                _ = info(t)
+            }
         }
         if !isSegmentShown(.disks),
            let v = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeNameKey, .volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]),
@@ -575,6 +605,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .battery: return Prefs.showBattery && BatteryMonitor.hasBattery
         case .disks: return diskSettings.showDisks
         case .cpu: return Prefs.showCPU
+        case .gpu: return Prefs.showGPU && gpu.available
         }
     }
 

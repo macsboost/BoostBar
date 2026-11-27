@@ -5,11 +5,11 @@ import AppKit
 ///                                ▼ 340 KB/s   OUT   ● ●   ← disk LEDs
 final class StatusGraphView: NSView {
     enum AwakeState { case normal, keepAwake, lidAwake }
-    enum Target: Equatable { case network(String?), battery, disk(String), cpu }
+    enum Target: Equatable { case network(String?), battery, disk(String), cpu, gpu }
 
     /// The reorderable pieces of the status item.
-    enum Segment: String, CaseIterable { case eyes, network, battery, disks, cpu }
-    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .cpu, .disks]
+    enum Segment: String, CaseIterable { case eyes, network, battery, disks, cpu, gpu }
+    static let defaultOrder: [Segment] = [.eyes, .network, .battery, .cpu, .gpu, .disks]
 
     /// Left-to-right order of the segments (drag one to change it).
     var order: [Segment] = StatusGraphView.defaultOrder
@@ -72,6 +72,13 @@ final class StatusGraphView: NSView {
     var cpuPeaks: [Double] = []
     private(set) var cpuRect = NSRect.zero
     private static let gaugeWidth: CGFloat = 27
+    /// GPU tile: recent utilization 0…1 (oldest first, one point a second) and the share of memory the GPU has in use.
+    var showGPU = false
+    var gpu: [Double] = []
+    var gpuMemory: Double = 0
+    private(set) var gpuRect = NSRect.zero
+    static let gpuGraphPoints = 30
+    private static let gpuGraphWidth: CGFloat = 30, gpuMemWidth: CGFloat = 3
 
     /// Disk LED size: 0 = small (two rows), 1 = medium, 2 = large
     var ledSize = 0
@@ -139,7 +146,7 @@ final class StatusGraphView: NSView {
 
     private var showsBattery: Bool { showBattery && battery != nil }
     private var showsDisks: Bool { showDisks && !leds.isEmpty }
-    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks || showEyes || showCPU }
+    private var showsAnything: Bool { showNetwork || showsBattery || showsDisks || showEyes || showCPU || showGPU }
 
     /// Segment rects in this view's coordinates.
     private(set) var networkRect = NSRect.zero
@@ -174,7 +181,7 @@ final class StatusGraphView: NSView {
         netRowRects = []
         labelRects = []
         networkRect = .zero; batteryRect = .zero; diskRect = .zero; eyesRect = .zero; ledRects = []; eyeRects = []
-        cpuRect = .zero
+        cpuRect = .zero; gpuRect = .zero
         if !showsAnything { return x + Self.iconWidth + Self.pad }
 
         var first = true
@@ -239,9 +246,16 @@ final class StatusGraphView: NSView {
                     cpuRect = NSRect(x: x, y: 0, width: w, height: h)
                     x = cpuRect.maxX
                 }
+            case .gpu:
+                if showGPU {
+                    gap(prev == .disks ? 6 : 5)
+                    label("GPU")
+                    gpuRect = NSRect(x: x, y: 0, width: Self.gpuGraphWidth + 2 + Self.gpuMemWidth, height: h)
+                    x = gpuRect.maxX
+                }
             case .disks:
                 if showsDisks {
-                    gap(prev == .cpu ? 6 : 2)
+                    gap(prev == .cpu || prev == .gpu ? 6 : 2)
                     label("HDD")
                     // Small LEDs stack in two rows when there are several drives; medium/large use one row.
                     let dia = Self.ledDiameters[min(max(ledSize, 0), 2)]
@@ -269,6 +283,7 @@ final class StatusGraphView: NSView {
         }
         if batteryRect.insetBy(dx: -2, dy: 0).contains(p) { return .battery }
         if cpuRect.insetBy(dx: -2, dy: 0).contains(p) { return .cpu }
+        if gpuRect.insetBy(dx: -2, dy: 0).contains(p) { return .gpu }
         if diskRect.insetBy(dx: -2, dy: 0).contains(p) {
             // nearest LED to the pointer
             return ledRects.min(by: { hypot($0.rect.midX - p.x, $0.rect.midY - p.y) < hypot($1.rect.midX - p.x, $1.rect.midY - p.y) })
@@ -284,6 +299,7 @@ final class StatusGraphView: NSView {
         case .network(let id): r = netRowRects.first(where: { $0.id == id })?.rect ?? networkRect
         case .battery: r = batteryRect
         case .cpu: r = cpuRect
+        case .gpu: r = gpuRect
         case .disk(let k): r = ledRects.first(where: { $0.key == k })?.rect.insetBy(dx: -4, dy: -8) ?? diskRect
         }
         guard !r.isEmpty, let win = window else { return nil }
@@ -297,6 +313,7 @@ final class StatusGraphView: NSView {
         case .battery: return batteryRect
         case .disks: return diskRect
         case .cpu: return cpuRect
+        case .gpu: return gpuRect
         }
     }
 
@@ -411,6 +428,7 @@ final class StatusGraphView: NSView {
         if showCPU, !cpuRect.isEmpty {
             if cpuStyle == 1 { drawCPUBars(in: cpuRect, label: label) } else { drawCPUGauge(in: cpuRect, label: label) }
         }
+        if showGPU, !gpuRect.isEmpty { drawGPU(in: gpuRect) }
         if showNetwork {
             if netRowRects.isEmpty {
                 drawNetwork(in: networkRect, up: up, down: down, upText: upText, downText: downText, label: label, font: font)
@@ -828,6 +846,60 @@ final class StatusGraphView: NSView {
                 meterInk.withAlphaComponent(0.9).setFill()
                 NSBezierPath(rect: NSRect(x: slot.minX, y: min(slot.maxY, py) - 1, width: slot.width, height: 1)).fill()
             }
+        }
+    }
+
+    // MARK: GPU
+
+    /// Amber for the GPU's load, teal for its memory — deepened on a light bar, like the boost colours.
+    static let gpuColor = NSColor(srgbRed: 0.98, green: 0.70, blue: 0.16, alpha: 1)
+    static let gpuMemoryColor = NSColor(srgbRed: 0.36, green: 0.79, blue: 0.65, alpha: 1)
+    private var gpuInk: NSColor { meterOnLight ? NSColor(srgbRed: 0.76, green: 0.45, blue: 0.04, alpha: 1) : Self.gpuColor }
+    private var gpuMemInk: NSColor { meterOnLight ? NSColor(srgbRed: 0.06, green: 0.50, blue: 0.40, alpha: 1) : Self.gpuMemoryColor }
+
+    /// The CPU meter's twin: a scrolling chart of the last half minute of GPU load on the same plate, with a slim
+    /// strip on its right edge that fills with the memory the GPU has in use.
+    private func drawGPU(in r: NSRect) {
+        let g = NSRect(x: r.minX, y: 3, width: r.width, height: r.height - 6)
+        if cpuBackdrop != 0 {
+            backdropColor.setFill()
+            NSBezierPath(roundedRect: g.insetBy(dx: -1.5, dy: -1.5), xRadius: 3, yRadius: 3).fill()
+        }
+        let chart = NSRect(x: g.minX + 0.5, y: g.minY, width: Self.gpuGraphWidth - 1, height: g.height)
+        meterInk.withAlphaComponent(0.14).setFill()
+        NSBezierPath(rect: chart).fill()
+        let n = Self.gpuGraphPoints
+        var vals = Array(gpu.suffix(n))
+        if vals.count < n { vals = Array(repeating: 0, count: n - vals.count) + vals }
+        let step = chart.width / CGFloat(n - 1)
+        let pts = vals.enumerated().map { i, v in
+            NSPoint(x: chart.minX + CGFloat(i) * step, y: chart.minY + (chart.height - 1) * CGFloat(min(1, max(0, v))) + 0.5)
+        }
+        let area = NSBezierPath()
+        area.move(to: NSPoint(x: chart.minX, y: chart.minY))
+        pts.forEach { area.line(to: $0) }
+        area.line(to: NSPoint(x: chart.maxX, y: chart.minY))
+        area.close()
+        gpuInk.withAlphaComponent(0.45).setFill()
+        area.fill()
+        let line = NSBezierPath()
+        line.move(to: pts[0])
+        pts.dropFirst().forEach { line.line(to: $0) }
+        line.lineWidth = 1
+        line.lineJoinStyle = .round
+        gpuInk.setStroke()
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: chart).addClip()
+        line.stroke()
+        NSGraphicsContext.restoreGraphicsState()
+        // memory strip
+        let strip = NSRect(x: g.maxX - Self.gpuMemWidth, y: g.minY, width: Self.gpuMemWidth, height: g.height)
+        meterInk.withAlphaComponent(0.14).setFill()
+        NSBezierPath(rect: strip).fill()
+        let m = CGFloat(min(1, max(0, gpuMemory)))
+        if m > 0 {
+            gpuMemInk.setFill()
+            NSBezierPath(rect: NSRect(x: strip.minX, y: strip.minY, width: strip.width, height: max(1, strip.height * m))).fill()
         }
     }
 

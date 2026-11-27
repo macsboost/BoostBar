@@ -164,6 +164,11 @@ Its options, in **BoostBar ▸ Settings ▸ Screen Saver** (and in the saver's o
 
 Between the battery readout and the disk light sits a **CPU spectrum analyzer**: every core gets its own slim bar, bouncing like an equalizer on a dark plate, coloured green through yellow and orange to red — on Apple silicon you can watch the efficiency and performance cores trade the load. **Peak hold** leaves a thin cap at the top of each core's last surge (1.5 s by default, up to 10 s) before it falls. Prefer a dial? **Settings ▸ CPU ▸ Style ▸ Boost gauge** swaps in a tiny half-round gauge for all cores together: a crescent that thickens toward full boost, lit up to the needle, like the gauge on the [X1 SkyRacer sim](https://x1racing.com/sim)'s loading screen. The **Backdrop** slider sets the translucent dark or light plate behind either style (or turns it off). The colours adjust for a light or dark menu bar, hovering shows a 5-minute chart, and **Update rate** sets how often it reads the CPU, from once a second to 60 times a second on a logarithmic slider — the damping follows it automatically.
 
+
+## GPU meter
+
+Next to the CPU meter sits its twin for the **GPU**: an amber chart of the last 30 seconds of GPU load on the same plate, with a slim teal strip on its right edge that fills with the memory the GPU has in use — on Apple silicon that's the GPU's share of the Mac's unified memory, on a Mac with a graphics card it's the card's VRAM. Hover over it for a 5-minute chart of load and memory, with the GPU's name and its peak. It reads the graphics driver's own figures once a second and needs no permission. Turn it off in **Settings ▸ CPU ▸ GPU Meter**, and move it in General ▸ Menu Bar Layout.
+
 ## Updates
 
 BoostBar checks GitHub for a newer release when it starts, and you can check any time from the menu. Turn on **Settings ▸ General ▸ Install updates automatically** (or tick "Install future updates automatically" on the update prompt) and new versions are downloaded, verified as Apple-notarized and signed by MacsBoost, swapped in and relaunched with no prompt.

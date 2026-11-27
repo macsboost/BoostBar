@@ -141,6 +141,7 @@ final class OrderEditor: NSView, NSTableViewDataSource, NSTableViewDelegate {
         case .battery: return "Battery watts"
         case .disks: return "Disk lights"
         case .cpu: return "CPU meter"
+        case .gpu: return "GPU meter"
         }
     }
 
@@ -151,6 +152,7 @@ final class OrderEditor: NSView, NSTableViewDataSource, NSTableViewDelegate {
         case .battery: return "bolt.fill"
         case .disks: return "internaldrive"
         case .cpu: return "gauge.with.needle"
+        case .gpu: return "memorychip"
         }
     }
 }

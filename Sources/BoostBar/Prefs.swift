@@ -21,6 +21,7 @@ enum Prefs {
         static let downColor = "netDownColor"
         static let showEyes = "showEyes"
         static let showCPU = "showCPU"
+        static let showGPU = "showGPU"
         static let cpuStyle = "cpuStyle"
         static let cpuRate = "cpuUpdatesPerSecond"
         static let cpuBackdrop = "cpuBackdrop"
@@ -65,6 +66,7 @@ enum Prefs {
             K.downColor: "Lime",
             K.showEyes: false,
             K.showCPU: true,
+            K.showGPU: true,
             K.cpuStyle: 1,          // spectrum analyzer: a bar per core
             K.cpuRate: 5.0,
             K.cpuBackdrop: -0.6,    // a dark plate behind it
@@ -122,6 +124,7 @@ enum Prefs {
     // Googly eyes
     static var showEyes: Bool { get { bool(K.showEyes) } set { set(newValue, K.showEyes) } }
     static var showCPU: Bool { get { bool(K.showCPU) } set { set(newValue, K.showCPU) } }
+    static var showGPU: Bool { get { bool(K.showGPU) } set { set(newValue, K.showGPU) } }
     /// 0 = half-round boost gauge, 1 = a vertical bar per core
     /// CPU readings per second, 1…60.
     static var cpuRate: Double {
