@@ -295,6 +295,7 @@ namespace BoostBar
         {
             p.Header("Taskbar");
             p.Check("Show network speed graph", () => Prefs.ShowNetwork, v => Prefs.ShowNetwork = v);
+            p.Popup("Display", new[] { "Graph and numbers", "Graph only", "Numbers only" }, () => Prefs.NetDisplay, i => Prefs.NetDisplay = i);
             p.Popup("Smallest unit", new[] { "KB/s and up", "MB/s and up" }, () => Prefs.NetUnit == Fmt.NetUnit.Mega ? 1 : 0, i => Prefs.NetUnit = i == 1 ? Fmt.NetUnit.Mega : Fmt.NetUnit.Auto);
             p.Check("Show bits per second (Kb/s, Mb/s) instead of bytes", () => Prefs.UseBits, v => Prefs.UseBits = v);
             p.Popup("Graphs", new[] { "One per connection", "One combined graph" }, () => Prefs.NetSplit ? 0 : 1, i => Prefs.NetSplit = i == 0);

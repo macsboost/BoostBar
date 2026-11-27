@@ -148,6 +148,7 @@ namespace BoostBar
             strip.ShowCPU = Prefs.ShowCPU;
             strip.NetUnit = Prefs.NetUnit;
             strip.NetBits = Prefs.UseBits;
+            strip.NetDisplay = Prefs.NetDisplay;
             strip.CpuStyle = Prefs.CpuStyle;
             strip.CpuBackdrop = Prefs.CpuBackdrop;
             strip.EyeSize = Prefs.EyeSize;

@@ -104,6 +104,14 @@ final class StatusGraphView: NSView {
     /// (a fixed 58 pt left a visibly bigger gap before the next piece than between the others).
     var netUnit: NetworkMonitor.Unit = .auto
     var netBits = false
+    /// Network display: 0 = graph and numbers, 1 = graph only, 2 = numbers only.
+    var netDisplay = 0
+    private var netShowsGraph: Bool { netDisplay != 2 }
+    private var netShowsText: Bool { netDisplay != 1 }
+    /// Width of one network block: the graph, the numbers, or both with a gap between.
+    private var netBlockWidth: CGFloat {
+        (netShowsGraph ? Self.graphWidth : 0) + (netShowsGraph && netShowsText ? 4 : 0) + (netShowsText ? netTextWidth : 0)
+    }
     /// Room for the speed text: measured from the widest typical reading in the chosen unit, so no slack is left.
     private var netTextWidth: CGFloat {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
@@ -205,13 +213,13 @@ final class StatusGraphView: NSView {
                         let start = x
                         for (i, row) in netRows.enumerated() {
                             if i > 0 { x += 5 }
-                            let r = NSRect(x: x, y: 0, width: Self.linkIconWidth + Self.graphWidth + 4 + netTextWidth, height: h)
+                            let r = NSRect(x: x, y: 0, width: Self.linkIconWidth + netBlockWidth, height: h)
                             netRowRects.append((row.id, r))
                             x = r.maxX
                         }
                         networkRect = NSRect(x: start, y: 0, width: x - start, height: h)
                     } else {
-                        networkRect = NSRect(x: x, y: 0, width: Self.graphWidth + 4 + netTextWidth, height: h)
+                        networkRect = NSRect(x: x, y: 0, width: netBlockWidth, height: h)
                         x = networkRect.maxX
                     }
                 }
@@ -849,31 +857,33 @@ final class StatusGraphView: NSView {
                              label: NSColor, font: NSFont) {
         let upColor = traceColor(self.upColor), downColor = traceColor(self.downColor)
         let g = NSRect(x: r.minX, y: 3, width: Self.graphWidth, height: r.height - 6)
-        label.withAlphaComponent(0.12).setFill()
-        NSBezierPath(roundedRect: g, xRadius: 2, yRadius: 2).fill()
-
         let mid = g.midY
-        let half = g.height / 2 - 0.5
-        let n = max(up.count, 1)
-        let barW = g.width / CGFloat(n)
-        let floorScale = 2_000.0   // don't amplify idle noise below ~2 KB/s
-        let maxUp = max(up.max() ?? 0, floorScale)
-        let maxDown = max(down.max() ?? 0, floorScale)
+        if netShowsGraph {
+            label.withAlphaComponent(0.12).setFill()
+            NSBezierPath(roundedRect: g, xRadius: 2, yRadius: 2).fill()
+            let half = g.height / 2 - 0.5
+            let n = max(up.count, 1)
+            let barW = g.width / CGFloat(n)
+            let floorScale = 2_000.0   // don't amplify idle noise below ~2 KB/s
+            let maxUp = max(up.max() ?? 0, floorScale)
+            let maxDown = max(down.max() ?? 0, floorScale)
 
-        upColor.setFill()
-        for (i, v) in up.enumerated() where v > 0 {
-            let bh = max(CGFloat(v / maxUp) * half, 0.5)
-            NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid + 0.5, width: barW, height: bh)).fill()
+            upColor.setFill()
+            for (i, v) in up.enumerated() where v > 0 {
+                let bh = max(CGFloat(v / maxUp) * half, 0.5)
+                NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid + 0.5, width: barW, height: bh)).fill()
+            }
+            downColor.setFill()
+            for (i, v) in down.enumerated() where v > 0 {
+                let bh = max(CGFloat(v / maxDown) * half, 0.5)
+                NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid - 0.5 - bh, width: barW, height: bh)).fill()
+            }
+            label.withAlphaComponent(0.35).setFill()
+            NSBezierPath(rect: NSRect(x: g.minX, y: mid - 0.5, width: g.width, height: 1)).fill()
         }
-        downColor.setFill()
-        for (i, v) in down.enumerated() where v > 0 {
-            let bh = max(CGFloat(v / maxDown) * half, 0.5)
-            NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid - 0.5 - bh, width: barW, height: bh)).fill()
-        }
-        label.withAlphaComponent(0.35).setFill()
-        NSBezierPath(rect: NSRect(x: g.minX, y: mid - 0.5, width: g.width, height: 1)).fill()
+        guard netShowsText else { return }
 
-        let tx = g.maxX + 4
+        let tx = netShowsGraph ? g.maxX + 4 : r.minX
         func line(_ arrow: String, _ color: NSColor, _ text: String) -> NSAttributedString {
             let s = NSMutableAttributedString(string: arrow, attributes: [.font: font, .foregroundColor: color])
             s.append(NSAttributedString(string: " " + text, attributes: [.font: font, .foregroundColor: label]))

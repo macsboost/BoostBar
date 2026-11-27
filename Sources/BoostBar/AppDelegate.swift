@@ -325,6 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showCPU = Prefs.showCPU
         graphView.netUnit = Prefs.netUnit
         graphView.netBits = Prefs.useBits
+        graphView.netDisplay = Prefs.netDisplay
         graphView.cpuStyle = Prefs.cpuStyle
         graphView.cpuBackdrop = Prefs.cpuBackdrop
         if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores }

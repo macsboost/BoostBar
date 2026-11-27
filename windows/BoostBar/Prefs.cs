@@ -57,6 +57,8 @@ namespace BoostBar
 
         // Network
         public static bool ShowNetwork { get => GetBool("showNetwork", true); set => SetBool("showNetwork", value); }
+        /// What the taskbar shows for the network: 0 = graph and numbers, 1 = graph only, 2 = numbers only.
+        public static int NetDisplay { get => Math.Min(2, Math.Max(0, GetInt("networkDisplay", 0))); set => SetInt("networkDisplay", value); }
         public static bool NetSplit { get => GetBool("networkGraphPerConnection", true); set => SetBool("networkGraphPerConnection", value); }
         public static bool UseBits { get => GetBool("useBits", false); set => SetBool("useBits", value); }
         public static Fmt.NetUnit NetUnit { get => GetInt("networkUnit", 0) == 2 ? Fmt.NetUnit.Mega : Fmt.NetUnit.Auto; set => SetInt("networkUnit", (int)value); }

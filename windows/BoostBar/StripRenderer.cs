@@ -52,6 +52,8 @@ namespace BoostBar
         public EyeFace Face = new EyeFace();
         public Segment[] Order = Prefs.DefaultOrder;
         public Fmt.NetUnit NetUnit = Fmt.NetUnit.Auto; public bool NetBits;
+        /// Network display: 0 = graph and numbers, 1 = graph only, 2 = numbers only.
+        public int NetDisplay;
         public bool LightBar;
         public Segment? Dragging;
 
@@ -114,6 +116,10 @@ namespace BoostBar
             }
         }
         const float TriangleWidth = 6;
+        bool NetShowsGraph => NetDisplay != 2;
+        bool NetShowsText => NetDisplay != 1;
+        /// Width of one network block: the graph, the numbers, or both with a gap between.
+        float NetBlockWidth => (NetShowsGraph ? GraphWidth : 0) + (NetShowsGraph && NetShowsText ? 4 : 0) + (NetShowsText ? NetTextWidth : 0);
 
         float BatteryTextWidth
         {
@@ -174,7 +180,7 @@ namespace BoostBar
                             for (var i = 0; i < NetRows.Count; i++)
                             {
                                 if (i > 0) x += 5;
-                                var r = new RectangleF(x, 0, LinkIconWidth + GraphWidth + 4 + NetTextWidth, h);
+                                var r = new RectangleF(x, 0, LinkIconWidth + NetBlockWidth, h);
                                 netRowRects.Add((NetRows[i].Id, r));
                                 x = r.Right;
                             }
@@ -182,7 +188,7 @@ namespace BoostBar
                         }
                         else
                         {
-                            NetworkRect = new RectangleF(x, 0, GraphWidth + 4 + NetTextWidth, h);
+                            NetworkRect = new RectangleF(x, 0, NetBlockWidth, h);
                             x = NetworkRect.Right;
                         }
                         break;
@@ -365,6 +371,23 @@ namespace BoostBar
         {
             var upC = TraceColor(UpColor); var downC = TraceColor(DownColor);
             var gr = new RectangleF(r.X, 3, GraphWidth, BandHeight - 6);
+            var mid = gr.Y + gr.Height / 2;
+            if (NetShowsGraph) DrawNetworkGraph(g, gr, up, down, upC, downC, ink);
+            if (!NetShowsText) return;
+
+            var tx = NetShowsGraph ? gr.Right + 4 : r.X;
+            var lineH = TextFont.GetHeight();
+            using (var ub = new SolidBrush(upC)) Triangle(g, ub, tx, mid - lineH / 2 - 0.2f, true);
+            using (var db = new SolidBrush(downC)) Triangle(g, db, tx, mid + lineH / 2 + 0.6f, false);
+            using (var t = new SolidBrush(ink))
+            {
+                g.DrawString(upText, TextFont, t, tx + TriangleWidth + 3, mid - lineH - 0.2f + 0.6f, Typo);
+                g.DrawString(downText, TextFont, t, tx + TriangleWidth + 3, mid + 0.6f, Typo);
+            }
+        }
+
+        void DrawNetworkGraph(Graphics g, RectangleF gr, double[] up, double[] down, Color upC, Color downC, Color ink)
+        {
             using (var b = new SolidBrush(A(ink, 0.12))) FillRound(g, b, gr, 2);
             var mid = gr.Y + gr.Height / 2;
             var half = gr.Height / 2 - 0.5f;
@@ -382,16 +405,6 @@ namespace BoostBar
                     if (down[i] > 0) { var bh = Math.Max((float)(down[i] / maxDown) * half, 0.5f); g.FillRectangle(b, gr.X + i * barW, mid + 0.5f, barW, bh); }
             using (var b = new SolidBrush(A(ink, 0.35))) g.FillRectangle(b, gr.X, mid - 0.5f, gr.Width, 1);
             g.SmoothingMode = old;
-
-            var tx = gr.Right + 4;
-            var lineH = TextFont.GetHeight();
-            using (var ub = new SolidBrush(upC)) Triangle(g, ub, tx, mid - lineH / 2 - 0.2f, true);
-            using (var db = new SolidBrush(downC)) Triangle(g, db, tx, mid + lineH / 2 + 0.6f, false);
-            using (var t = new SolidBrush(ink))
-            {
-                g.DrawString(upText, TextFont, t, tx + TriangleWidth + 3, mid - lineH - 0.2f + 0.6f, Typo);
-                g.DrawString(downText, TextFont, t, tx + TriangleWidth + 3, mid + 0.6f, Typo);
-            }
         }
 
         // ---- battery ----
