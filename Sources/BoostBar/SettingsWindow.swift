@@ -276,14 +276,32 @@ private final class Pane: NSViewController {
         add(r, indent: false)
     }
 
-    func color(_ label: String, get: @escaping () -> NSColor, set: @escaping (NSColor) -> Void) {
+    func color(_ label: String, get: @escaping () -> NSColor, set: @escaping (NSColor) -> Void,
+               trailing: NSView? = nil, visible: (() -> Bool)? = nil) {
         let l = fieldLabel(label)
         let w = NSColorWell(frame: NSRect(x: 0, y: 0, width: 44, height: 24))
         w.widthAnchor.constraint(equalToConstant: 44).isActive = true
         let bx = box { [weak w] _ in if let w { set(w.color) } }
         w.target = bx; w.action = #selector(ActionBox.run(_:))
-        refreshers.append { [weak w] in w?.color = get() }
-        add(row([l, w]), indent: false)
+        var views: [NSView] = [l, w]
+        if let trailing { views.append(trailing) }
+        let r = row(views)
+        refreshers.append { [weak self, weak w, weak r] in
+            w?.color = get()
+            if let visible, let r { self?.setHidden(r, !visible()) }
+        }
+        add(r, indent: false)
+    }
+
+    /// A meter's backdrop: the dark ← off → light slider, and a tint for the plate with a button back to plain.
+    func backdrop(level: @escaping () -> Double, setLevel: @escaping (Double) -> Void, tintKey: String,
+                  changed: @escaping () -> Void, visible: (() -> Bool)? = nil) {
+        slider("Backdrop", min: -1, max: 1, get: level, set: { setLevel($0); changed() },
+               value: { abs($0) < 0.04 ? "Off" : String(format: "%@ %.0f%%", $0 < 0 ? "Dark" : "Light", abs($0) * 100) },
+               caption: "dark ← off → light", visible: visible)
+        let plain = makeButton("No Tint") { [weak self] in Prefs.setTint(nil, tintKey); changed(); self?.refresh() }
+        color("Backdrop tint", get: { Prefs.tint(tintKey) ?? (level() > 0 ? .white : .black) },
+              set: { Prefs.setTint($0, tintKey); changed() }, trailing: plain, visible: visible)
     }
 
     @discardableResult
@@ -449,6 +467,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     v.battery = BatteryReading(watts: [-8.4, 42, -23.5][k], percent: 70, externalConnected: k == 1, isCharging: k == 1, fullyCharged: false); v.leds = [.init(key: "a", color: .systemGreen)]; v.ledSize = 1
                     v.showCPU = true; v.cpuStyle = style; v.cpu = load; v.cpuBackdrop = [-0.7, 0, 0.7][k]
                     v.showGPU = true; v.gpuMemory = [0.2, 0.55, 0.9][k]
+                    v.gpuStyle = 1 - style; v.gpuLevel = load
+                    v.netPlate = v.cpuPlate
+                    v.gpuPlate = k == 2 ? v.cpuPlate : .init(level: v.cpuBackdrop == 0 ? -0.6 : v.cpuBackdrop, tint: NSColor(hex: "#1F6BFF"))
                     v.gpu = (0..<30).map { i -> Double in
                         let wave: Double = 0.3 * sin(Double(i) * 0.55 + Double(k))
                         let spike: Double = i % 9 == 4 ? 0.3 : 0
@@ -648,6 +669,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     enabled: { Prefs.netDisplay != 1 })       // the numbers' unit: nothing to set with the graph alone
             p.popup("Connections", items: ["Combined (all connections together)", "Separate (one each for LAN, Wi‑Fi, …)"],
                     get: { Prefs.netSplit ? 1 : 0 }, set: { Prefs.netSplit = $0 == 1; app.applySettings() })
+            p.check("Graph uses the CPU meter's backdrop", get: { Prefs.netBackdropSync }, set: { Prefs.netBackdropSync = $0; app.applySettings(); p.refresh() })
+            p.backdrop(level: { Prefs.netBackdrop }, setLevel: { Prefs.netBackdrop = $0 }, tintKey: Prefs.K.netBackdropTint,
+                       changed: { app.applySettings() }, visible: { !Prefs.netBackdropSync })
             p.label { app.networkSummary() }
             p.header("Hover Graph")
             p.note("Hover over the network readout for a 5-minute chart: upload above, download below, with the totals sent and received and the Wi‑Fi network. With separate connections, each one has its own chart.")
@@ -693,9 +717,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      set: { Prefs.cpuRate = fromSlider($0); app.applySettings() },
                      value: { s in let r = fromSlider(s); return r == r.rounded() ? String(format: "%.0f Hz", r) : String(format: "%g Hz", r) },
                      caption: "1 a second … 60 a second")
-            p.slider("Backdrop", min: -1, max: 1, get: { Prefs.cpuBackdrop }, set: { Prefs.cpuBackdrop = $0; app.applySettings() },
-                     value: { abs($0) < 0.04 ? "Off" : String(format: "%@ %.0f%%", $0 < 0 ? "Dark" : "Light", abs($0) * 100) },
-                     caption: "dark ← off → light")
+            p.backdrop(level: { Prefs.cpuBackdrop }, setLevel: { Prefs.cpuBackdrop = $0 }, tintKey: Prefs.K.cpuBackdropTint,
+                       changed: { app.applySettings() })
             p.slider("Peak hold", min: 0, max: 10, get: { Prefs.cpuPeakHold }, set: { Prefs.cpuPeakHold = ($0 * 2).rounded() / 2; app.applySettings(); p.refresh() },
                      value: { $0 < 0.2 ? "Off" : String(format: "%g s", ($0 * 2).rounded() / 2) }, caption: "how long peaks stay",
                      visible: { Prefs.cpuStyle == 1 })
@@ -705,7 +728,12 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.note("Hover over the meter for a 5-minute chart — user load above, system below — with the busiest core. It is sampled once a second whatever the update rate.")
             p.header("GPU Meter")
             p.check("Show GPU meter", get: { Prefs.showGPU }, set: { Prefs.showGPU = $0; app.applySettings() })
-            p.note("The CPU meter's twin: an amber chart of the last 30 seconds of GPU load, with a teal strip on its right edge that fills with the memory the GPU has in use. It shares the Backdrop above and reads once a second. Hover over it for a 5-minute chart of load and memory.")
+            p.popup("Style", items: ["History chart (with a memory strip)", "Boost gauge (half-round, with a needle)"],
+                    get: { Prefs.gpuStyle }, set: { Prefs.gpuStyle = $0; app.applySettings() })
+            p.check("Use the CPU meter's backdrop", get: { Prefs.gpuBackdropSync }, set: { Prefs.gpuBackdropSync = $0; app.applySettings(); p.refresh() })
+            p.backdrop(level: { Prefs.gpuBackdrop }, setLevel: { Prefs.gpuBackdrop = $0 }, tintKey: Prefs.K.gpuBackdropTint,
+                       changed: { app.applySettings() }, visible: { !Prefs.gpuBackdropSync })
+            p.note("The CPU meter's twin, as wide as the spectrum analyzer: an amber chart of the last 30 seconds of GPU load, with a teal strip beside it that fills with the memory the GPU has in use — or the same boost gauge as the CPU's. It reads once a second. Hover over it for a 5-minute chart of load and memory.")
         })
 
         // Disks

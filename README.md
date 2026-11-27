@@ -167,7 +167,9 @@ Between the battery readout and the disk light sits a **CPU spectrum analyzer**:
 
 ## GPU meter
 
-Next to the CPU meter sits its twin for the **GPU**: an amber chart of the last 30 seconds of GPU load on the same plate, with a slim teal strip on its right edge that fills with the memory the GPU has in use — on Apple silicon that's the GPU's share of the Mac's unified memory, on a Mac with a graphics card it's the card's VRAM. Hover over it for a 5-minute chart of load and memory, with the GPU's name and its peak. It reads the graphics driver's own figures once a second and needs no permission. Turn it off in **Settings ▸ CPU ▸ GPU Meter**, and move it in General ▸ Menu Bar Layout.
+Next to the CPU meter sits its twin for the **GPU**: an amber chart of the last 30 seconds of GPU load on the same plate, with a slim teal strip on its right edge that fills with the memory the GPU has in use — on Apple silicon that's the GPU's share of the Mac's unified memory, on a Mac with a graphics card it's the card's VRAM. Hover over it for a 5-minute chart of load and memory, with the GPU's name and its peak. It is exactly as wide as the CPU's spectrum analyzer, with the memory strip one bar's gap from the chart. Prefer a dial? **Style ▸ Boost gauge** gives the GPU the same half-round gauge as the CPU's. It reads the graphics driver's own figures once a second and needs no permission. Turn it off in **Settings ▸ CPU ▸ GPU Meter**, and move it in General ▸ Menu Bar Layout.
+
+**Backdrops.** The network graph, the CPU meter and the GPU meter all sit on the same rounded plate. Each has a **Backdrop** slider (dark ← off → light) and a **Backdrop tint** to colour it; whatever tint you pick is deepened on the dark side and paled on the light side, so the meter stays readable. The GPU's plate starts out navy to tell it from the CPU's; **Use the CPU meter's backdrop** makes it match, and the network graph follows the CPU's until you untick **Graph uses the CPU meter's backdrop** in Settings ▸ Network.
 
 ## Updates
 

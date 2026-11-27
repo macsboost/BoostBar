@@ -66,8 +66,11 @@ final class StatusGraphView: NSView {
     var cpu: Double = 0
     var cpuCores: [Double] = []
     var cpuStyle = 0
-    /// A translucent plate behind the meter so it stands out on a busy bar: below 0 dark, above 0 light, 0 none.
-    var cpuBackdrop: Double = 0
+    /// A translucent plate behind a meter so it stands out on a busy bar: level below 0 dark, above 0 light, 0 none;
+    /// an optional tint colours it. The network graph, CPU meter and GPU meter each have one.
+    struct Plate: Equatable { var level: Double = 0; var tint: NSColor? = nil }
+    var cpuPlate = Plate(), gpuPlate = Plate(), netPlate = Plate()
+    var cpuBackdrop: Double { get { cpuPlate.level } set { cpuPlate.level = newValue } }
     /// Spectrum analyzer peak markers, one per core (empty = none).
     var cpuPeaks: [Double] = []
     private(set) var cpuRect = NSRect.zero
@@ -76,9 +79,11 @@ final class StatusGraphView: NSView {
     var showGPU = false
     var gpu: [Double] = []
     var gpuMemory: Double = 0
+    /// 0 = history chart with a memory strip, 1 = the same half-round boost gauge as the CPU's; and the gauge's reading.
+    var gpuStyle = 0
+    var gpuLevel: Double = 0
     private(set) var gpuRect = NSRect.zero
     static let gpuGraphPoints = 30
-    private static let gpuGraphWidth: CGFloat = 30, gpuMemWidth: CGFloat = 3
 
     /// Disk LED size: 0 = small (two rows), 1 = medium, 2 = large
     var ledSize = 0
@@ -250,7 +255,7 @@ final class StatusGraphView: NSView {
                 if showGPU {
                     gap(prev == .disks ? 6 : 5)
                     label("GPU")
-                    gpuRect = NSRect(x: x, y: 0, width: Self.gpuGraphWidth + 2 + Self.gpuMemWidth, height: h)
+                    gpuRect = NSRect(x: x, y: 0, width: gpuStyle == 1 ? Self.gaugeWidth : gpuChartWidth, height: h)
                     x = gpuRect.maxX
                 }
             case .disks:
@@ -426,9 +431,11 @@ final class StatusGraphView: NSView {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
         for (text, r) in labelRects { drawVerticalLabel(text, in: r, color: label) }
         if showCPU, !cpuRect.isEmpty {
-            if cpuStyle == 1 { drawCPUBars(in: cpuRect, label: label) } else { drawCPUGauge(in: cpuRect, label: label) }
+            if cpuStyle == 1 { drawCPUBars(in: cpuRect, label: label) } else { drawGauge(in: cpuRect, value: cpu, plate: cpuPlate) }
         }
-        if showGPU, !gpuRect.isEmpty { drawGPU(in: gpuRect) }
+        if showGPU, !gpuRect.isEmpty {
+            if gpuStyle == 1 { drawGauge(in: gpuRect, value: gpuLevel, plate: gpuPlate) } else { drawGPUChart(in: gpuRect) }
+        }
         if showNetwork {
             if netRowRects.isEmpty {
                 drawNetwork(in: networkRect, up: up, down: down, upText: upText, downText: downText, label: label, font: font)
@@ -752,13 +759,16 @@ final class StatusGraphView: NSView {
 
     /// Is the menu bar light (dark text) right now? It follows the wallpaper, not just Light/Dark mode.
     private var barIsLight: Bool { effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) != .darkAqua }
-    /// What the CPU meter is drawn against: the bar, or its backdrop once that is strong enough to take over.
-    private var meterOnLight: Bool { cpuBackdrop > 0.35 ? true : cpuBackdrop < -0.35 ? false : barIsLight }
-    private var meterInk: NSColor { meterOnLight == barIsLight ? .labelColor : (meterOnLight ? NSColor(white: 0.1, alpha: 1) : NSColor(white: 0.95, alpha: 1)) }
+    /// What a meter is drawn against: the bar, or its plate once that is strong enough to take over.
+    private func onLight(_ p: Plate) -> Bool { p.level > 0.35 ? true : p.level < -0.35 ? false : barIsLight }
+    private func ink(_ p: Plate) -> NSColor {
+        let light = onLight(p)
+        return light == barIsLight ? .labelColor : (light ? NSColor(white: 0.1, alpha: 1) : NSColor(white: 0.95, alpha: 1))
+    }
 
-    /// Boost-gauge colours: green, lime, yellow, orange, red — as on the X1 sim's loading gauge. On a light menu
-    /// bar they're deepened so the yellow and lime still read against white.
-    private func boostColor(_ x: Double) -> NSColor {
+    /// Boost-gauge colours: green, lime, yellow, orange, red — as on the X1 sim's loading gauge. On a light
+    /// background they're deepened so the yellow and lime still read against white.
+    private func boostColor(_ x: Double, onLight: Bool) -> NSColor {
         let stops: [(Double, [Double])] = [(0, [62, 220, 64]), (0.28, [196, 236, 34]), (0.45, [250, 214, 20]),
                                            (0.66, [250, 128, 22]), (0.82, [236, 34, 40]), (1, [236, 30, 42])]
         var i = 1
@@ -766,33 +776,48 @@ final class StatusGraphView: NSView {
         let (a, ca) = stops[i - 1], (b, cb) = stops[i]
         let k = min(1, max(0, (x - a) / (b - a)))
         var c = (0..<3).map { (ca[$0] + (cb[$0] - ca[$0]) * k) / 255 }
-        if meterOnLight { c = [c[0] * 0.80, c[1] * 0.66, c[2] * 0.62] }
+        if onLight { c = [c[0] * 0.80, c[1] * 0.66, c[2] * 0.62] }
         return NSColor(srgbRed: c[0], green: c[1], blue: c[2], alpha: 1)
     }
 
-    private var backdropColor: NSColor {
-        (cpuBackdrop < 0 ? NSColor.black : NSColor.white).withAlphaComponent(CGFloat(min(1, abs(cpuBackdrop))) * 0.7)
+    /// The plate's colour: black or white at the slider's strength, or — with a tint — that colour deepened on the
+    /// dark side and paled on the light side, so whatever is picked the meter on it stays readable.
+    private func plateColor(_ p: Plate) -> NSColor {
+        let dark = p.level < 0, strength = CGFloat(min(1, abs(p.level)))
+        guard let tint = p.tint?.usingColorSpace(.sRGB) else {
+            return (dark ? NSColor.black : NSColor.white).withAlphaComponent(strength * 0.7)
+        }
+        let mixed = tint.blended(withFraction: dark ? 0.5 : 0.7, of: dark ? .black : .white) ?? tint
+        return mixed.withAlphaComponent(min(1, strength * 0.7 + 0.2))
+    }
+
+    /// The rounded plate every chart-style meter sits on (network graph, CPU bars, GPU chart).
+    private func fillPlate(_ p: Plate, around g: NSRect) {
+        guard p.level != 0 else { return }
+        plateColor(p).setFill()
+        NSBezierPath(roundedRect: g.insetBy(dx: -1.5, dy: -1.5), xRadius: 3, yRadius: 3).fill()
     }
 
     /// The tiny half-round boost gauge: a crescent that thickens toward full boost, cut by gaps, lit up to the
     /// needle and dim beyond it; the needle and hub take the menu bar's text colour.
-    private func drawCPUGauge(in r: NSRect, label: NSColor) {
-        let x = min(1, max(0, cpu))
+    private func drawGauge(in r: NSRect, value: Double, plate: Plate) {
+        let x = min(1, max(0, value))
+        let light = onLight(plate), meterInk = ink(plate)
         let c = NSPoint(x: r.midX, y: r.midY - 5.5)
         let R = min(r.width / 2 - 0.5, r.height - 8)
-        if cpuBackdrop != 0 {
+        if plate.level != 0 {
             // a dome: round over the top of the dial, with a short rounded foot under the needle's hub
             let pr = R + 1.6, foot: CGFloat = 3.4
-            let plate = NSBezierPath()
-            plate.move(to: NSPoint(x: c.x - pr, y: c.y))
-            plate.appendArc(withCenter: c, radius: pr, startAngle: 180, endAngle: 0, clockwise: true)
-            plate.line(to: NSPoint(x: c.x + pr, y: c.y - foot + 2))
-            plate.appendArc(withCenter: NSPoint(x: c.x + pr - 2, y: c.y - foot + 2), radius: 2, startAngle: 0, endAngle: 270, clockwise: true)
-            plate.line(to: NSPoint(x: c.x - pr + 2, y: c.y - foot))
-            plate.appendArc(withCenter: NSPoint(x: c.x - pr + 2, y: c.y - foot + 2), radius: 2, startAngle: 270, endAngle: 180, clockwise: true)
-            plate.close()
-            backdropColor.setFill()
-            plate.fill()
+            let dome = NSBezierPath()
+            dome.move(to: NSPoint(x: c.x - pr, y: c.y))
+            dome.appendArc(withCenter: c, radius: pr, startAngle: 180, endAngle: 0, clockwise: true)
+            dome.line(to: NSPoint(x: c.x + pr, y: c.y - foot + 2))
+            dome.appendArc(withCenter: NSPoint(x: c.x + pr - 2, y: c.y - foot + 2), radius: 2, startAngle: 0, endAngle: 270, clockwise: true)
+            dome.line(to: NSPoint(x: c.x - pr + 2, y: c.y - foot))
+            dome.appendArc(withCenter: NSPoint(x: c.x - pr + 2, y: c.y - foot + 2), radius: 2, startAngle: 270, endAngle: 180, clockwise: true)
+            dome.close()
+            plateColor(plate).setFill()
+            dome.fill()
         }
         // from 9 o'clock over the top to 3 o'clock
         func ang(_ t: Double) -> CGFloat { CGFloat(180 - 180 * t) }
@@ -806,7 +831,7 @@ final class StatusGraphView: NSView {
             p.appendArc(withCenter: c, radius: R, startAngle: ang(t0), endAngle: ang(t1) - 0.6, clockwise: true)
             p.appendArc(withCenter: c, radius: R - w, startAngle: ang(t1) - 0.6, endAngle: ang(t0), clockwise: false)
             p.close()
-            if tm <= x + 0.002 { boostColor(tm).setFill() } else { meterInk.withAlphaComponent(meterOnLight ? 0.2 : 0.24).setFill() }
+            if tm <= x + 0.002 { boostColor(tm, onLight: light).setFill() } else { meterInk.withAlphaComponent(light ? 0.2 : 0.24).setFill() }
             p.fill()
         }
         // needle
@@ -828,17 +853,15 @@ final class StatusGraphView: NSView {
     private func drawCPUBars(in r: NSRect, label: NSColor) {
         let cores = cpuCores.isEmpty ? [cpu] : cpuCores
         let pitch = Self.cpuBarPitch(cores.count)
+        let light = onLight(cpuPlate), meterInk = ink(cpuPlate)
         let g = NSRect(x: r.minX, y: 3, width: r.width, height: r.height - 6)
-        if cpuBackdrop != 0 {
-            backdropColor.setFill()
-            NSBezierPath(roundedRect: g.insetBy(dx: -1.5, dy: -1.5), xRadius: 3, yRadius: 3).fill()
-        }
+        fillPlate(cpuPlate, around: g)
         for (i, v) in cores.enumerated() {
             let slot = NSRect(x: g.minX + CGFloat(i) * pitch + 0.5, y: g.minY, width: pitch - 1, height: g.height)
             meterInk.withAlphaComponent(0.14).setFill()
             NSBezierPath(rect: slot).fill()
             let hgt = max(1, slot.height * CGFloat(min(1, max(0, v))))
-            boostColor(v).setFill()
+            boostColor(v, onLight: light).setFill()
             NSBezierPath(rect: NSRect(x: slot.minX, y: slot.minY, width: slot.width, height: hgt)).fill()
             if i < cpuPeaks.count, cpuPeaks[i] > v + 0.03 {
                 // the peak-hold cap: a thin line left at the top of the last surge
@@ -851,27 +874,36 @@ final class StatusGraphView: NSView {
 
     // MARK: GPU
 
-    /// Amber for the GPU's load, teal for its memory — deepened on a light bar, like the boost colours.
+    /// Amber for the GPU's load, teal for its memory — deepened on a light background, like the boost colours.
     static let gpuColor = NSColor(srgbRed: 0.98, green: 0.70, blue: 0.16, alpha: 1)
     static let gpuMemoryColor = NSColor(srgbRed: 0.36, green: 0.79, blue: 0.65, alpha: 1)
-    private var gpuInk: NSColor { meterOnLight ? NSColor(srgbRed: 0.76, green: 0.45, blue: 0.04, alpha: 1) : Self.gpuColor }
-    private var gpuMemInk: NSColor { meterOnLight ? NSColor(srgbRed: 0.06, green: 0.50, blue: 0.40, alpha: 1) : Self.gpuMemoryColor }
 
-    /// The CPU meter's twin: a scrolling chart of the last half minute of GPU load on the same plate, with a slim
-    /// strip on its right edge that fills with the memory the GPU has in use.
-    private func drawGPU(in r: NSRect) {
+    /// As wide as the CPU's spectrum analyzer on this Mac, so the two plates match.
+    private var gpuChartWidth: CGFloat {
+        let n = cpuCores.isEmpty ? ProcessInfo.processInfo.activeProcessorCount : cpuCores.count
+        return max(24, CGFloat(n) * Self.cpuBarPitch(n) + 1)
+    }
+
+    /// The CPU meter's twin: a scrolling chart of the last half minute of GPU load, and — one bar's gap to its
+    /// right, the same spacing as the CPU's bars — a slim strip that fills with the memory the GPU has in use.
+    private func drawGPUChart(in r: NSRect) {
+        let light = onLight(gpuPlate), meterInk = ink(gpuPlate)
+        let gpuInk = light ? NSColor(srgbRed: 0.76, green: 0.45, blue: 0.04, alpha: 1) : Self.gpuColor
+        let memInk = light ? NSColor(srgbRed: 0.06, green: 0.50, blue: 0.40, alpha: 1) : Self.gpuMemoryColor
         let g = NSRect(x: r.minX, y: 3, width: r.width, height: r.height - 6)
-        if cpuBackdrop != 0 {
-            backdropColor.setFill()
-            NSBezierPath(roundedRect: g.insetBy(dx: -1.5, dy: -1.5), xRadius: 3, yRadius: 3).fill()
-        }
-        let chart = NSRect(x: g.minX + 0.5, y: g.minY, width: Self.gpuGraphWidth - 1, height: g.height)
+        fillPlate(gpuPlate, around: g)
+        let n = cpuCores.isEmpty ? ProcessInfo.processInfo.activeProcessorCount : cpuCores.count
+        let stripW = max(2, Self.cpuBarPitch(n) - 1)
+        let right = g.maxX - 1.5                                    // where the CPU's last bar ends
+        let strip = NSRect(x: right - stripW, y: g.minY, width: stripW, height: g.height)
+        let chart = NSRect(x: g.minX + 0.5, y: g.minY, width: strip.minX - 1 - (g.minX + 0.5), height: g.height)
         meterInk.withAlphaComponent(0.14).setFill()
         NSBezierPath(rect: chart).fill()
-        let n = Self.gpuGraphPoints
-        var vals = Array(gpu.suffix(n))
-        if vals.count < n { vals = Array(repeating: 0, count: n - vals.count) + vals }
-        let step = chart.width / CGFloat(n - 1)
+        NSBezierPath(rect: strip).fill()
+        let count = Self.gpuGraphPoints
+        var vals = Array(gpu.suffix(count))
+        if vals.count < count { vals = Array(repeating: 0, count: count - vals.count) + vals }
+        let step = chart.width / CGFloat(count - 1)
         let pts = vals.enumerated().map { i, v in
             NSPoint(x: chart.minX + CGFloat(i) * step, y: chart.minY + (chart.height - 1) * CGFloat(min(1, max(0, v))) + 0.5)
         }
@@ -892,13 +924,9 @@ final class StatusGraphView: NSView {
         NSBezierPath(rect: chart).addClip()
         line.stroke()
         NSGraphicsContext.restoreGraphicsState()
-        // memory strip
-        let strip = NSRect(x: g.maxX - Self.gpuMemWidth, y: g.minY, width: Self.gpuMemWidth, height: g.height)
-        meterInk.withAlphaComponent(0.14).setFill()
-        NSBezierPath(rect: strip).fill()
         let m = CGFloat(min(1, max(0, gpuMemory)))
         if m > 0 {
-            gpuMemInk.setFill()
+            memInk.setFill()
             NSBezierPath(rect: NSRect(x: strip.minX, y: strip.minY, width: strip.width, height: max(1, strip.height * m))).fill()
         }
     }
@@ -920,19 +948,25 @@ final class StatusGraphView: NSView {
     }
 
     /// White traces would vanish on a light menu bar: there they're drawn in the bar's own text colour instead.
-    private func traceColor(_ c: NSColor) -> NSColor {
-        guard barIsLight, let s = c.usingColorSpace(.sRGB), s.redComponent > 0.9, s.greenComponent > 0.9, s.blueComponent > 0.9 else { return c }
-        return .labelColor
+    private func traceColor(_ c: NSColor, onLight: Bool, ink: NSColor) -> NSColor {
+        guard onLight, let s = c.usingColorSpace(.sRGB), s.redComponent > 0.9, s.greenComponent > 0.9, s.blueComponent > 0.9 else { return c }
+        return ink
     }
 
     private func drawNetwork(in r: NSRect, up: [Double], down: [Double], upText: String, downText: String,
                              label: NSColor, font: NSFont) {
-        let upColor = traceColor(self.upColor), downColor = traceColor(self.downColor)
+        // the numbers sit on the bar itself; the graph sits on its plate, the same one the CPU and GPU charts use
+        let upColor = traceColor(self.upColor, onLight: barIsLight, ink: .labelColor)
+        let downColor = traceColor(self.downColor, onLight: barIsLight, ink: .labelColor)
         let g = NSRect(x: r.minX, y: 3, width: Self.graphWidth, height: r.height - 6)
         let mid = g.midY
         if netShowsGraph {
-            label.withAlphaComponent(0.12).setFill()
-            NSBezierPath(roundedRect: g, xRadius: 2, yRadius: 2).fill()
+            let plateInk = ink(netPlate)
+            let upColor = traceColor(self.upColor, onLight: onLight(netPlate), ink: plateInk)
+            let downColor = traceColor(self.downColor, onLight: onLight(netPlate), ink: plateInk)
+            fillPlate(netPlate, around: g)
+            plateInk.withAlphaComponent(0.14).setFill()
+            NSBezierPath(rect: g).fill()
             let half = g.height / 2 - 0.5
             let n = max(up.count, 1)
             let barW = g.width / CGFloat(n)
@@ -950,7 +984,7 @@ final class StatusGraphView: NSView {
                 let bh = max(CGFloat(v / maxDown) * half, 0.5)
                 NSBezierPath(rect: NSRect(x: g.minX + CGFloat(i) * barW, y: mid - 0.5 - bh, width: barW, height: bh)).fill()
             }
-            label.withAlphaComponent(0.35).setFill()
+            plateInk.withAlphaComponent(0.35).setFill()
             NSBezierPath(rect: NSRect(x: g.minX, y: mid - 0.5, width: g.width, height: 1)).fill()
         }
         guard netShowsText else { return }

@@ -32,6 +32,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         cpuTimer = t
     }
 
+    /// The GPU boost gauge reads once a second; its needle glides to each reading at 20 frames a second, redrawing
+    /// only the gauge and only while it is moving.
+    private var gpuTimer: Timer?
+    private var gpuShown = 0.0
+
+    private func setGPUGaugeRunning(_ on: Bool) {
+        if !on { gpuTimer?.invalidate(); gpuTimer = nil; return }
+        guard gpuTimer == nil else { return }
+        let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let d = self.gpu.utilization - self.gpuShown
+            guard abs(d) > 0.002 else { return }
+            self.gpuShown += d * 0.14
+            self.graphView.gpuLevel = self.gpuShown
+            self.graphView.setNeedsDisplay(self.graphView.gpuRect.insetBy(dx: -2, dy: 0))
+        }
+        t.tolerance = 0.02
+        RunLoop.main.add(t, forMode: .common)
+        gpuTimer = t
+    }
+
     private func cpuStep() {
         let now = ProcessInfo.processInfo.systemUptime
         let dt = min(0.1, max(0.001, now - cpuLastFrame)), rate = Prefs.cpuRate
@@ -329,7 +350,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.netBits = Prefs.useBits
         graphView.netDisplay = Prefs.netDisplay
         graphView.cpuStyle = Prefs.cpuStyle
-        graphView.cpuBackdrop = Prefs.cpuBackdrop
+        graphView.cpuPlate = Prefs.cpuPlate
+        graphView.gpuPlate = Prefs.gpuPlate
+        graphView.netPlate = Prefs.netPlate
         if cpuCoresShown.count != cpu.cores.count { cpuCoresShown = cpu.cores }
         graphView.cpu = cpuShown
         graphView.cpuCores = cpuCoresShown
@@ -337,6 +360,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         graphView.showGPU = Prefs.showGPU && gpu.available
         graphView.gpu = gpu.history.suffix(StatusGraphView.gpuGraphPoints)
         graphView.gpuMemory = gpu.memoryFraction
+        graphView.gpuStyle = Prefs.gpuStyle
+        let gpuGauge = graphView.showGPU && Prefs.gpuStyle == 1
+        if !gpuGauge { gpuShown = gpu.utilization }
+        graphView.gpuLevel = gpuShown
+        setGPUGaugeRunning(gpuGauge)
         graphView.eyeSize = Prefs.eyeSize
         graphView.singleEye = Prefs.singleEye
         graphView.bloodshot = Prefs.bloodshot || (Prefs.bloodshotAwake && (sleep.isPreventing || lidSleepDisabled))

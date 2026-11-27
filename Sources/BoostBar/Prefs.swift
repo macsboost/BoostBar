@@ -22,6 +22,14 @@ enum Prefs {
         static let showEyes = "showEyes"
         static let showCPU = "showCPU"
         static let showGPU = "showGPU"
+        static let gpuStyle = "gpuStyle"
+        static let cpuBackdropTint = "cpuBackdropTint"
+        static let gpuBackdrop = "gpuBackdrop"
+        static let gpuBackdropTint = "gpuBackdropTint"
+        static let gpuBackdropSync = "gpuBackdropSameAsCPU"
+        static let netBackdrop = "networkBackdrop"
+        static let netBackdropTint = "networkBackdropTint"
+        static let netBackdropSync = "networkBackdropSameAsCPU"
         static let cpuStyle = "cpuStyle"
         static let cpuRate = "cpuUpdatesPerSecond"
         static let cpuBackdrop = "cpuBackdrop"
@@ -67,6 +75,12 @@ enum Prefs {
             K.showEyes: false,
             K.showCPU: true,
             K.showGPU: true,
+            K.gpuStyle: 0,              // history chart
+            K.gpuBackdrop: -0.6,
+            K.gpuBackdropTint: "#1F6BFF",   // a navy plate, to tell it from the CPU's at a glance
+            K.gpuBackdropSync: false,
+            K.netBackdrop: -0.6,
+            K.netBackdropSync: true,
             K.cpuStyle: 1,          // spectrum analyzer: a bar per core
             K.cpuRate: 5.0,
             K.cpuBackdrop: -0.6,    // a dark plate behind it
@@ -125,6 +139,23 @@ enum Prefs {
     static var showEyes: Bool { get { bool(K.showEyes) } set { set(newValue, K.showEyes) } }
     static var showCPU: Bool { get { bool(K.showCPU) } set { set(newValue, K.showCPU) } }
     static var showGPU: Bool { get { bool(K.showGPU) } set { set(newValue, K.showGPU) } }
+    /// 0 = history chart with a memory strip, 1 = half-round boost gauge (the CPU's twin).
+    static var gpuStyle: Int { get { min(1, max(0, d.integer(forKey: K.gpuStyle))) } set { d.set(newValue, forKey: K.gpuStyle) } }
+
+    /// Meter backdrops. Each is a level (-1 strong dark … 0 none … +1 strong light) and an optional tint; the GPU
+    /// meter and the network graph can instead follow the CPU meter's.
+    private static func level(_ k: String) -> Double { min(1, max(-1, d.double(forKey: k))) }
+    private static func setLevel(_ v: Double, _ k: String) { d.set(abs(v) < 0.04 ? 0 : min(1, max(-1, v)), forKey: k) }
+    /// A backdrop's tint, or nil for plain black/white. (Stored as hex; "" = no tint, so a default tint can be cleared.)
+    static func tint(_ k: String) -> NSColor? { d.string(forKey: k).flatMap { NSColor(hex: $0) } }
+    static func setTint(_ c: NSColor?, _ k: String) { d.set(c?.hexString ?? "", forKey: k) }
+    static var gpuBackdrop: Double { get { level(K.gpuBackdrop) } set { setLevel(newValue, K.gpuBackdrop) } }
+    static var netBackdrop: Double { get { level(K.netBackdrop) } set { setLevel(newValue, K.netBackdrop) } }
+    static var gpuBackdropSync: Bool { get { bool(K.gpuBackdropSync) } set { set(newValue, K.gpuBackdropSync) } }
+    static var netBackdropSync: Bool { get { bool(K.netBackdropSync) } set { set(newValue, K.netBackdropSync) } }
+    static var cpuPlate: StatusGraphView.Plate { .init(level: cpuBackdrop, tint: tint(K.cpuBackdropTint)) }
+    static var gpuPlate: StatusGraphView.Plate { gpuBackdropSync ? cpuPlate : .init(level: gpuBackdrop, tint: tint(K.gpuBackdropTint)) }
+    static var netPlate: StatusGraphView.Plate { netBackdropSync ? cpuPlate : .init(level: netBackdrop, tint: tint(K.netBackdropTint)) }
     /// 0 = half-round boost gauge, 1 = a vertical bar per core
     /// CPU readings per second, 1…60.
     static var cpuRate: Double {
