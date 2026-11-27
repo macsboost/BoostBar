@@ -25,6 +25,7 @@ final class SupportWindow: NSObject, NSWindowDelegate {
     static let socials: [Link] = [
         Link(title: "@realx1racing", url: "https://x.com/realx1racing"),
         Link(title: "@macsboost", url: "https://x.com/macsboost"),
+        Link(title: "@solarsi_d", url: "https://x.com/solarsi_d"),
     ]
 
     static let tmogURL = "https://tmog.org"

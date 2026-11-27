@@ -14,7 +14,7 @@ namespace BoostBar
             ("macsboost.com", "https://macsboost.com"), ("ssi-d.com", "https://ssi-d.com"), ("x1racing.com", "https://x1racing.com"),
             ("buildflyingcars.com", "https://buildflyingcars.com"), ("biz-cord.com", "https://biz-cord.com"),
         };
-        static readonly (string Title, string Url)[] Socials = { ("@realx1racing", "https://x.com/realx1racing"), ("@macsboost", "https://x.com/macsboost") };
+        static readonly (string Title, string Url)[] Socials = { ("@realx1racing", "https://x.com/realx1racing"), ("@macsboost", "https://x.com/macsboost"), ("@solarsi_d", "https://x.com/solarsi_d") };
 
         public static void ShowIfFirstLaunch()
         {
