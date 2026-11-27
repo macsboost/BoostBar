@@ -11,6 +11,7 @@ enum Prefs {
         static let keepDisplayAwake = "keepDisplayAwake"
         static let useBits = "useBits"
         static let netUnit = "networkUnit"
+        static let netDisplay = "networkDisplay"
         static let checkOnLaunch = "checkUpdatesOnLaunch"
         static let autoUpdate = "installUpdatesAutomatically"
         static let lidWarningShown = "lidWarningShown"
@@ -88,6 +89,11 @@ enum Prefs {
     static var netUnit: NetworkMonitor.Unit {
         get { NetworkMonitor.Unit(rawValue: d.integer(forKey: K.netUnit)) ?? .auto }
         set { d.set(newValue.rawValue, forKey: K.netUnit) }
+    }
+    /// What the menu bar shows for the network: 0 = graph and numbers, 1 = graph only, 2 = numbers only.
+    static var netDisplay: Int {
+        get { min(2, max(0, d.integer(forKey: K.netDisplay))) }
+        set { d.set(newValue, forKey: K.netDisplay) }
     }
     static var showNetwork: Bool { get { bool(K.showNetwork) } set { set(newValue, K.showNetwork) } }
     static var showBattery: Bool { get { bool(K.showBattery) } set { set(newValue, K.showBattery) } }
