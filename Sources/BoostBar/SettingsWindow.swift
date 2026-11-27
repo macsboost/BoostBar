@@ -448,6 +448,12 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     v.showNetwork = true; v.showBattery = true; v.showDisks = true; v.showEyes = true; v.eyeSize = 2
                     v.battery = BatteryReading(watts: [-8.4, 42, -23.5][k], percent: 70, externalConnected: k == 1, isCharging: k == 1, fullyCharged: false); v.leds = [.init(key: "a", color: .systemGreen)]; v.ledSize = 1
                     v.showCPU = true; v.cpuStyle = style; v.cpu = load; v.cpuBackdrop = [-0.7, 0, 0.7][k]
+                    v.showGPU = true; v.gpuMemory = [0.2, 0.55, 0.9][k]
+                    v.gpu = (0..<30).map { i -> Double in
+                        let wave: Double = 0.3 * sin(Double(i) * 0.55 + Double(k))
+                        let spike: Double = i % 9 == 4 ? 0.3 : 0
+                        return min(1.0, max(0.0, load + wave + spike))
+                    }
                     v.cpuCores = (0..<10).map { min(1, max(0.02, load + 0.35 * sin(Double($0) * 1.7 + Double(k)))) }
                     if style == 1 {
                         v.cpuPeaks = v.cpuCores.enumerated().map { i, c -> Double in
@@ -495,7 +501,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             for (k, item) in faces.enumerated() {
                 let v = StatusGraphView(frame: .zero)
                 v.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-                v.showNetwork = false; v.showBattery = false; v.showDisks = false; v.showCPU = false
+                v.showNetwork = false; v.showBattery = false; v.showDisks = false; v.showCPU = false; v.showGPU = false
                 v.showEyes = true; v.eyeSize = 2; v.lashes = lash
                 v.eyeFace = item.1
                 v.pupilOffsets = item.0 == "sad" || item.0 == "sleepy" ? [CGPoint(x: 0, y: -2.5), CGPoint(x: 0, y: -2.5)] : [CGPoint(x: 1, y: 0), CGPoint(x: 1, y: 0)]
@@ -697,6 +703,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Move the meter in General ▸ Menu Bar Layout.")
             p.header("Hover Graph")
             p.note("Hover over the meter for a 5-minute chart — user load above, system below — with the busiest core. It is sampled once a second whatever the update rate.")
+            p.header("GPU Meter")
+            p.check("Show GPU meter", get: { Prefs.showGPU }, set: { Prefs.showGPU = $0; app.applySettings() })
+            p.note("The CPU meter's twin: an amber chart of the last 30 seconds of GPU load, with a teal strip on its right edge that fills with the memory the GPU has in use. It shares the Backdrop above and reads once a second. Hover over it for a 5-minute chart of load and memory.")
         })
 
         // Disks
