@@ -511,7 +511,13 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("menubar_emotions\(lash == 0 ? "" : lash == 1 ? "_natural" : "_fake")_\(dark ? "dark" : "light").png"))
             }
         } }
-        for saver in BundledSaver.all.indices {
+        // one pass per bundled screen saver (the App Store edition has none: a single pass)
+        #if APPSTORE
+        let saverScenes = [""]
+        #else
+        let saverScenes = BundledSaver.all.map(\.scene)
+        #endif
+        for saver in saverScenes.indices {
             Self.initialSaver = saver
             window = nil; tabs = nil
             let w = makeWindow(); window = w
@@ -520,7 +526,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                 let screenSaver = p.title == "Screen Saver"
                 if saver > 0 && !screenSaver { continue }
                 tabs?.selectedTabViewItemIndex = i
-                shoot((p.title ?? "tab").replacingOccurrences(of: " ", with: "") + (screenSaver ? "_\(BundledSaver.all[saver].scene)" : ""))
+                shoot((p.title ?? "tab").replacingOccurrences(of: " ", with: "") + (screenSaver ? "_\(saverScenes[saver])" : ""))
             }
             w.orderOut(nil)
         }
