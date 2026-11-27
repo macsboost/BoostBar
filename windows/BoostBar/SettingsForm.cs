@@ -294,14 +294,15 @@ namespace BoostBar
         void BuildNetwork(Pane p)
         {
             p.Header("Taskbar");
-            p.Check("Show network speed graph", () => Prefs.ShowNetwork, v => Prefs.ShowNetwork = v);
+            p.Check("Show network speed", () => Prefs.ShowNetwork, v => Prefs.ShowNetwork = v);
             p.Popup("Display", new[] { "Graph and numbers", "Graph only", "Numbers only" }, () => Prefs.NetDisplay, i => Prefs.NetDisplay = i);
             p.Popup("Smallest unit", new[] { "KB/s and up", "MB/s and up" }, () => Prefs.NetUnit == Fmt.NetUnit.Mega ? 1 : 0, i => Prefs.NetUnit = i == 1 ? Fmt.NetUnit.Mega : Fmt.NetUnit.Auto);
-            p.Check("Show bits per second (Kb/s, Mb/s) instead of bytes", () => Prefs.UseBits, v => Prefs.UseBits = v);
-            p.Popup("Graphs", new[] { "One per connection", "One combined graph" }, () => Prefs.NetSplit ? 0 : 1, i => Prefs.NetSplit = i == 0);
+            p.Popup("Connections", new[] { "Separate (one each for LAN, Wi-Fi, …)", "Combined (all connections together)" }, () => Prefs.NetSplit ? 0 : 1, i => Prefs.NetSplit = i == 0);
             p.Dynamic(() => App.Shared?.NetworkSummary() ?? "");
-            p.Note("Hover over the graph for a 5-minute chart.");
-            p.Header("Trace Colors");
+            p.Header("Hover Graph");
+            p.Note("Hover over the network readout for a 5-minute chart: upload above, download below, with the totals sent and received. With separate connections, each one has its own chart.");
+            p.Header("Taskbar and Hover Graph");
+            p.Check("Show bits per second (Kb/s, Mb/s) instead of bytes", () => Prefs.UseBits, v => Prefs.UseBits = v);
             p.Popup("Preset", Palette.TracePresets.Select(t => t.Name).ToArray(),
                 () => Array.FindIndex(Palette.TracePresets, t => t.Up == Prefs.UpColorName && t.Down == Prefs.DownColorName),
                 i => { Prefs.UpColorName = Palette.TracePresets[i].Up; Prefs.DownColorName = Palette.TracePresets[i].Down; });
@@ -315,7 +316,9 @@ namespace BoostBar
             if (BatteryMonitor.HasBattery)
             {
                 p.Check("Show battery power (watts in / out)", () => Prefs.ShowBattery, v => Prefs.ShowBattery = v);
-                p.Note("Green IN = charging, orange OUT = running on battery. Hover for time to full / empty, cycle count, battery health and a 10-minute power chart.");
+                p.Note("Green IN = charging, orange OUT = running on battery.");
+                p.Header("Hover Graph");
+                p.Note("Hover over the battery readout for a 10-minute power chart — charging above, discharging below — with the time to full or empty, cycle count and battery health.");
             }
             else p.Note("No battery found on this PC, so the battery readout is hidden.");
         }
@@ -330,12 +333,14 @@ namespace BoostBar
                 v => Math.Abs(v) < 0.04 ? "Off" : (v < 0 ? "Dark " : "Light ") + (Math.Abs(v) * 100).ToString("0") + "%");
             p.Slider("Peak hold", 0, 10, () => Prefs.CpuPeakHold, v => Prefs.CpuPeakHold = v, v => v < 0.2 ? "Off" : v.ToString("0.0") + " s");
             p.Note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.");
-            p.Note("The meter is green at idle, through yellow and orange, to red at full load. Hover it for a 5-minute chart. Move it in General ▸ Taskbar Layout.");
+            p.Note("The meter is green at idle, through yellow and orange, to red at full load. Move it in General ▸ Taskbar Layout.");
+            p.Header("Hover Graph");
+            p.Note("Hover over the meter for a 5-minute chart of the load. It is sampled once a second whatever the update rate.");
         }
 
         void BuildDisks(Pane p)
         {
-            p.Header("Disk Activity Lights");
+            p.Header("Taskbar");
             p.Check("Show disk lights on the taskbar", () => Prefs.ShowDisks, v => Prefs.ShowDisks = v);
             p.Popup("LED size", Prefs.SizeNames, () => Prefs.LedSize, i => Prefs.LedSize = i);
             p.Popup("Blink duration", Prefs.LedDurations.Select(d => d + " ms").ToArray(), () => Math.Max(0, Array.IndexOf(Prefs.LedDurations, Prefs.LedDurationMs)), i => Prefs.LedDurationMs = Prefs.LedDurations[i]);
@@ -355,7 +360,9 @@ namespace BoostBar
                 p.Add(row);
                 p.Refreshers.Add(() => { c.Checked = Prefs.DiskEnabled(key); col.SelectedIndex = ColorIndex(Prefs.DiskColorName(key, isInternal)); });
             }
-            p.Note("USB flash drives and SD cards appear here when plugged in. Hover a light for volumes, free space and read/write speed.");
+            p.Note("USB flash drives and SD cards appear here when plugged in.");
+            p.Header("Hover Graph");
+            p.Note("Hover over a light for that drive's volumes, free space and read/write speed.");
         }
 
         void BuildEyes(Pane p)

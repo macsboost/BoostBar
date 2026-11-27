@@ -634,17 +634,19 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         // Network
         list.append(Pane(title: "Network", symbol: "network") { p in
             p.header("Menu Bar")
-            p.check("Show network speed graph", get: { Prefs.showNetwork }, set: { Prefs.showNetwork = $0; app.applySettings() })
+            p.check("Show network speed", get: { Prefs.showNetwork }, set: { Prefs.showNetwork = $0; app.applySettings() })
             p.popup("Display", items: ["Graph and numbers", "Graph only", "Numbers only"],
-                    get: { Prefs.netDisplay }, set: { Prefs.netDisplay = $0; app.applySettings() })
+                    get: { Prefs.netDisplay }, set: { Prefs.netDisplay = $0; app.applySettings(); p.refresh() })
             p.popup("Smallest unit", items: ["KB/s (steps up to MB/s, GB/s when faster)", "MB/s (steps up to GB/s when faster)"],
-                    get: { Prefs.netUnit == .mega ? 1 : 0 }, set: { Prefs.netUnit = $0 == 1 ? .mega : .auto; app.applySettings() })
-            p.check("Show bits per second (Kb/s, Mb/s) instead of bytes", get: { Prefs.useBits }, set: { Prefs.useBits = $0; app.applySettings() })
-            p.popup("Graphs", items: ["One combined graph (all connections)", "Separate graph per connection (LAN, Wi‑Fi, …)"],
+                    get: { Prefs.netUnit == .mega ? 1 : 0 }, set: { Prefs.netUnit = $0 == 1 ? .mega : .auto; app.applySettings() },
+                    enabled: { Prefs.netDisplay != 1 })       // the numbers' unit: nothing to set with the graph alone
+            p.popup("Connections", items: ["Combined (all connections together)", "Separate (one each for LAN, Wi‑Fi, …)"],
                     get: { Prefs.netSplit ? 1 : 0 }, set: { Prefs.netSplit = $0 == 1; app.applySettings() })
             p.label { app.networkSummary() }
-            p.note("Hover over the graph in the menu bar for a 5-minute chart.")
-            p.header("Trace Colors")
+            p.header("Hover Graph")
+            p.note("Hover over the network readout for a 5-minute chart: upload above, download below, with the totals sent and received and the Wi‑Fi network. With separate connections, each one has its own chart.")
+            p.header("Menu Bar and Hover Graph")
+            p.check("Show bits per second (Kb/s, Mb/s) instead of bytes", get: { Prefs.useBits }, set: { Prefs.useBits = $0; app.applySettings() })
             p.color("Upload", get: { Prefs.upColor }, set: { Prefs.upColor = $0; app.applySettings() })
             p.color("Download", get: { Prefs.downColor }, set: { Prefs.downColor = $0; app.applySettings() })
             let presets = Palette.tracePresets.map { preset in
@@ -664,7 +666,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                     get: { BatteryMonitor.hasBattery && Prefs.showBattery },
                     set: { Prefs.showBattery = $0; app.applySettings() },
                     enabled: { BatteryMonitor.hasBattery })
-            p.note("Green IN = charging, orange OUT = running on battery. Hover for time to full / empty and a 10-minute power chart.")
+            p.note("Green IN = charging, orange OUT = running on battery.")
+            p.header("Hover Graph")
+            p.note("Hover over the battery readout for a 10-minute power chart — charging above, discharging below — with the time to full or empty, cycle count and battery health.")
         })
 
         // CPU
@@ -690,14 +694,15 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
                      value: { $0 < 0.2 ? "Off" : String(format: "%g s", ($0 * 2).rounded() / 2) }, caption: "spectrum analyzer: how long each core's peak marker stays",
                      visible: { Prefs.cpuStyle == 1 })
             p.note("Damping is automatic: the needle and bars glide between readings, with a longer sweep at slow rates and a quicker one at fast rates. At 20 Hz and above the meter also redraws that often (up to 60 frames a second), which uses a little more power.")
-            p.divider()
-            p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Hover it for a 5-minute chart. It sits between the battery and the disk lights; move it in General ▸ Menu Bar Layout.")
+            p.note("The gauge reads all cores together: green at idle, through yellow and orange, to red at full boost. Move the meter in General ▸ Menu Bar Layout.")
+            p.header("Hover Graph")
+            p.note("Hover over the meter for a 5-minute chart — user load above, system below — with the busiest core. It is sampled once a second whatever the update rate.")
         })
 
         // Disks
         list.append(Pane(title: "Disks", symbol: "internaldrive") { [weak self] p in
             guard let self else { return }
-            p.header("Disk Activity Lights")
+            p.header("Menu Bar")
             p.check("Show disk lights in the menu bar", get: { app.diskSettings.showDisks },
                     set: { app.diskSettings.showDisks = $0; app.applySettings() })
             p.popup("LED size", items: Prefs.sizeNames,
@@ -709,7 +714,9 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             let t = DiskDrivesTable(monitor: app.disk, settings: app.diskSettings) { app.applySettings() }
             self.drivesTable = t
             p.custom(t.makeScrollView(), height: 200) { t.reload() }
-            p.note("USB flash drives and SD cards appear here when plugged in. Hover a light for volumes, free space and read/write speed.")
+            p.note("USB flash drives and SD cards appear here when plugged in.")
+            p.header("Hover Graph")
+            p.note("Hover over a light for that drive's read and write chart, with its volumes and free space.")
         })
 
         // Eyes
